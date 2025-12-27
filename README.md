@@ -62,7 +62,7 @@ The Basejump API can be found here: https://docs.basejump.ai/api/api-reference
 
 # Related Projects
 Basejump would not be possible without all of the open-source projects it is built on. The following are vital to the success of Basejump:
-- [Llama Index](https://github.com/run-llama/llama_index): For AI Data Agents
+- [Llama Index](https://github.com/run-llama/llama_index): For AI data agents
 - [SQLAlchemy](https://github.com/sqlalchemy/sqlalchemy): For database inspection and connections
 - [SQLGlot](https://github.com/tobymao/sqlglot): SQL query parsing
 
