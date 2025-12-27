@@ -12,7 +12,7 @@ authors = [
 ]
 requires-python = ">=3.11,<3.13"
 readme = "README.md"
-license = "O'Saasy"
+license = {file = "LICENSE.md"}
 dependencies = [
     # Analysis/Transformation
     "numpy>=1.25.2,<2.0.0",
