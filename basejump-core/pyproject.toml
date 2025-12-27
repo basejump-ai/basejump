@@ -1,0 +1,98 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+
+[project]
+name = "basejump-core"
+version = "0.30.3"
+description = "Text-to-SQL tool to chat with your database"
+authors = [
+    { name = "Andreas Martinson", email = "andreas.martinson@basejump.ai" },
+]
+requires-python = ">=3.11,<3.13"
+readme = "README.md"
+license = "MIT"
+dependencies = [
+    # Analysis/Transformation
+    "numpy>=1.25.2,<2.0.0",
+    "pandas>=2.0.3,<3.0.0",
+    "sqlmesh>=0.174.0",
+
+    # AWS
+    "aioboto3>=13.2.0",
+    "boto3>=1.35.0",
+
+    # Database
+    "SQLAlchemy>=2.0.23",
+    "psycopg2-binary>=2.9.9",
+    "asyncpg>=0.29.0",
+    "PyAthena>=3.18.0",
+    "snowflake-sqlalchemy>=1.7.3",
+    "snowflake-connector-python>=3.14.0",
+
+    # Vector Database/Queuing
+    "redis==5.0.3",
+    "aioredis==2.0.1",
+    "hiredis==2.3.2",
+    "redisvl==0.4.1",
+    "redshift-connector>=2.1.3",
+    "rq==2.1.0",
+
+    # Utilities
+    "aiohttp>=3.11.0",
+    "requests>=2.32.0",
+    "python-dotenv>=1.0.0",
+    "pydantic>=2.11.0",
+    "python-jose==3.3.0",
+    "python-multipart==0.0.6",
+    "httpx==0.25.2",
+    "fastapi>=0.124.0",
+
+    # AI - OpenAI
+    "openai==1.76.2",
+    "sentence-transformers==3.4.1",
+
+    # AI - Basejump LlamaIndex
+    "basejump-llama-index-vector-stores-redis==0.5.1.post1",
+    "basejump-llama-index-embeddings-azure-openai==0.3.2.post1",
+    "basejump-llama-index-llms-azure-openai==0.3.2.post1",
+    "basejump-llama-index-embeddings-openai==0.3.1.post1",
+    "basejump-llama-index-llms-openai==0.3.39.post1",
+    "basejump-llama-index-llms-bedrock-converse==0.5.0.post1",
+    "basejump-llama-index-program-openai==0.3.1.post1",
+    "basejump-llama-index-agent-openai==0.4.7.post1",
+    "basejump-chat2plot==0.0.11.post1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black>=25",
+    "mypy>=1.15.0",
+    "pytest>=9",
+    "pytest-asyncio>=0.21.0",
+    "anyio>=3.7.1",
+    "pandas-stubs>=1.5.2.221213",
+    "boto3-stubs>=1.35.74",
+    "botocore-stubs>=1.35.73",
+    "lxml-stubs>=0.4.0",
+    "types-psycopg2",
+    "types-requests>=2.28.11.8",
+    "types-cachetools>=5.5.0.20240820",
+    "types-aioboto3>=13.2.0.post2",
+    "pre_commit>=4.5.0"
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["basejump"]
+
+[tool.codespell]
+check-filenames = true
+check-hidden = true
+skip = "*.csv,*.html,*.json,*.jsonl,*.pdf,*.txt,*.ipynb,requirements.txt,vector_idx_html.*,scripts/*"
+
+[tool.black]
+line-length = 119
+
+[tool.ruff]
+line-length = 119

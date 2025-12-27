@@ -1,0 +1,35 @@
+services:
+  db:
+    container_name: postgres
+    image: postgres:latest
+    restart: always
+    environment:
+      POSTGRES_USER: ${LOCAL_DB_USER}
+      POSTGRES_PASSWORD: ${LOCAL_DB_PASSWORD}
+      POSTGRES_DB: ${LOCAL_DB_NAME}
+    ports:
+      - "${LOCAL_DB_PORT}:5432"
+  app:
+    container_name: python_app
+    build: .
+    # Mount the volume for quick editing of files in the demo
+    volumes:
+      - .:/app
+    depends_on:
+      - db
+      - cache
+    env_file:
+      - .env
+    stdin_open: true
+    tty: true
+  cache:
+    container_name: redis
+    image: redis/redis-stack-server:latest
+    restart: always
+    ports:
+      - '6379:6379'
+    volumes:
+      - cache:/data
+volumes:
+  cache:
+    driver: local

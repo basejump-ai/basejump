@@ -1,0 +1,41 @@
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0  # Use the ref you want to point at
+    hooks:
+    - id: check-added-large-files
+      args: [--maxkb=1500]
+    - id: check-merge-conflict
+    - id: check-yaml
+    - id: detect-private-key
+    - id: trailing-whitespace
+-   repo: https://github.com/psf/black
+    rev: 23.11.0
+    hooks:
+    - id: black
+      args: ["-l", "119"]
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  # Ruff version.
+  rev: v0.1.7
+  hooks:
+  # Run the linter.
+  - id: ruff
+    args: [ --fix ]
+    verbose: true
+    files: basejump*
+    exclude: basejump-core/alembic
+-   repo: https://github.com/PyCQA/flake8
+    rev: 6.1.0
+    hooks:
+    -   id: flake8
+        files: basejump*
+        exclude: basejump-core/alembic
+- repo: https://github.com/codespell-project/codespell
+  rev: v2.3.0
+  hooks:
+    - id: codespell
+- repo: https://github.com/PyCQA/isort
+  rev: 5.13.2
+  hooks:
+    - id: isort
+      files: basejump*
+      args: ["--profile", "black"]
