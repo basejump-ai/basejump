@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "basejump-core"
-version = "0.30.4"
+version = "0.30.6"
 description = "Text-to-SQL tool to chat with your database"
 authors = [
     { name = "Andreas Martinson", email = "andreas.martinson@basejump.ai" },

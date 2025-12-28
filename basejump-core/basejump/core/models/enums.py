@@ -206,18 +206,6 @@ class AIModelType(StrEnum):
     EMBEDDING = "embedding"
 
 
-class AIDeployments(StrEnum):
-    AZURE_WESTUS3 = "azure_westus3"
-    AZURE_WESTUS = "azure_westus"
-    AZURE_EASTUS = "azure_eastus"
-    AZURE_EASTUS2 = "azure_eastus2"
-    AZURE_NORTHCENTRALUS = "azure_northcentralus"
-    AZURE_SOUTHCENTRALUS = "azure_southcentralus"
-    AWS_WESTUS2 = "us-west-2"
-    AWS_EASTUS = "us-east-1"
-    AWS_EASTUS2 = "us-east-2"
-
-
 class RedisHashKeys(StrEnum):
     DB_REINDEX_STATUS_KEY = "db_reindex_status"  # Key to use for when DB is currently indexing
     DB_INDEX_STATUS_KEY = "db_index_status"  # Key to use for when DB is currently indexing
