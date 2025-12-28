@@ -96,3 +96,6 @@ line-length = 119
 
 [tool.ruff]
 line-length = 119
+
+[tool.setuptools.package-data]
+"basejump.core" = ["py.typed"]
