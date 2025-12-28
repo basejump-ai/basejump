@@ -76,6 +76,7 @@ async def run_main():
             small_model_info=settings.small_model_info,
             sql_engine=settings.sql_engine,
         )
+        await redis_client_async.aclose()
 
         # ==== Add a connection to a team ====
         await service.add_connection_to_team(
@@ -114,6 +115,7 @@ async def run_main():
             small_model_info=settings.small_model_info,
             client_llm=settings.LLM,
         )
+        await redis_client_async.aclose()
         # Here is the LLM response
         logger.info(chat_result.content)
         # Here is the SQL query that was ran

@@ -41,7 +41,6 @@ async def run_session(client_id: int):
         logger.error(e)
         await db.rollback()
         raise e
-    await settings.redis_client_async.aclose()
 
 
 async def create_client(
