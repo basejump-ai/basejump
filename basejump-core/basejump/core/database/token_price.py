@@ -3,11 +3,12 @@ from decimal import Decimal
 from typing import Optional
 
 import requests
+from cachetools import TTLCache, cached
+from llama_index.core.callbacks.token_counting import TokenCountingEvent
+
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.models import enums
 from basejump.core.models import schemas as sch
-from cachetools import TTLCache, cached
-from llama_index.core.callbacks.token_counting import TokenCountingEvent
 
 logger = set_logging(handler_option="stream", name=__name__)
 cache = TTLCache(maxsize=100, ttl=60 * 60 * 24)  # type: ignore
@@ -63,10 +64,11 @@ def get_model_cost(model: Optional[str], type_: enums.AIModelType) -> tuple[Deci
         ai_model_provider = enums.AIModelProvider.AZURE_OPENAI.value
     elif enums.AIModelSchema.ADA3_SMALL.value in model:
         # TODO: Add azure pricing query for ADA3 small
-        cost_per_1k_tokens_input = enums.DefaultTokenPrices.ADA3_SMALL.value
-        cost_per_1k_tokens_output = enums.DefaultTokenPrices.ADA3_SMALL.value
-        model = enums.AIModelSchema.ADA3_SMALL.value
-        ai_model_provider = enums.AIModelProvider.AZURE_OPENAI.value
+        # cost_per_1k_tokens_input = enums.DefaultTokenPrices.ADA3_SMALL.value
+        # cost_per_1k_tokens_output = enums.DefaultTokenPrices.ADA3_SMALL.value
+        # model = enums.AIModelSchema.ADA3_SMALL.value
+        # ai_model_provider = enums.AIModelProvider.AZURE_OPENAI.value
+        pass
     elif enums.AIModelSchema.ADA.value in model:
         cost_per_1k_tokens_input = get_azure_pricing(query=enums.AzurePricingQueries.ADA)
         cost_per_1k_tokens_output = Decimal(0)
