@@ -24,6 +24,8 @@ files/
 
 # Cache files
 *__pycache__*
+.mypy_cache/
+# .pytest_cache/
 
 # Testmon
 .testmondata
