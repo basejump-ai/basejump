@@ -64,11 +64,10 @@ def get_model_cost(model: Optional[str], type_: enums.AIModelType) -> tuple[Deci
         ai_model_provider = enums.AIModelProvider.AZURE_OPENAI.value
     elif enums.AIModelSchema.ADA3_SMALL.value in model:
         # TODO: Add azure pricing query for ADA3 small
-        # cost_per_1k_tokens_input = enums.DefaultTokenPrices.ADA3_SMALL.value
-        # cost_per_1k_tokens_output = enums.DefaultTokenPrices.ADA3_SMALL.value
-        # model = enums.AIModelSchema.ADA3_SMALL.value
-        # ai_model_provider = enums.AIModelProvider.AZURE_OPENAI.value
-        pass
+        cost_per_1k_tokens_input = enums.DefaultTokenPrices.ADA3_SMALL.value
+        cost_per_1k_tokens_output = enums.DefaultTokenPrices.ADA3_SMALL.value
+        model = enums.AIModelSchema.ADA3_SMALL.value
+        ai_model_provider = enums.AIModelProvider.AZURE_OPENAI.value
     elif enums.AIModelSchema.ADA.value in model:
         cost_per_1k_tokens_input = get_azure_pricing(query=enums.AzurePricingQueries.ADA)
         cost_per_1k_tokens_output = Decimal(0)
