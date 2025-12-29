@@ -198,6 +198,8 @@ class DefaultTokenPrices(Enum):
     GROQ_70B_llama_output = Decimal(0.79 / 1000)
     GPT4o_input = Decimal(0.005)
     GPT4o_output = Decimal(0.015)
+    GPT41_input = Decimal(0.002)
+    GPT41_output = Decimal(0.008)
     ADA = Decimal(0.0001)
 
 

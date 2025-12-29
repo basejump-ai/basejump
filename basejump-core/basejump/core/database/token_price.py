@@ -19,6 +19,7 @@ cache = TTLCache(maxsize=100, ttl=60 * 60 * 24)  # type: ignore
 @cached(cache)
 def get_azure_pricing(query: enums.AzurePricingQueries) -> Decimal:
     try:
+        # TODO: API version needs to be based on the model being passed in
         API_URL = "https://prices.azure.com/api/retail/prices?api-version=2023-01-01-preview"
         response = requests.get(API_URL, params={"$filter": query.value})
         json_data = json.loads(response.text)
@@ -28,7 +29,7 @@ def get_azure_pricing(query: enums.AzurePricingQueries) -> Decimal:
         assert price
     # If there is an error, then default to the default manually set prices
     except Exception:
-        logger.warning("Azure price not found. Defaulting to latest GPT-4 price")
+        logger.warning("Azure price not found. Defaulting to latest GPT-41 price")
         if query == enums.AzurePricingQueries.GPT4o_input:
             price = enums.DefaultTokenPrices.GPT4o_input.value
         elif query == enums.AzurePricingQueries.GPT4o_output:
@@ -36,18 +37,29 @@ def get_azure_pricing(query: enums.AzurePricingQueries) -> Decimal:
         elif query == enums.AzurePricingQueries.ADA:
             price = enums.DefaultTokenPrices.ADA.value
         else:
-            price = enums.DefaultTokenPrices.GPT4o_output.value
+            price = enums.DefaultTokenPrices.GPT41_output.value
     return price
 
 
 def get_model_cost(model: Optional[str], type_: enums.AIModelType) -> tuple[Decimal, Decimal, str, str]:
-    DEFAULT_LLM_MODEL = enums.AIModelSchema.GPT4o.value
+    DEFAULT_LLM_MODEL = enums.AIModelSchema.GPT41.value
     DEFAULT_EMBED_MODEL = enums.AIModelSchema.ADA.value
     DEFAULT_MODEL = DEFAULT_EMBED_MODEL if type_ == enums.AIModelType.EMBEDDING else DEFAULT_LLM_MODEL
 
     if not model:
         logger.warning(f"Missing model needed for token count. Defaulting to {DEFAULT_MODEL}")
         return get_model_cost(model=DEFAULT_MODEL, type_=type_)
+    # HACK: Replacing periods in GPT4.1 with nothing to match model from llama index
+    elif enums.AIModelSchema.GPT41.value in model.replace(".", ""):
+        try:
+            cost_per_1k_tokens_input = get_azure_pricing(query=enums.AzurePricingQueries.GPT41_input)
+            cost_per_1k_tokens_output = get_azure_pricing(query=enums.AzurePricingQueries.GPT41_output)
+        except Exception:
+            logger.warning("Azure query failed/not implemented. Using default token prices for GPT4.1")
+            cost_per_1k_tokens_input = enums.DefaultTokenPrices.GPT41_input.value
+            cost_per_1k_tokens_output = enums.DefaultTokenPrices.GPT41_output.value
+        model = enums.AIModelSchema.GPT41.value
+        ai_model_provider = enums.AIModelProvider.AZURE_OPENAI.value
     elif enums.AIModelSchema.GPT4o.value in model:
         cost_per_1k_tokens_input = get_azure_pricing(query=enums.AzurePricingQueries.GPT4o_input)
         cost_per_1k_tokens_output = get_azure_pricing(query=enums.AzurePricingQueries.GPT4o_output)
