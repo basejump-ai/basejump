@@ -51,13 +51,9 @@ def get_model_cost(model: Optional[str], type_: enums.AIModelType) -> tuple[Deci
         return get_model_cost(model=DEFAULT_MODEL, type_=type_)
     # HACK: Replacing periods in GPT4.1 with nothing to match model from llama index
     elif enums.AIModelSchema.GPT41.value in model.replace(".", ""):
-        try:
-            cost_per_1k_tokens_input = get_azure_pricing(query=enums.AzurePricingQueries.GPT41_input)
-            cost_per_1k_tokens_output = get_azure_pricing(query=enums.AzurePricingQueries.GPT41_output)
-        except Exception:
-            logger.warning("Azure query failed/not implemented. Using default token prices for GPT4.1")
-            cost_per_1k_tokens_input = enums.DefaultTokenPrices.GPT41_input.value
-            cost_per_1k_tokens_output = enums.DefaultTokenPrices.GPT41_output.value
+        # TODO: Implement the azure pricing queries for GPT 4.1 instead of the manually input default token prices
+        cost_per_1k_tokens_input = enums.DefaultTokenPrices.GPT41_input.value
+        cost_per_1k_tokens_output = enums.DefaultTokenPrices.GPT41_output.value
         model = enums.AIModelSchema.GPT41.value
         ai_model_provider = enums.AIModelProvider.AZURE_OPENAI.value
     elif enums.AIModelSchema.GPT4o.value in model:
@@ -65,14 +61,19 @@ def get_model_cost(model: Optional[str], type_: enums.AIModelType) -> tuple[Deci
         cost_per_1k_tokens_output = get_azure_pricing(query=enums.AzurePricingQueries.GPT4o_output)
         model = enums.AIModelSchema.GPT4o.value
         ai_model_provider = enums.AIModelProvider.AZURE_OPENAI.value
-
+    elif enums.AIModelSchema.ADA3_SMALL.value in model:
+        # TODO: Add azure pricing query for ADA3 small
+        cost_per_1k_tokens_input = enums.DefaultTokenPrices.ADA3_SMALL.value
+        cost_per_1k_tokens_output = enums.DefaultTokenPrices.ADA3_SMALL.value
+        model = enums.AIModelSchema.ADA3_SMALL.value
+        ai_model_provider = enums.AIModelProvider.AZURE_OPENAI.value
     elif enums.AIModelSchema.ADA.value in model:
-        # TODO: Check if Groq has an API for real-time API costs
         cost_per_1k_tokens_input = get_azure_pricing(query=enums.AzurePricingQueries.ADA)
         cost_per_1k_tokens_output = Decimal(0)
         model = enums.AIModelSchema.ADA.value
         ai_model_provider = enums.AIModelProvider.AZURE_OPENAI.value
     elif enums.AIModelSchema.GROQ.value in model:
+        # TODO: Check if Groq has an API for real-time API costs
         cost_per_1k_tokens_input = enums.DefaultTokenPrices.GROQ_70B_llama_input.value
         cost_per_1k_tokens_output = enums.DefaultTokenPrices.GROQ_70B_llama_output.value
         model = enums.AIModelSchema.GROQ.value

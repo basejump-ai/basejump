@@ -201,6 +201,7 @@ class DefaultTokenPrices(Enum):
     GPT41_input = Decimal(0.002)
     GPT41_output = Decimal(0.008)
     ADA = Decimal(0.0001)
+    ADA3_SMALL = Decimal(0.000022)
 
 
 class AIModelType(StrEnum):
