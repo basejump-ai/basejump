@@ -9,14 +9,15 @@ import json
 import uuid
 from typing import Optional, Sequence
 
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from sqlalchemy.orm import Session, joinedload, selectinload
+
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.crud import crud_table, crud_utils
 from basejump.core.database.db_connect import ConnectDB, LocalSession, TableManager
 from basejump.core.models import errors, models
 from basejump.core.models import schemas as sch
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
-from sqlalchemy.orm import Session, joinedload, selectinload
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -196,7 +197,7 @@ async def update_connection_schemas(
                         )
 
                 updated_schemas.append(connection_schema)
-        logger.debug("Here is the connection type:", type(connection))
+        logger.debug("Here is the connection type:", str(type(connection)))
         connection.schemas = updated_schemas
 
 

@@ -198,24 +198,15 @@ class DefaultTokenPrices(Enum):
     GROQ_70B_llama_output = Decimal(0.79 / 1000)
     GPT4o_input = Decimal(0.005)
     GPT4o_output = Decimal(0.015)
+    GPT41_input = Decimal(0.002)
+    GPT41_output = Decimal(0.008)
     ADA = Decimal(0.0001)
+    ADA3_SMALL = Decimal(0.000022)
 
 
 class AIModelType(StrEnum):
     LLM = "llm"
     EMBEDDING = "embedding"
-
-
-class AIDeployments(StrEnum):
-    AZURE_WESTUS3 = "azure_westus3"
-    AZURE_WESTUS = "azure_westus"
-    AZURE_EASTUS = "azure_eastus"
-    AZURE_EASTUS2 = "azure_eastus2"
-    AZURE_NORTHCENTRALUS = "azure_northcentralus"
-    AZURE_SOUTHCENTRALUS = "azure_southcentralus"
-    AWS_WESTUS2 = "us-west-2"
-    AWS_EASTUS = "us-east-1"
-    AWS_EASTUS2 = "us-east-2"
 
 
 class RedisHashKeys(StrEnum):

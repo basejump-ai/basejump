@@ -89,8 +89,7 @@ class Client(Base):
             values_callable=lambda enum: [e.value for e in enum],
             name="aimodelschemas",
         ),
-        # server_default=text(enums.AIModelSchemaClientOptions.GPT4o.value),
-        server_default=text(f"'{enums.AIModelSchemaClientOptions.GPT4o.value}'"),
+        server_default=text(f"'{enums.AIModelSchemaClientOptions.GPT41.value}'"),
     )
     timestamp: Mapped[datetime] = mapped_column(server_default=func.now())
     connections: Mapped[list["Connection"]] = relationship(
@@ -499,10 +498,12 @@ class SavedResultHistory(Base):
         ForeignKeyConstraint(
             ["client_id", "result_id"],
             ["ai_model.result_history.client_id", "ai_model.result_history.result_id"],
+            ondelete="CASCADE",
         ),
         ForeignKeyConstraint(
             ["client_id", "visual_result_id"],
             ["ai_model.visual_result_history.client_id", "ai_model.visual_result_history.visual_result_id"],
+            ondelete="CASCADE",
         ),
         {"schema": "ai_model"},
     )

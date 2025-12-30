@@ -15,6 +15,14 @@ from typing import Callable, Optional, Type, Union
 import psycopg2
 import ruamel.yaml
 import sqlalchemy as sa
+from cryptography.fernet import Fernet
+from jinja2 import Environment, TemplateSyntaxError, meta
+from sqlalchemy import URL, Engine, create_engine, text
+from sqlalchemy.engine import Row
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
+from sqlalchemy.sql.elements import quoted_name
+
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.inspector import (
     athena,
@@ -28,13 +36,6 @@ from basejump.core.database.inspector import (
 from basejump.core.models import constants, enums, errors
 from basejump.core.models import schemas as sch
 from basejump.core.models.models import Base, DBConn, DBParams
-from cryptography.fernet import Fernet
-from jinja2 import Environment, TemplateSyntaxError, meta
-from sqlalchemy import URL, Engine, create_engine, text
-from sqlalchemy.engine import Row
-from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
-from sqlalchemy.pool import NullPool
-from sqlalchemy.sql.elements import quoted_name
 
 TABLE_PROFILING_TIME_LIMIT = 60 * 3
 
@@ -869,7 +870,7 @@ class ConnectDB:
                     invalid_schemas = errors.InvalidSchemas(non_perm_schemas=non_perm_schemas)
                     logger.error("Invalid schemas %s", str(invalid_schemas))
                     raise invalid_schemas
-                logger.info("Schemas successfully verified")
+                logger.info("The following schemas successfully verified: %s", schemas)
         finally:
             mng_tables.dispose_engine()
 

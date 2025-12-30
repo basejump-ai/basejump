@@ -10,6 +10,9 @@ from typing import Optional
 import boto3
 import pandas as pd
 import sqlalchemy as sa
+from botocore.exceptions import ClientError
+from fastapi import UploadFile
+
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.crud import crud_connection
 from basejump.core.database.db_connect import ConnectDB
@@ -17,8 +20,6 @@ from basejump.core.database.format_response import JSONResponseFormatter
 from basejump.core.models import constants, enums, errors
 from basejump.core.models import pydantic_ai_formats as fmt
 from basejump.core.models import schemas as sch
-from botocore.exceptions import ClientError
-from fastapi import UploadFile
 
 RESULT_PREVIEW_CT = 100
 PREVIEW_SUFFIX = "_preview"
@@ -418,17 +419,18 @@ Metric Value: {self.metric_value}\n
         table_suffix = str(copy.copy(self.result_uuid)).replace("-", "_")
         table_location = get_s3_folder_path(prefix=self.prefix, bucket_name=self.bucket_name)
         table_name = f"default.uploaded_table_{table_suffix}"
-        create_table = f"""
-    CREATE EXTERNAL TABLE IF NOT EXISTS {table_name} (
-    {", ".join(f"{str(column)} {dtype}" for column, dtype in schema.items())}
-    )
-    ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe'
-    WITH SERDEPROPERTIES ('field.delim' = ',')
-    STORED AS INPUTFORMAT 'org.apache.hadoop.mapred.TextInputFormat' OUTPUTFORMAT \
-    'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat'
-    LOCATION '{table_location}'
-    TBLPROPERTIES ('classification' = 'csv','skip.header.line.count'='1');"""
-
+        # TODO: Doesn't handle headers that are integers. Will get botocore.errorfactory.InvalidRequestException error.
+        # Surround cols in backticks.
+        create_table = f"""\
+CREATE EXTERNAL TABLE IF NOT EXISTS {table_name} (
+{", ".join(f"{str(column)} {dtype}" for column, dtype in schema.items())}
+)
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe'
+WITH SERDEPROPERTIES ('field.delim' = ',')
+STORED AS INPUTFORMAT 'org.apache.hadoop.mapred.TextInputFormat' OUTPUTFORMAT \
+'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat'
+LOCATION '{table_location}'
+TBLPROPERTIES ('classification' = 'csv','skip.header.line.count'='1');"""
         query_execution = self.athena_client.start_query_execution(
             QueryString=create_table, ResultConfiguration={"OutputLocation": f"s3://{self.bucket_name}/query_outputs"}
         )
