@@ -1,6 +1,9 @@
 import uuid
 from typing import Sequence
 
+from redis.asyncio import Redis as RedisAsync
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database import db_utils
 from basejump.core.database.crud import crud_connection, crud_table, crud_utils
@@ -8,8 +11,6 @@ from basejump.core.database.db_connect import ConnectDB, TableManager
 from basejump.core.database.index import DBTableIndexer
 from basejump.core.models import errors, models
 from basejump.core.models import schemas as sch
-from redis.asyncio import Redis as RedisAsync
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -48,7 +49,34 @@ class DBManager:
         conn_db = await crud_connection.get_conndb_from_connection(
             db_params=self.db_params, connection=self.connections[0]
         )
+        # NOTE: Not validating schemas since we are doing it manually in the next step.
+        # If very schemas was set to true, that would mean
         await crud_connection.verify_connection(conn_db=conn_db)
+
+    # TODO: Create a master connection which has access to everything needed so you don't have to iterate over all
+    # connections to find if the schema is able to connect
+    async def validate_new_db_schema(self, schema: sch.DBSchema) -> None:
+        """Finds if at least 1 connection is valid for a new schema."""
+        valid_schema = False
+        for connection in self.connections:
+            logger.debug("Checking this connection: %s", connection)
+            logger.debug("Checking this schema: %s", schema)
+            conn_db = await crud_connection.get_conndb_from_connection(db_params=self.db_params, connection=connection)
+            conn_db.conn_params.schemas = [schema]
+            # NOTE: Only 1 schema needs to be valid to add the schema to the database list of accepted schemas
+            try:
+                await crud_connection.verify_connection(conn_db=conn_db)
+                logger.debug("Schema is valid for this connection")
+                valid_schema = True
+                break
+            except errors.InvalidSchemas:
+                pass
+        if not valid_schema:
+            logger.error("Not one connection in the database can connect to the schema: %s", schema)
+            db_schemas = set([schema.schema_nm for schema in self.db_params.schemas])
+            invalid_schemas = errors.InvalidSchemas(str(db_schemas))
+            raise invalid_schemas
+        logger.info("Able to connect to new schema: %s", schema)
 
     async def validate_db_alias(self):
         # Ensure no duplicate alias names excluding the current alias in database
@@ -74,9 +102,16 @@ class DBManager:
             embedding_model_info=self.embedding_model_info,
         )
 
-    async def update_schemas(self) -> list[str]:
-        # Determine if there are new schemas
-        tables = [sch.GetSQLTable.from_orm(table) for table in self.database.tables]
+    async def update_schemas(self, fetch_latest_tables: bool = False) -> list[str]:
+        """Determine if there are new schemas. If there are and there is a schema map, update
+        connections with matching schema maps.
+        """
+
+        if fetch_latest_tables:
+            database = await crud_connection.get_database_params(db=self.db, db_uuid=self.db_uuid, get_tables=True)
+        else:
+            database = self.database
+        tables = [sch.GetSQLTable.from_orm(table) for table in database.tables]
         tables_formatted = await db_utils.process_db_tables(tables=tables)
         schemas = {table.table_schema for table in tables_formatted}
         logger.debug("Here are the schemas: %s", schemas)
@@ -84,20 +119,21 @@ class DBManager:
         logger.debug("Here are the DB schemas: %s", db_schemas)
         new_schemas = db_schemas - schemas
         updated_schemas = False
-        brand_new_schemas = set()
         for new_schema in new_schemas:
             for schema_map in self.db_params.schema_maps:
                 if new_schema == schema_map.new_schema:
                     updated_schemas = True
-                else:
-                    brand_new_schemas.add(new_schema)
         if updated_schemas:
             logger.info("Updated schemas detected: %s", new_schemas)
         index_db_tables = await self.get_index_db_tables()
         logger.debug("Updating the index for: %s", str(index_db_tables.vector_uuid))
+        # Verify each schema + connection
+        # TODO: If there was a master connection, then only 1 connection would need to be checked
+        connections = await crud_connection.get_db_conns(db=self.db, db_id=self.db_id)
+
         if updated_schemas:
+            # Map schemas to existing schemas
             if self.db_params.schema_maps:
-                connections = await crud_connection.get_db_conns(db=self.db, db_id=self.db_id)
                 await crud_connection.update_connection_schemas(
                     db_params=self.db_params, schema_maps=self.db_params.schema_maps, connections=list(connections)
                 )
@@ -106,7 +142,7 @@ class DBManager:
                 tables=tables_formatted,
                 index_db_tables=index_db_tables,
             )
-        return list(brand_new_schemas)
+        return list(new_schemas)
 
     async def update_db(self) -> sch.GetDBParams:
         if not self.db_params.database_name_alias:
@@ -198,9 +234,15 @@ class DBManager:
             tables=tables_w_new_schema, redis_client_async=self.redis_client_async
         )
 
-    async def check_for_updated_tables(self, connections: list[sch.SQLConnSchema]) -> list[sch.SQLTable]:
+    async def check_for_updated_tables(
+        self, connections: list[sch.SQLConnSchema], fetch_latest_tables: bool = False
+    ) -> list[sch.SQLTable]:
+        if fetch_latest_tables:
+            database = await crud_connection.get_database_params(db=self.db, db_uuid=self.db_uuid, get_tables=True)
+        else:
+            database = self.database
         # Identify new tables
-        prior_tables_base = [sch.GetSQLTable.from_orm(table) for table in self.database.tables]
+        prior_tables_base = [sch.GetSQLTable.from_orm(table) for table in database.tables]
         logger.debug("Here are the prior_tables_base: %s", prior_tables_base)
         prior_tables = await db_utils.process_db_tables(tables=prior_tables_base)
         distinct_prior_table_names = {table.full_table_name.lower() for table in prior_tables}
