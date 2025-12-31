@@ -792,7 +792,7 @@ class ConnectDB:
         """Create a database URI"""
         query = self.conn_params.query or {}
         if self.conn_params.database_type == enums.DatabaseType.SQL_SERVER:
-            query["driver"] = os.environ["SQL_SERVER_ODBC_DRIVER"]
+            query["driver"] = os.getenv("SQL_SERVER_ODBC_DRIVER") or "ODBC Driver 18 for SQL Server"
         elif self.conn_params.database_type == enums.DatabaseType.ATHENA:
             try:
                 assert query[constants.ATHENA_STAGING_DIR_NAME]

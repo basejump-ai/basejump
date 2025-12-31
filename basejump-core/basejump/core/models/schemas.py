@@ -7,8 +7,6 @@ from typing import Any, Callable, Dict, Literal, Optional, Union
 
 import pandas as pd
 import sqlalchemy as sa
-from basejump.core.common.config.logconfig import set_logging
-from basejump.core.models import constants, enums
 from llama_index.core.callbacks import (
     CallbackManager,
     LlamaDebugHandler,
@@ -19,6 +17,9 @@ from llama_index.core.objects import SQLTableSchema
 from llama_index.core.vector_stores.types import BasePydanticVectorStore
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from basejump.core.common.config.logconfig import set_logging
+from basejump.core.models import constants, enums
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -123,8 +124,8 @@ This is not partitioned tables, but rather the parent table that is being partit
 
 
 class DBParamsSchema(DBParamsSchemaBase):
-    drivername: Union[enums.DBDriverName, enums.DBAsyncDriverName] = Field(
-        examples=["postgresql"], description="The SQLAlchemy drivername."
+    drivername: Union[enums.DBDriverName, enums.DBAsyncDriverName] = (
+        Field(examples=["postgresql"], description="The SQLAlchemy drivername."),
     )
 
 

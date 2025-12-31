@@ -27,10 +27,11 @@ files/
 .mypy_cache/
 .pytest_cache/
 
-# Testmon
+# Testing/Testmon
 .testmondata
 .testmondata-shm
 .testmondata-wal
+coverage.sh
 
 # Packaging
 dist/

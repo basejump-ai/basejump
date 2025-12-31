@@ -7,19 +7,6 @@ import uuid
 from typing import Optional
 
 import redis
-from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database import db_utils, query
-from basejump.core.database.aicatalog import AICatalog
-from basejump.core.database.crud import crud_connection, crud_table
-from basejump.core.database.db_connect import POOL_TIMEOUT, TableManager
-from basejump.core.database.format_response import JSONResponseFormatter
-from basejump.core.database.vector_utils import get_vector_idx
-from basejump.core.models import constants, enums, errors
-from basejump.core.models import pydantic_ai_formats as fmt
-from basejump.core.models import schemas as sch
-from basejump.core.models.prompts import DB_METADATA_PROMPT, ZERO_ROW_PROMPT
-from basejump.core.service import service_utils
-from basejump.core.service.base import BaseChatAgent, ChatMessageHandler
 from llama_index.core import VectorStoreIndex
 from llama_index.core.chat_engine import SimpleChatEngine
 from llama_index.core.indices.struct_store.sql_retriever import SQLTableRetriever
@@ -38,6 +25,20 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlglot import errors as sqlglot_errors
 from sqlglot import exp, parse_one
 from sqlglot.dialects.dialect import Dialects
+
+from basejump.core.common.config.logconfig import set_logging
+from basejump.core.database import db_utils, query
+from basejump.core.database.aicatalog import AICatalog
+from basejump.core.database.crud import crud_connection, crud_table
+from basejump.core.database.db_connect import POOL_TIMEOUT, TableManager
+from basejump.core.database.format_response import JSONResponseFormatter
+from basejump.core.database.vector_utils import get_vector_idx
+from basejump.core.models import constants, enums, errors
+from basejump.core.models import pydantic_ai_formats as fmt
+from basejump.core.models import schemas as sch
+from basejump.core.models.prompts import DB_METADATA_PROMPT, ZERO_ROW_PROMPT
+from basejump.core.service import service_utils
+from basejump.core.service.base import BaseChatAgent, ChatMessageHandler
 
 logger = set_logging(handler_option="stream", name=__name__)
 TIMEOUT = 60 * 15
@@ -66,6 +67,7 @@ class SQLTool:
         large_model_info: sch.ModelInfo,
         small_model_info: sch.ModelInfo,
         embedding_model_info: sch.AzureModelInfo,
+        select_sample_values: bool = False,
     ):
         self.agent = agent
         self.db = db
@@ -93,6 +95,7 @@ class SQLTool:
         self.sql_engine = sql_engine
         self.redis_client_async = redis_client_async
         self.stuck_in_loop_ct = 0
+        self.select_sample_values = select_sample_values  # TODO: Move this option upstream into the data_agent
 
     async def post_init(self):
         loaded_sql_tool = await self._get_sql_tables_tool()
@@ -716,7 +719,6 @@ Values: {values}\n\n"""
         logger.info("Here is the initial SQL query: %s", initial_sql_query)
         self.sql_query_created = True
         # Explain plan
-        columns, sample_values = await self.get_select_sample_values(sql_query=initial_sql_query)
         initial_instructions = f"""
 Before executing a SQL query, you need to make a plan. Do the following:
 - Identify the filters for the query based on the initial user prompt: {self.prompt_metadata.initial_prompt}. \
@@ -727,9 +729,11 @@ every filter the user has given enough context and defined it clearly. If you ar
 may be referring to, ask the user a clarifying question before proceeding. Do not ask the user for the column name.
 - The plan should be formatted as == Plan ==, followed by plan bullet points."""
         intermediate_instructions = ""
-        if sample_values and columns:
-            intermediate_instructions = f"""\n- Here are some sample values for the columns selected \
-in your query: {sample_values}\n"""
+        if self.select_sample_values:
+            columns, sample_values = await self.get_select_sample_values(sql_query=initial_sql_query)
+            if sample_values and columns:
+                intermediate_instructions = f"""\n- Here are some sample values for the columns selected \
+    in your query: {sample_values}\n"""
         final_instructions = """\n
 After stating your plan, do one of the following:
 - Option 1: Ask the user a clarifying question.
