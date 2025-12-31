@@ -52,6 +52,7 @@ class DataChatAgent(BaseChatAgent):
         max_iterations: int = constants.MAX_ITERATIONS,
         agent_llm: Optional[FunctionCallingLLM] = None,
         select_sample_values: bool = False,
+        check_if_prompt_is_cached: bool = False,
     ):
         self.redis_client_async = redis_client_async
         self.large_model_info = large_model_info
@@ -60,6 +61,7 @@ class DataChatAgent(BaseChatAgent):
         self.sql_engine = sql_engine
         self.db_conn_params = db_conn_params
         self.select_sample_values = select_sample_values
+        self.check_if_prompt_is_cached = check_if_prompt_is_cached
         logger.debug("Here is the chat history %s", chat_history)
         super().__init__(
             prompt_metadata=prompt_metadata,
@@ -275,6 +277,7 @@ class DataChatAgent(BaseChatAgent):
         # Modify the prompt if needed
         if not self.connections:
             prompt = NO_DB_ACCESS_PROMPT.format(prompt=prompt)
-        if semcache_response := await self.check_semcache(prompt=prompt):
-            return semcache_response
+        if self.check_if_prompt_is_cached:
+            if semcache_response := await self.check_semcache(prompt=prompt):
+                return semcache_response
         return await self._chat_base(prompt=prompt)

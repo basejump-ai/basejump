@@ -6,19 +6,11 @@ import re
 import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
-from typing import Optional, Union, Sequence
+from typing import Optional, Sequence, Union
 from zoneinfo import ZoneInfo
 
 import aiohttp
 import redis
-from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database import db_utils
-from basejump.core.database.aicatalog import AICatalog
-from basejump.core.database.crud import crud_chat, crud_connection
-from basejump.core.database.crud.crud_utils import create_callback_mgrs
-from basejump.core.database.db_connect import LocalSession
-from basejump.core.models import constants, enums, errors, models
-from basejump.core.models import schemas as sch
 from llama_index.core.agent import FunctionCallingAgent
 from llama_index.core.agent.react.output_parser import (
     COULD_NOT_PARSE_TXT,
@@ -42,6 +34,15 @@ from llama_index.vector_stores.redis.base import NO_DOCS
 from redis.asyncio import Redis as RedisAsync
 from redisvl.schema import IndexSchema
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+
+from basejump.core.common.config.logconfig import set_logging
+from basejump.core.database import db_utils
+from basejump.core.database.aicatalog import AICatalog
+from basejump.core.database.crud import crud_chat, crud_connection
+from basejump.core.database.crud.crud_utils import create_callback_mgrs
+from basejump.core.database.db_connect import LocalSession
+from basejump.core.models import constants, enums, errors, models
+from basejump.core.models import schemas as sch
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -733,7 +734,6 @@ class BaseChatAgent(BaseAgent):
     async def _prompt_agent(self) -> sch.Message:
         try:
             message = await super()._prompt_agent()
-            await self.redis_client_async.publish(str(self.chat_metadata.parent_msg_uuid), constants.PUBSUB_DONEWORD)
             if message.content == "Reached max iterations.":
                 raise Exception("Reached max iterations.")
             return message
