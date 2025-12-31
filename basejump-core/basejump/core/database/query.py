@@ -4,12 +4,13 @@ from typing import Callable, Optional
 
 import pandas as pd
 import sqlalchemy as sa
+from sqlalchemy.engine import Engine, Row
+from sqlglot import exp, parse_one
+
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database import upload
 from basejump.core.database.db_connect import ConnectDB, TableManager
 from basejump.core.models import schemas as sch
-from sqlalchemy.engine import Engine, Row
-from sqlglot import exp, parse_one
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -126,6 +127,7 @@ def run_client_query_sync_and_upload(
     small_model_info: sch.ModelInfo,
     client_id: int,
     result_uuid: Optional[uuid.UUID] = None,
+    create_local_files: bool = True,
 ) -> sch.QueryResult:
     # TODO: Parse and parameterize this SQL query
     # NOTE: This needs to stay as connect so no DDL statements get committed
