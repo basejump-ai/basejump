@@ -22,6 +22,9 @@ logger = set_logging(handler_option="stream", name=__name__)
 # TODO: Make more DRY with the basejump.demo package
 
 
+# TODO: Will get an HTTPX event loop closed error when using pytest due to LLamaIndex managing the httpx client
+# and the interaction with pytest. Long-term fix is to pass in an async_http_client to AzureOpenAIEmbedding and
+# AzureOpenAI objects.
 @asynccontextmanager
 async def get_session(test_env: schemas.PyTestEnv) -> schemas.PyTestEnv:
     """Manages objects that cannot be shared across tests due to pytest
@@ -31,17 +34,12 @@ async def get_session(test_env: schemas.PyTestEnv) -> schemas.PyTestEnv:
     db = await session.open()
     redis_client_async = settings.get_redis_client_async_instance()
     updated_env = schemas.PyTestEnv(
-        **{
-            k: v
-            for k, v in test_env.dict().items()
-            if k not in ["db", "redis_client_async", "sql_engine"]
-        },
+        **{k: v for k, v in test_env.dict().items() if k not in ["db", "redis_client_async", "sql_engine"]},
         db=db,
         redis_client_async=redis_client_async,
         sql_engine=sql_engine
     )
     yield updated_env
-
     await session.close()
     await sql_engine.dispose()
     await redis_client_async.aclose()
@@ -65,7 +63,6 @@ async def client_init():
     db = await session.open()
 
     try:
-
         # Create a team
         team_result = await service.create_team(
             db=db,
