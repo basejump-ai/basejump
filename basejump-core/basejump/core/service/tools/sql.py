@@ -95,7 +95,7 @@ class SQLTool:
         self.sql_engine = sql_engine
         self.redis_client_async = redis_client_async
         self.stuck_in_loop_ct = 0
-        self.select_sample_values = select_sample_values  # TODO: Move this option upstream into the data_agent
+        self.select_sample_values = select_sample_values
 
     async def post_init(self):
         loaded_sql_tool = await self._get_sql_tables_tool()

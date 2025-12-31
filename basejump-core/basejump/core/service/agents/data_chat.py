@@ -6,6 +6,13 @@ from datetime import datetime, timedelta
 from random import choice
 from typing import Optional, Sequence
 
+from llama_index.core.llms import ChatMessage, MessageRole
+from llama_index.core.llms.function_calling import FunctionCallingLLM
+from llama_index.core.tools.types import AsyncBaseTool
+from redis.asyncio import Redis as RedisAsync
+from redisvl.query.filter import Tag
+from sqlalchemy.ext.asyncio import AsyncEngine
+
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database import db_auth
 from basejump.core.database.crud import crud_chat, crud_result
@@ -17,12 +24,6 @@ from basejump.core.models.prompts import NO_DB_ACCESS_PROMPT, sql_result_prompt_
 from basejump.core.service import service_utils
 from basejump.core.service.base import BaseChatAgent, ChatAgentSetup, ChatMessageHandler
 from basejump.core.service.tools import sql, visualize
-from llama_index.core.llms import ChatMessage, MessageRole
-from llama_index.core.llms.function_calling import FunctionCallingLLM
-from llama_index.core.tools.types import AsyncBaseTool
-from redis.asyncio import Redis as RedisAsync
-from redisvl.query.filter import Tag
-from sqlalchemy.ext.asyncio import AsyncEngine
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -50,6 +51,7 @@ class DataChatAgent(BaseChatAgent):
         chat_history: Optional[list[ChatMessage]] = None,
         max_iterations: int = constants.MAX_ITERATIONS,
         agent_llm: Optional[FunctionCallingLLM] = None,
+        select_sample_values: bool = False,
     ):
         self.redis_client_async = redis_client_async
         self.large_model_info = large_model_info
@@ -57,6 +59,7 @@ class DataChatAgent(BaseChatAgent):
         self.embedding_model_info = embedding_model_info
         self.sql_engine = sql_engine
         self.db_conn_params = db_conn_params
+        self.select_sample_values = select_sample_values
         logger.debug("Here is the chat history %s", chat_history)
         super().__init__(
             prompt_metadata=prompt_metadata,
@@ -111,6 +114,7 @@ class DataChatAgent(BaseChatAgent):
                 small_model_info=self.small_model_info,
                 embedding_model_info=self.embedding_model_info,
                 sql_engine=self.sql_engine,
+                select_sample_values=self.select_sample_values,
             )
             await self.sql_tool.post_init()
             tools += self.sql_tool.tools
