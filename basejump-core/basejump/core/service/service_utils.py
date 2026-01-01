@@ -6,17 +6,19 @@ import json
 import uuid
 from asyncio import Task
 from datetime import datetime
-from typing import Callable, Optional
+from typing import Optional
 
-import boto3
+from redis.asyncio import Redis as RedisAsync
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from sqlalchemy.orm.exc import NoResultFound
+
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database import query, upload
+from basejump.core.database import query
 from basejump.core.database.crud import crud_chat, crud_connection, crud_result
 from basejump.core.database.db_connect import ConnectDB
 from basejump.core.database.db_utils import extract_visual_info
 from basejump.core.database.format_response import get_title_description
 from basejump.core.database.index import DBTableIndexer
-from basejump.core.database.upload import S3_PREFIX
 from basejump.core.database.vector_utils import get_index_name
 from basejump.core.models import enums, models
 from basejump.core.models import schemas as sch
@@ -28,9 +30,6 @@ from basejump.core.service.base import (
     SimpleAgent,
 )
 from basejump.core.service.tools.visualize import VisTool
-from redis.asyncio import Redis as RedisAsync
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
-from sqlalchemy.orm.exc import NoResultFound
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -162,6 +161,7 @@ async def run_ai_sql_query(
     client_id: int,
     small_model_info: sch.ModelInfo,
     redis_client_async: RedisAsync,
+    create_local_files: bool = True,
 ) -> str:
     handler = ChatMessageHandler(
         prompt_metadata=prompt_metadata, chat_metadata=chat_metadata, redis_client_async=redis_client_async
@@ -188,7 +188,10 @@ async def run_ai_sql_query(
         db_conn_params=db_conn_params, client_conn_params=client_conn_params, sql_query=sql_query
     )
     query_result = await mng_query.run_client_query_and_upload(
-        initial_prompt=prompt_metadata.initial_prompt, client_id=client_id, small_model_info=small_model_info
+        initial_prompt=prompt_metadata.initial_prompt,
+        client_id=client_id,
+        small_model_info=small_model_info,
+        create_local_files=create_local_files,
     )
     await handler.create_message(
         db=db,
@@ -355,6 +358,7 @@ async def refresh_result(
     small_model_info: sch.ModelInfo,
     db_conn_params: sch.SQLDBSchema,
     commit: bool = True,
+    create_local_files: bool = True,
 ) -> Optional[models.ResultHistory]:
     db_conn = await crud_connection.get_db_conn_from_id(db=db, conn_id=result.result_conn_id)
     if not db_conn:
@@ -372,7 +376,10 @@ async def refresh_result(
         result_uuid=result.result_uuid,
     )
     query_result = await mng_query.run_client_query_and_upload(
-        initial_prompt=initial_prompt, client_id=client_id, small_model_info=small_model_info
+        initial_prompt=initial_prompt,
+        client_id=client_id,
+        small_model_info=small_model_info,
+        create_local_files=create_local_files,
     )
     # Update record
     # TODO: Update this to use schemas instead
@@ -392,51 +399,6 @@ async def refresh_result(
         await db.refresh(result)
         return result
     return None
-
-
-def streamfile(file_path):
-    try:
-        with open(file_path, "rb") as file:
-            yield from file
-    except FileNotFoundError:
-        logger.error(f"File not found: {file_path}")
-        # You can decide what to do in this case. Here we just return to stop the generator.
-        return
-    except Exception as e:
-        logger.error(f"Error opening file {file_path}: {e}")
-        # You might want to handle other types of exceptions as well.
-        return
-
-
-def stream_s3_file(file_path):
-    """Generator to stream a file from S3."""
-    chunk_size = 1024 * 1024
-    s3_key, bucket = upload.get_s3_info_from_filepath(file_path)
-    try:
-        # Fetch the file from S3
-        s3_client = boto3.client("s3")
-        response = s3_client.get_object(Bucket=bucket, Key=s3_key)
-        file_stream = response["Body"]
-
-        # Read and yield chunks of the file
-        while True:
-            chunk = file_stream.read(chunk_size)
-            if not chunk:
-                break
-            yield chunk
-
-    except Exception as e:
-        logger.error(f"Error fetching file {s3_key} from S3 bucket {bucket}: {e}")
-        # Handle error: You could raise an HTTPException or handle differently
-        return
-
-
-def get_file_generator_func(file_path) -> Callable:
-    if S3_PREFIX in file_path:
-        stream_func = stream_s3_file
-    else:
-        stream_func = streamfile
-    return stream_func
 
 
 async def calc_trust_score(db: AsyncSession, number_of_days: int = 7) -> sch.TrustScore:

@@ -77,7 +77,7 @@ class ClientQueryManager:
         return result
 
     async def run_client_query_and_upload(
-        self, initial_prompt: str, small_model_info: sch.ModelInfo, client_id: int
+        self, initial_prompt: str, small_model_info: sch.ModelInfo, client_id: int, create_local_files: bool = True
     ) -> sch.QueryResult:
         """Function to run queries against client databases.
         Needs to be synchronous queries since not all drivers
@@ -88,6 +88,7 @@ class ClientQueryManager:
             initial_prompt=initial_prompt,
             client_id=client_id,
             small_model_info=small_model_info,
+            create_local_files=create_local_files,
         )  # type: ignore
 
     async def run_client_query(self) -> sch.QueryResultDF:
@@ -141,6 +142,7 @@ def run_client_query_sync_and_upload(
                 initial_prompt=initial_prompt,
                 client_id=client_id,
                 small_model_info=small_model_info,
+                create_local_files=create_local_files,
             )
         except Exception as e:
             logger.error("Error in run_client_query_sync_and_upload %s", str(e))

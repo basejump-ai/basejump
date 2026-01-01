@@ -14,7 +14,7 @@ from redisvl.query.filter import Tag
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database import db_auth
+from basejump.core.database import db_auth, upload
 from basejump.core.database.crud import crud_chat, crud_result
 from basejump.core.database.db_connect import ConnectDB
 from basejump.core.database.vector_utils import init_semcache
@@ -53,6 +53,7 @@ class DataChatAgent(BaseChatAgent):
         agent_llm: Optional[FunctionCallingLLM] = None,
         select_sample_values: bool = False,
         check_if_prompt_is_cached: bool = False,
+        create_local_files: bool = True,
     ):
         self.redis_client_async = redis_client_async
         self.large_model_info = large_model_info
@@ -62,6 +63,7 @@ class DataChatAgent(BaseChatAgent):
         self.db_conn_params = db_conn_params
         self.select_sample_values = select_sample_values
         self.check_if_prompt_is_cached = check_if_prompt_is_cached
+        self.create_local_files = create_local_files
         logger.debug("Here is the chat history %s", chat_history)
         super().__init__(
             prompt_metadata=prompt_metadata,
@@ -117,6 +119,7 @@ class DataChatAgent(BaseChatAgent):
                 embedding_model_info=self.embedding_model_info,
                 sql_engine=self.sql_engine,
                 select_sample_values=self.select_sample_values,
+                create_local_files=self.create_local_files,
             )
             await self.sql_tool.post_init()
             tools += self.sql_tool.tools
@@ -199,9 +202,10 @@ class DataChatAgent(BaseChatAgent):
                         client_id=self.prompt_metadata.client_id,
                         small_model_info=self.small_model_info,
                         db_conn_params=self.db_conn_params,
+                        create_local_files=self.create_local_files,
                     )
-                    file_gen_func = service_utils.get_file_generator_func(result.result_file_path)
-                    stream_gen = file_gen_func(result.result_file_path)
+                    file_gen_func = upload.get_stream_result_generator(result.result_file_path)
+                    stream_gen = file_gen_func()
                     rows_base = next(stream_gen)
                     rows = [tuple(row.split(",")) for row in rows_base.decode("utf-8").splitlines()]
                     query_res = sch.QueryResult(

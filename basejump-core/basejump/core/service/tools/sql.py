@@ -68,6 +68,7 @@ class SQLTool:
         small_model_info: sch.ModelInfo,
         embedding_model_info: sch.AzureModelInfo,
         select_sample_values: bool = False,
+        create_local_files: bool = True,
     ):
         self.agent = agent
         self.db = db
@@ -96,6 +97,7 @@ class SQLTool:
         self.redis_client_async = redis_client_async
         self.stuck_in_loop_ct = 0
         self.select_sample_values = select_sample_values
+        self.create_local_files = create_local_files
 
     async def post_init(self):
         loaded_sql_tool = await self._get_sql_tables_tool()
@@ -850,6 +852,7 @@ After reviewing, run this tool again to run your original or updated SQL query."
                     client_id=self.prompt_metadata.client_id,
                     small_model_info=self.small_model_info,
                     redis_client_async=self.redis_client_async,
+                    create_local_files=self.create_local_files,
                 )
         except TimeoutError:
             error_msg = f"SQL query took longer to execute than the max {TIMEOUT/60} minute time out limit."

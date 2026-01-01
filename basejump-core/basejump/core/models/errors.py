@@ -204,3 +204,7 @@ class SQLIndexError(Exception):
 
 class MissingJinjaKey(Exception):
     pass
+
+
+class LargerThan5MBError(Exception):
+    pass

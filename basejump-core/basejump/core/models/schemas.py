@@ -124,7 +124,7 @@ This is not partitioned tables, but rather the parent table that is being partit
 
 
 class DBParamsSchema(DBParamsSchemaBase):
-    drivername: Union[enums.DBDriverName, enums.DBAsyncDriverName] = (
+    drivername: Union[enums.DBDriverName, enums.DBAsyncDriverName] = (  # type: ignore
         Field(examples=["postgresql"], description="The SQLAlchemy drivername."),
     )
 

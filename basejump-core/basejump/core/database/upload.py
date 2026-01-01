@@ -6,8 +6,11 @@ import os
 import pathlib
 import time
 import uuid
-from typing import Optional
+from abc import ABC, abstractmethod
+from collections.abc import Iterator
+from typing import Callable, Optional
 
+import aioboto3
 import boto3
 import pandas as pd
 import sqlalchemy as sa
@@ -638,19 +641,141 @@ def upload_sql_to_s3(
     client_id: int,
     small_model_info: sch.ModelInfo,
     result_uuid: Optional[uuid.UUID] = None,
+    create_local_files: bool = True,
 ) -> sch.QueryResult:
-    # result_store = S3ResultStore(
-    #     db_conn_params=db_conn_params,
-    #     client_id=client_id,
-    #     result_uuid=result_uuid,
-    # )
-    result_store = LocalResultStore(
-        db_conn_params=db_conn_params,
-        client_id=client_id,
-        result_uuid=result_uuid,
-    )
+    result_store: ResultStore
+    if create_local_files:
+        result_store = LocalResultStore(
+            db_conn_params=db_conn_params,
+            client_id=client_id,
+            result_uuid=result_uuid,
+        )
+    else:
+        result_store = S3ResultStore(
+            db_conn_params=db_conn_params,
+            client_id=client_id,
+            result_uuid=result_uuid,
+        )
     with conn.execute(sa.text(sql_query)) as result:
         upload_result = result_store.store_sql_result(
             result=result, small_model_info=small_model_info, initial_prompt=initial_prompt, sql_query=sql_query
         )
     return upload_result
+
+
+class ResultRetriever(ABC):
+    def __init__(self, result_file_path: str):
+        self.result_file_path = result_file_path
+
+    @abstractmethod
+    def get_result(self) -> pd.DataFrame:
+        pass
+
+    @abstractmethod
+    async def aget_result(self) -> pd.DataFrame:
+        pass
+
+    @abstractmethod
+    def stream_result(self):
+        pass
+
+    def get_stream_result_generator(self):
+        return self.stream_result
+
+
+class LocalResultRetriever(ResultRetriever):
+    def __init__(self, result_file_path: str):
+        super().__init__(result_file_path=result_file_path)
+
+    def get_result(self) -> pd.DataFrame:
+        return pd.read_csv(self.result_file_path)
+
+    async def aget_result(self) -> pd.DataFrame:
+        return pd.read_csv(self.result_file_path)
+
+    def stream_result(self):
+        try:
+            with open(self.result_file_path, "rb") as file:
+                yield from file
+        except FileNotFoundError:
+            logger.error(f"File not found: {self.result_file_path}")
+            # You can decide what to do in this case. Here we just return to stop the generator.
+            return
+        except Exception as e:
+            logger.error(f"Error opening file {self.result_file_path}: {str(e)}")
+            # You might want to handle other types of exceptions as well.
+            return
+
+
+class S3ResultRetriever(ResultRetriever):
+    def __init__(self, result_file_path: str):
+        super().__init__(result_file_path=result_file_path)
+
+    def get_result(self) -> pd.DataFrame:
+        raise NotImplementedError("Synchronous get result not implemented for AWS S3.")
+
+    async def aget_result(self) -> pd.DataFrame:
+        """Retrieve the result from S3"""
+        buffer = io.BytesIO()
+        session = aioboto3.Session(
+            aws_access_key_id=os.environ["AWS_USER_ACCESS_KEY_ID"],
+            aws_secret_access_key=os.environ["AWS_USER_SECRET_ACCESS_KEY"],
+            region_name=os.environ["AWS_REGION"],
+        )
+        async with session.client("s3") as s3_client:
+            key, bucket = get_s3_info_from_filepath(filepath=self.result_file_path)
+            response = await s3_client.head_object(Bucket=bucket, Key=key)
+            file_size = response["ContentLength"]
+            if file_size > 5 * 1024 * 1024:
+                raise errors.LargerThan5MBError
+            await s3_client.download_fileobj(bucket, key, buffer)
+            buffer.seek(0)
+            return pd.read_csv(buffer)
+
+    def stream_result(self):
+        """Generator to stream a file from S3."""
+        chunk_size = 1024 * 1024
+        s3_key, bucket = get_s3_info_from_filepath(self.result_file_path)
+        try:
+            # Fetch the file from S3
+            s3_client = boto3.client("s3")
+            response = s3_client.get_object(Bucket=bucket, Key=s3_key)
+            file_stream = response["Body"]
+
+            # Read and yield chunks of the file
+            while True:
+                chunk = file_stream.read(chunk_size)
+                if not chunk:
+                    break
+                yield chunk
+
+        except Exception as e:
+            logger.error(f"Error fetching file {s3_key} from S3 bucket {bucket}: {e}")
+            # Handle error: You could raise an HTTPException or handle differently
+            return
+
+
+def determine_retriever(result_file_path: str) -> ResultRetriever:
+    if S3_PREFIX in result_file_path:
+        return S3ResultRetriever(result_file_path=result_file_path)
+    return LocalResultRetriever(result_file_path=result_file_path)
+
+
+async def aget_result(result_file_path: str) -> pd.DataFrame:
+    retriever = determine_retriever(result_file_path=result_file_path)
+    return await retriever.aget_result()
+
+
+def get_result(result_file_path: str) -> pd.DataFrame:
+    retriever = determine_retriever(result_file_path=result_file_path)
+    return retriever.get_result()
+
+
+def stream_result(result_file_path: str) -> Iterator:
+    retriever = determine_retriever(result_file_path=result_file_path)
+    return retriever.stream_result()
+
+
+def get_stream_result_generator(result_file_path: str) -> Callable[[], Iterator]:
+    retriever = determine_retriever(result_file_path=result_file_path)
+    return retriever.get_stream_result_generator()
