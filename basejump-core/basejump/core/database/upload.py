@@ -693,7 +693,7 @@ class LocalResultRetriever(ResultRetriever):
     async def aget_result(self) -> pd.DataFrame:
         return pd.read_csv(self.result_file_path)
 
-    def stream_result(self):
+    def stream_result(self) -> Iterator:
         try:
             with open(self.result_file_path, "rb") as file:
                 yield from file
