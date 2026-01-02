@@ -101,4 +101,4 @@ async def run_main_full():
 
 
 if __name__ == "__main__":
-    asyncio.run(run_main_full())
+    asyncio.run(run_main())

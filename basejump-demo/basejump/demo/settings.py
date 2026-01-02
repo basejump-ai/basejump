@@ -1,7 +1,6 @@
 import os
 
 import redis.asyncio as redis_async
-from llama_index.llms.azure_openai import AzureOpenAI
 from redis.asyncio import Redis as RedisAsync
 
 from basejump.core.database.db_connect import ConnectDB
@@ -41,7 +40,7 @@ def get_redis_client_async_instance() -> RedisAsync:
     )
 
 
-# Setup embedding model
+# Set up embedding model
 embedding_endpoint_info = sch.AzureEndpointInfo(
     endpoint=os.environ["AZURE_EMBEDDING_MODEL_ENDPOINT"],
     api_key=os.environ["AZURE_EMBEDDING_MODEL_KEY"],
@@ -53,7 +52,7 @@ embedding_model_info = sch.AzureModelInfo(
     api_version="2024-06-01",
 )
 
-# Setup small model
+# Set up small model
 small_model_endpoint_info = sch.AzureEndpointInfo(
     endpoint=os.environ["AZURE_SMALL_MODEL_ENDPOINT"],
     api_key=os.environ["AZURE_SMALL_MODEL_KEY"],
@@ -65,7 +64,7 @@ small_model_info = sch.AzureModelInfo(
     api_version="2024-06-01",
 )
 
-# Setup large model
+# Set up large model
 large_model_endpoint_info = sch.AzureEndpointInfo(
     endpoint=os.environ["AZURE_LARGE_MODEL_ENDPOINT"],
     api_key=os.environ["AZURE_LARGE_MODEL_KEY"],
@@ -75,15 +74,4 @@ large_model_info = sch.AzureModelInfo(
     model_name=enums.AIModelSchema.GPT4o,
     endpoint_info=large_model_endpoint_info,
     api_version="2024-06-01",
-)
-
-# Setup LLM
-LLM = AzureOpenAI(
-    model=large_model_info.model_name.value,
-    temperature=0,
-    max_tokens=large_model_info.max_tokens,
-    deployment_name=large_model_info.endpoint_info.deployment_name,  # type: ignore
-    api_key=large_model_info.endpoint_info.api_key,  # type: ignore
-    azure_endpoint=large_model_info.endpoint_info.endpoint,  # type: ignore
-    api_version=large_model_info.api_version,
 )
