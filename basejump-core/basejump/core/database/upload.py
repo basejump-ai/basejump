@@ -186,19 +186,18 @@ class S3ResultStore(ResultStore):
         result_uuid: Optional[uuid.UUID] = None,
         n_rows=5,
     ):
-        self.multipart = False
-        self.parts: list[dict] = []
-        self.upload_id: Optional[str] = None
-        self.multipart_upload = False
-        self.etags: list = []
-        self.initialize_s3_bucket(db_conn_params=db_conn_params)
-
         super().__init__(
             client_id=client_id,
             db_conn_params=db_conn_params,
             result_uuid=result_uuid,
             n_rows=n_rows,
         )
+        self.multipart = False
+        self.parts: list[dict] = []
+        self.upload_id: Optional[str] = None
+        self.multipart_upload = False
+        self.etags: list = []
+        self.initialize_s3_bucket(db_conn_params=db_conn_params)
 
     @property
     def preview_file_name(self) -> str:

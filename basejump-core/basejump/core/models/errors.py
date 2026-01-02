@@ -208,3 +208,7 @@ class MissingJinjaKey(Exception):
 
 class LargerThan5MBError(Exception):
     pass
+
+
+class AlreadyExists(Exception):
+    pass

@@ -107,7 +107,6 @@ shown to the user to provide more insight into their data.""",
             return f"""result_uuid {result_uuid} was not found. Unable to create a visualization since either the \
 result_uuid is incorrect or the originally created data has been deleted."""
 
-        # TODO: Centralize logic to access files and download them
         # Retrieve the result
         try:
             df = await upload.aget_result(result.result_file_path)

@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database import db_auth, upload
-from basejump.core.database.crud import crud_chat, crud_result
+from basejump.core.database.crud import crud_chat, crud_connection, crud_result
 from basejump.core.database.db_connect import ConnectDB
 from basejump.core.database.vector_utils import init_semcache
 from basejump.core.models import constants, enums, models
@@ -54,6 +54,7 @@ class DataChatAgent(BaseChatAgent):
         select_sample_values: bool = False,
         check_if_prompt_is_cached: bool = False,
         create_local_files: bool = True,
+        allow_unrestricted_db_chat: bool = False,
     ):
         self.redis_client_async = redis_client_async
         self.large_model_info = large_model_info
@@ -64,6 +65,7 @@ class DataChatAgent(BaseChatAgent):
         self.select_sample_values = select_sample_values
         self.check_if_prompt_is_cached = check_if_prompt_is_cached
         self.create_local_files = create_local_files
+        self.allow_unrestricted_db_chat = allow_unrestricted_db_chat
         logger.debug("Here is the chat history %s", chat_history)
         super().__init__(
             prompt_metadata=prompt_metadata,
@@ -84,9 +86,14 @@ class DataChatAgent(BaseChatAgent):
         """Setup tools for the AI Agent to use"""
         tools = []
         # Loop over the available connections and setup the various tools
-        connections = await ChatAgentSetup.get_connections(
-            db=self.db, team_id=self.chat_metadata.team_id, user_id=self.prompt_metadata.user_id
-        )
+        if self.allow_unrestricted_db_chat:
+            connections = crud_connection.get_connections(db=self.db)
+        else:
+            connections = await ChatAgentSetup.get_connections(
+                db=self.db,
+                team_id=self.chat_metadata.team_id,
+                user_id=self.prompt_metadata.user_id,
+            )
         self.connections = []
         for conn in connections:
             assert isinstance(conn, models.DBConn)

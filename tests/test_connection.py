@@ -50,9 +50,7 @@ async def test_get_connections(db_session):
     )
 
     # Get the connection
-    connection = await crud_connection.get_connection(
-        db=db_session.db, conn_uuid=result.conn_uuid
-    )
+    connection = await crud_connection.get_connection(db=db_session.db, conn_uuid=result.conn_uuid)
 
     # Add a connection to a team
     await service.add_connection_to_team(
@@ -63,7 +61,7 @@ async def test_get_connections(db_session):
     )
 
     # Retrieve all the connections for a single team
-    connections = await crud_connection.get_connections(
+    connections = await crud_connection.get_team_connections(
         db=db_session.db, user_id=db_session.user_id, team_id=db_session.team_id
     )
     assert len(connections) == 2
@@ -83,9 +81,7 @@ async def test_get_mermaid_erd_diagram(db_session):
         client_id=db_session.client_id,
         llm_type=enums.LLMType.MERMAID_AGENT,
     )
-    vector_db = await crud_connection.get_vector_from_connection(
-        db=db_session.db, db_uuid=db_session.db_uuid
-    )
+    vector_db = await crud_connection.get_vector_from_connection(db=db_session.db, db_uuid=db_session.db_uuid)
 
     # Set up the agent
     mermaid_agent = await service.setup_mermaid_agent(

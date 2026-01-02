@@ -1,12 +1,12 @@
-from typing import Optional
 import uuid
+from typing import Optional
 
-
-from basejump.core.models import schemas as sch
-from basejump.core.models import enums
-from pydantic import ConfigDict, BaseModel
-from sqlalchemy.ext.asyncio import AsyncSession, AsyncEngine
+from pydantic import BaseModel, ConfigDict, Field
 from redis.asyncio import Redis as RedisAsync
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+
+from basejump.core.models import enums
+from basejump.core.models import schemas as sch
 
 
 class GetClient(sch.CreateClient):
@@ -79,3 +79,16 @@ class PyTestEnv(sch.BaseModel):
     redis_client_async: Optional[RedisAsync] = None
     sql_engine: Optional[AsyncEngine] = None
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+
+class CoreSession(BaseModel):
+    sql_engine: AsyncEngine
+    redis_client_async: RedisAsync
+    db: Optional[AsyncSession] = None
+
+
+class ServiceContext(CoreSession):
+    large_model_info: sch.AzureModelInfo
+    small_model_info: sch.AzureModelInfo
+    embedding_model_info: sch.AzureModelInfo
+    client_llm: enums.AIModelSchema = Field(default=enums.AIModelSchema.GPT41)

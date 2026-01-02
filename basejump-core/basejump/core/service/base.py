@@ -420,7 +420,7 @@ Don't structure your output with the keywords and keyphrases since they're only 
     async def get_connections(db: AsyncSession, team_id: int, user_id: int) -> list[models.Connection]:
         # Get the connections available for the AI
         try:
-            connections = await crud_connection.get_connections(db=db, team_id=team_id, user_id=user_id)
+            connections = await crud_connection.get_team_connections(db=db, team_id=team_id, user_id=user_id)
         except Exception as e:
             logger.error(e)
             raise errors.GetTeamConnError

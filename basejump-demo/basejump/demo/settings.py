@@ -1,12 +1,12 @@
 import os
 
 import redis.asyncio as redis_async
+from llama_index.llms.azure_openai import AzureOpenAI
 from redis.asyncio import Redis as RedisAsync
 
-from basejump.core.models import schemas as sch
-from basejump.core.models import enums
 from basejump.core.database.db_connect import ConnectDB
-from llama_index.llms.azure_openai import AzureOpenAI
+from basejump.core.models import enums
+from basejump.core.models import schemas as sch
 
 # Setup database
 description = "Useful for finding information about clients, teams, and users."
@@ -27,6 +27,9 @@ conn_params = sch.SQLDBSchema(
 )
 conn_db = ConnectDB(conn_params=conn_params)
 sql_engine = conn_db.connect_async_db()
+
+client_conn_params = sch.SQLDBSchema(**conn_params.dict())
+client_conn_params.drivername = enums.DBDriverName.POSTGRES
 
 
 def get_redis_client_async_instance() -> RedisAsync:

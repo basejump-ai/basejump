@@ -217,7 +217,12 @@ async def get_vector_connection_from_id(db: AsyncSession, vector_id: int) -> mod
     return conn.scalar_one()
 
 
-async def get_connections(db: AsyncSession, team_id: int, user_id: int) -> list[models.Connection]:
+async def get_connections(db: AsyncSession) -> list[models.Connection]:
+    conn = await db.execute(select(models.Connection))
+    return conn.scalars().all()
+
+
+async def get_team_connections(db: AsyncSession, team_id: int, user_id: int) -> list[models.Connection]:
     """Returns a list of db models comprised of various connection types"""
     # NOTE: Do not remove UserTeamAssociation - it is what prevents unauthorized access to team information and limits
     # access to only those teams a user should have access to

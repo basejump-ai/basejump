@@ -7,9 +7,6 @@ from decimal import Decimal
 from typing import Optional
 
 import sqlalchemy as sa
-from basejump.core.common.config.logconfig import set_logging
-from basejump.core.models import enums
-from basejump.core.models import schemas as sch
 from cryptography.fernet import Fernet
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import TIMESTAMP, UUID, ForeignKey, String, text
@@ -21,6 +18,10 @@ from sqlalchemy.schema import ForeignKeyConstraint
 from sqlalchemy.sql import func
 from sqlalchemy.types import BIGINT, Integer
 from typing_extensions import Annotated
+
+from basejump.core.common.config.logconfig import set_logging
+from basejump.core.models import enums
+from basejump.core.models import schemas as sch
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -138,7 +139,7 @@ class User(Base):
     user_uuid: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), server_default=text("gen_random_uuid()"))
     service_user_uuid: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True))
     username: Mapped[str]
-    email_address: Mapped[Optional[str]]  # Optional since it was added later and not all users are mapped over
+    email_address: Mapped[Optional[str]]
     hashed_refresh_token: Mapped[Optional[str]]
     role: Mapped[enums.UserRoles]
     timestamp: Mapped[datetime] = mapped_column(server_default=func.now())
