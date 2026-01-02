@@ -3,6 +3,7 @@ import pytest
 from basejump.core.database.crud import crud_chat
 from basejump.demo import settings, service, schemas
 from basejump.core.service import service_utils
+from basejump.core.models import schemas as sch
 
 
 @pytest.mark.chat
@@ -60,7 +61,7 @@ async def test_getviz(chat_session):
         team_id=chat_session.team_id,
         team_uuid=chat_session.team_uuid,
     )
-    service_context = schemas.ServiceContext(
+    service_context = sch.ServiceContext(
         sql_engine=chat_session.core_session.sql_engine,
         redis_client_async=chat_session.core_session.redis_client_async,
         db=chat_session.core_session.db,

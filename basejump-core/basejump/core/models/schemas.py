@@ -16,7 +16,8 @@ from llama_index.core.llms import MessageRole
 from llama_index.core.objects import SQLTableSchema
 from llama_index.core.vector_stores.types import BasePydanticVectorStore
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-from sqlalchemy.ext.asyncio import AsyncSession
+from redis.asyncio import Redis as RedisAsync
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.models import constants, enums
@@ -692,3 +693,16 @@ class IndexedTables(BaseModel):
 class UploadResult(BaseModel):
     result_uuid: uuid.UUID
     s3_file_key: str
+
+
+class CoreSession(BaseModel):
+    sql_engine: AsyncEngine
+    redis_client_async: RedisAsync
+    db: AsyncSession
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+
+class ServiceContext(CoreSession):
+    large_model_info: AzureModelInfo
+    small_model_info: AzureModelInfo
+    embedding_model_info: AzureModelInfo

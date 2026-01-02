@@ -2,8 +2,6 @@ import uuid
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict
-from redis.asyncio import Redis as RedisAsync
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from basejump.core.models import enums
 from basejump.core.models import schemas as sch
@@ -59,13 +57,6 @@ class GetChat(sch.BaseModel):
     vector_id: int
 
 
-class CoreSession(BaseModel):
-    sql_engine: AsyncEngine
-    redis_client_async: RedisAsync
-    db: AsyncSession
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-
 class PyTestEnv(sch.BaseModel):
     client_id: int
     client_uuid: uuid.UUID
@@ -87,11 +78,5 @@ class PyTestEnv(sch.BaseModel):
     db_uuid: Optional[uuid.UUID] = None
     conn_id: Optional[int] = None
     conn_uuid: Optional[uuid.UUID] = None
-    core_session: Optional[CoreSession] = None
+    core_session: Optional[sch.CoreSession] = None
     model_config = ConfigDict(arbitrary_types_allowed=True)
-
-
-class ServiceContext(CoreSession):
-    large_model_info: sch.AzureModelInfo
-    small_model_info: sch.AzureModelInfo
-    embedding_model_info: sch.AzureModelInfo

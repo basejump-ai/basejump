@@ -35,7 +35,7 @@ async def run_session(client_id: Optional[int] = None):
     session = LocalSession(client_id=client_id or 0, engine=settings.sql_engine)
     db = await session.open()
     redis_client_async = settings.get_redis_client_async_instance()
-    core_session = schemas.CoreSession(db=db, redis_client_async=redis_client_async, sql_engine=settings.sql_engine)
+    core_session = sch.CoreSession(db=db, redis_client_async=redis_client_async, sql_engine=settings.sql_engine)
     try:
         yield core_session
     except Exception as e:
@@ -168,7 +168,7 @@ async def create_internal_user(db: AsyncSession, client_id: int):
 
 
 async def create_internal_user_info(
-    service_context: schemas.ServiceContext,
+    service_context: sch.ServiceContext,
 ) -> sch.UserInfo:
     """Create a client, team, and user for an internal user"""
     client = await create_internal_client(db=service_context.db, sql_engine=service_context.sql_engine)
@@ -237,7 +237,7 @@ async def add_user_to_team(
 
 
 async def setup_database(
-    service_context: schemas.ServiceContext,
+    service_context: sch.ServiceContext,
     user_info: sch.UserInfo,
     conn_params: sch.SQLDBSchema,
 ) -> schemas.GetSQLConn:
@@ -357,7 +357,7 @@ async def setup_mermaid_agent(
 
 async def chat(
     prompt: str,
-    service_context: schemas.ServiceContext,
+    service_context: sch.ServiceContext,
     user_info: sch.UserInfo,
     connection: Optional[schemas.GetSQLConn] = None,
     chat: Optional[schemas.GetChat] = None,
@@ -438,8 +438,8 @@ async def chat(
     return message
 
 
-def create_service_context(core_session: schemas.CoreSession):
-    return schemas.ServiceContext(
+def create_service_context(core_session: sch.CoreSession):
+    return sch.ServiceContext(
         sql_engine=core_session.sql_engine,
         db=core_session.db,
         redis_client_async=core_session.redis_client_async,

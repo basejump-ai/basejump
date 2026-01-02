@@ -32,7 +32,7 @@ async def get_session(test_env: schemas.PyTestEnv) -> schemas.PyTestEnv:
     session = LocalSession(client_id=test_env.client_id, engine=sql_engine)
     db = await session.open()
     redis_client_async = settings.get_redis_client_async_instance()
-    core_session = schemas.CoreSession(db=db, redis_client_async=redis_client_async, sql_engine=sql_engine)
+    core_session = sch.CoreSession(db=db, redis_client_async=redis_client_async, sql_engine=sql_engine)
     test_env.core_session = core_session
     yield test_env
     await session.close()
@@ -197,7 +197,7 @@ async def chat_init(db_init):
 
     # Ask the AI a question
     redis_client_async = settings.get_redis_client_async_instance()
-    service_context = schemas.ServiceContext(
+    service_context = sch.ServiceContext(
         sql_engine=sql_engine,
         redis_client_async=redis_client_async,
         db=db,
