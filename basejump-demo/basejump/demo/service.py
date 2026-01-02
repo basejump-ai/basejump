@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from basejump.core.common.common_utils import hash_value
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database import upload
-from basejump.core.database.aicatalog import AICatalog
+from basejump.core.database.ai_catalog import AICatalog
 from basejump.core.database.crud import crud_main, crud_utils
 from basejump.core.database.db_connect import LocalSession
 from basejump.core.database.index import index_db

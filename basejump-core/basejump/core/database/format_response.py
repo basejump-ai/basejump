@@ -1,15 +1,16 @@
 import copy
 from typing import Optional, Type
 
-from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database.aicatalog import AICatalog
-from basejump.core.models import pydantic_ai_formats as fmt
-from basejump.core.models import schemas as sch
 from llama_index.core import ChatPromptTemplate
 from llama_index.core.llms import LLM, ChatMessage
 from llama_index.program.openai import OpenAIPydanticProgram
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from basejump.core.common.config.logconfig import set_logging
+from basejump.core.database.ai_catalog import AICatalog
+from basejump.core.models import pydantic_ai_formats as fmt
+from basejump.core.models import schemas as sch
 
 logger = set_logging(handler_option="stream", name=__name__)
 

@@ -27,7 +27,7 @@ from sqlglot.dialects.dialect import Dialects
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database import db_utils, query
-from basejump.core.database.aicatalog import AICatalog
+from basejump.core.database.ai_catalog import AICatalog
 from basejump.core.database.crud import crud_connection, crud_table
 from basejump.core.database.db_connect import POOL_TIMEOUT, TableManager
 from basejump.core.database.format_response import JSONResponseFormatter

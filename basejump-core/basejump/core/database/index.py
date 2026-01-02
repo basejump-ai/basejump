@@ -4,19 +4,20 @@ import asyncio
 import uuid
 from typing import Optional
 
-from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database import db_utils
-from basejump.core.database.aicatalog import AICatalog
-from basejump.core.database.crud import crud_connection, crud_table
-from basejump.core.database.db_connect import LocalSession, TableManager
-from basejump.core.database.vector_utils import get_index_name
-from basejump.core.models import constants, enums
-from basejump.core.models import schemas as sch
 from llama_index.core.schema import MetadataMode, TextNode
 from llama_index.vector_stores.redis import RedisVectorStore
 from redis.asyncio import Redis as RedisAsync
 from redisvl.schema import IndexSchema
 from sqlalchemy.ext.asyncio import AsyncEngine
+
+from basejump.core.common.config.logconfig import set_logging
+from basejump.core.database import db_utils
+from basejump.core.database.ai_catalog import AICatalog
+from basejump.core.database.crud import crud_connection, crud_table
+from basejump.core.database.db_connect import LocalSession, TableManager
+from basejump.core.database.vector_utils import get_index_name
+from basejump.core.models import constants, enums
+from basejump.core.models import schemas as sch
 
 logger = set_logging(handler_option="stream", name=__name__)
 

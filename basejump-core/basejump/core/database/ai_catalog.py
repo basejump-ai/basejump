@@ -2,8 +2,6 @@
 
 from typing import Optional
 
-from basejump.core.common.config.logconfig import set_logging
-from basejump.core.models import schemas as sch
 from llama_index.core import Settings
 from llama_index.core.base.embeddings.base import BaseEmbedding
 from llama_index.core.callbacks import CallbackManager
@@ -11,6 +9,9 @@ from llama_index.core.llms.function_calling import FunctionCallingLLM
 from llama_index.embeddings.azure_openai import AzureOpenAIEmbedding
 from llama_index.llms.azure_openai import AzureOpenAI
 from llama_index.llms.bedrock_converse import BedrockConverse
+
+from basejump.core.common.config.logconfig import set_logging
+from basejump.core.models import schemas as sch
 
 logger = set_logging(handler_option="stream", name=__name__)
 

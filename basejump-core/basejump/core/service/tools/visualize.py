@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database import upload
-from basejump.core.database.aicatalog import AICatalog
+from basejump.core.database.ai_catalog import AICatalog
 from basejump.core.database.crud import crud_result
 from basejump.core.database.format_response import DateFormatter
 from basejump.core.models import constants, enums, errors, models
