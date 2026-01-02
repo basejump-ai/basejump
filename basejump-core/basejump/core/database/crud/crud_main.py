@@ -33,7 +33,7 @@ async def get_user_from_id(db: AsyncSession, user_id: int):
 
 async def create_user(db: AsyncSession, user: sch.BaseUser, user_id: Optional[int]):
     # Create dictionary for user arguments
-    user_dict = user.model_dump(exclude={"user_id"})
+    user_dict = user.model_dump()
     if user_id is not None:
         user_dict["user_id"] = user_id
         # Confirm user is already not in the database
@@ -65,7 +65,7 @@ async def get_team_from_id(db: AsyncSession, team_id: int):
 
 async def create_team(db: AsyncSession, team: sch.BaseTeam, team_id: Optional[int] = None) -> models.Team:
     # Create dictionary for team arguments
-    team_dict = team.model_dump(exclude={"team_id"})
+    team_dict = team.model_dump()
     if team_id is not None:
         team_dict["team_id"] = team_id
         # Confirm team is already not in the database
@@ -100,7 +100,7 @@ async def create_client(
     client_id: Optional[int] = None,
 ) -> sch.NewClient:
     # Create dictionary for client arguments
-    client_dict = client.model_dump(exclude={"client_id"})
+    client_dict = client.model_dump(exclude={"description", "hashed_client_secret"})
     if client_id is not None:
         client_dict["client_id"] = client_id
         # Confirm client is already not in the database

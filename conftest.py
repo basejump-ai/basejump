@@ -210,12 +210,12 @@ async def chat_init(db_init):
         client_uuid=db_init.client_user.client_id,
         user_id=db_init.client_user.user_id,
         user_uuid=db_init.client_user.user_uuid,
-        user_uuid=db_init.client_user.user_role,
+        user_role=db_init.client_user.user_role,
         team_id=db_init.team_id,
         team_uuid=db_init.team_uuid,
     )
     chat_result = await service.chat(
-        prompt="Give me a report of all clients.",
+        prompt="Provide a list of all clients.",
         service_context=service_context,
         user_info=user_info,
         allow_unrestricted_db_chat=False,

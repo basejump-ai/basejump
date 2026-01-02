@@ -31,8 +31,8 @@ logger = set_logging(handler_option="stream", name=__name__)
 
 
 @asynccontextmanager
-async def run_session():
-    session = LocalSession(client_id=0, engine=settings.sql_engine)
+async def run_session(client_id: Optional[int] = None):
+    session = LocalSession(client_id=client_id or 0, engine=settings.sql_engine)
     db = await session.open()
     redis_client_async = settings.get_redis_client_async_instance()
     core_session = schemas.CoreSession(db=db, redis_client_async=redis_client_async, sql_engine=settings.sql_engine)
@@ -113,7 +113,7 @@ async def create_client(
     )
 
 
-async def create_internal_client(db: AsyncSession, sql_engine: AsyncEngine) -> schemas.GetClient:
+async def create_internal_client(db: AsyncSession, sql_engine: AsyncEngine) -> schemas.GetClientBase:
     try:
         client_id = 0
         client_result = await create_client(
@@ -129,7 +129,7 @@ async def create_internal_client(db: AsyncSession, sql_engine: AsyncEngine) -> s
         pass
     client = await crud_main.get_client_from_id(db=db, client_id=client_id)
     assert client, "No client found with that ID"
-    return schemas.GetClient.from_orm(client)
+    return schemas.GetClientBase.from_orm(client)
 
 
 async def create_team(
@@ -234,11 +234,12 @@ async def add_user_to_team(
 
 async def setup_database(
     service_context: schemas.ServiceContext,
-    client_user: sch.ClientUserInfo,
+    user_info: sch.UserInfo,
     conn_params: sch.SQLDBSchema,
 ) -> schemas.GetSQLConn:
     """Create a database connection and save it in the database"""
     # Set up the database
+    client_user = sch.ClientUserInfo.model_validate(user_info)
     sql_conn, index_db_tables = await service_utils.setup_db(
         db=service_context.db,
         client_user=client_user,
@@ -354,16 +355,18 @@ async def chat(
     prompt: str,
     service_context: schemas.ServiceContext,
     user_info: sch.UserInfo,
+    connection: Optional[schemas.GetSQLConn] = None,
+    chat: Optional[schemas.GetChat] = None,
     get_chat_history: bool = False,
-    allow_unrestricted_db_chat: bool = True,
 ) -> sch.Message:
     # Create a chat
-    create_chat_result = await create_chat(
-        db=service_context.db,
-        client_id=user_info.client_id,
-        team_id=user_info.team_id,
-        user_id=user_info.user_id,
-    )
+    if not chat:
+        chat = await create_chat(
+            db=service_context.db,
+            client_id=user_info.client_id,
+            team_id=user_info.team_id,
+            user_id=user_info.user_id,
+        )
 
     # Set up the prompt
     client_user = sch.ClientUserInfo.model_validate(user_info)
@@ -385,12 +388,12 @@ async def chat(
     # Set up the agent
     agent_setup = AgentSetup.load_from_prompt_metadata(prompt_metadata_base=prompt_metadata_base)
     chat_metadata = sch.ChatMetadata(
-        chat_id=create_chat_result.chat_id,
-        chat_uuid=create_chat_result.chat_uuid,
-        vector_id=create_chat_result.vector_id,
+        chat_id=chat.chat_id,
+        chat_uuid=chat.chat_uuid,
+        vector_id=chat.vector_id,
         index_name=index_name,
         team_uuid=user_info.team_uuid,
-        team_id=0,
+        team_id=user_info.team_id,
         parent_msg_uuid=uuid.uuid4(),
         curr_chat_history=[],
         vector_store=vector_store,
@@ -408,8 +411,8 @@ async def chat(
             embedding_model_info=service_context.embedding_model_info,
             team_info=sch.TeamFields.model_validate(user_info),
         )
-        chat = await chat_setup.get_chat()
-        chat_history = await chat_setup.get_chat_history(chat=chat)
+        retrieved_chat = await chat_setup.get_chat()
+        chat_history = await chat_setup.get_chat_history(chat=retrieved_chat)
 
     # Prompt the agent
     ai_catalog = AICatalog()
@@ -425,7 +428,7 @@ async def chat(
         small_model_info=service_context.small_model_info,
         embedding_model_info=service_context.embedding_model_info,
         sql_engine=service_context.sql_engine,
-        allow_unrestricted_db_chat=allow_unrestricted_db_chat,
+        conn_id=connection.conn_id if connection else None,
     )
     message = await agent.prompt_agent()
     return message

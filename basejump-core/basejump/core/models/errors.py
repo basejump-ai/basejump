@@ -28,8 +28,7 @@ class LowConfidenceResponse(Exception):
     pass
 
 
-MERMAID_REFRESH_ERROR = """The Mermaid diagram is unable to be refreshed due to issues with processing. \
-If this persists, please reach out to Basejump support."""
+MERMAID_REFRESH_ERROR = """The Mermaid diagram is unable to be refreshed due to issues with processing."""
 
 
 class MermaidRefreshError(Exception):
@@ -137,9 +136,7 @@ class GetChatHistoryError(Exception):
         super().__init__(GET_CHAT_HISTORY_ERROR)
 
 
-PROMPTING_AI_ERROR = (
-    "Error prompting the AI. Please try again and reach out to Basejump support if the problem persists."
-)
+PROMPTING_AI_ERROR = "Error prompting the AI. Please try again."
 
 
 class PromptingAIError(Exception):
@@ -212,3 +209,7 @@ class LargerThan5MBError(Exception):
 
 class AlreadyExists(Exception):
     pass
+
+
+class NotFoundError(ValueError):
+    """Raised when a requested resource does not exist."""

@@ -13,8 +13,8 @@ async def run_main():
     async with service.run_session() as core_session:
         service_context = service.create_service_context(core_session)
         user_info = await service.create_internal_user_info(service_context)
-        await service.setup_database(service_context, user_info, client_conn_params)
-        await service.chat("How many users are there?", service_context, user_info)
+        connection = await service.setup_database(service_context, user_info, client_conn_params)
+        await service.chat("Provide a report of all clients.", service_context, user_info, connection)
 
 
 async def run_main_full():
@@ -60,30 +60,23 @@ async def run_main_full():
         logger.info(user_team_result)
 
         # Add a client database
-        # Setup variables
-        client_user = sch.ClientUserInfo(
+        # Variable setup
+        user_info = sch.UserInfo(
             client_id=client_result.client_id,
             client_uuid=client_result.client_uuid,
             user_id=user_result.user_id,
             user_uuid=user_result.user_uuid,
             user_role="MEMBER",
+            team_id=team_result.team_id,
+            team_uuid=team_result.team_uuid,
         )
 
-        # Update the client database to a synchronous connection since not all DBs support asynch connections
-        client_conn_params = sch.SQLDBSchema(**settings.conn_params.dict())
-        client_conn_params.drivername = enums.DBDriverName.POSTGRES
-        redis_client_async = settings.get_redis_client_async_instance()
+        # Set up the database
         db_result = await service.setup_database(
-            db=service_context.db,
-            client_id=client_result.client_id,
-            conn_params=client_conn_params,  # Using the same database here for simplicity, but feel free to update
-            redis_client_async=redis_client_async,
-            client_user=client_user,
-            embedding_model_info=settings.embedding_model_info,
-            small_model_info=settings.small_model_info,
-            sql_engine=settings.sql_engine,
+            service_context=service_context,
+            user_info=user_info,
+            conn_params=client_conn_params,
         )
-        await redis_client_async.aclose()
 
         # Add a connection to a team
         await service.add_connection_to_team(
@@ -94,20 +87,10 @@ async def run_main_full():
         )
 
         # Ask the AI a question
-        user_info = sch.UserInfo(
-            client_id=client_user.client_id,
-            client_uuid=client_user.client_id,
-            user_id=client_user.user_id,
-            user_uuid=client_user.user_uuid,
-            user_role=client_user.user_role,
-            team_id=team_result.team_id,
-            team_uuid=team_result.team_uuid,
-        )
         chat_result = await service.chat(
-            prompt="How many users are there?",
+            prompt="Provide a report of all clients.",
             service_context=service_context,
             user_info=user_info,
-            allow_unrestricted_db_chat=False,
         )
         # Here is the LLM response
         logger.info(chat_result.content)
@@ -118,4 +101,4 @@ async def run_main_full():
 
 
 if __name__ == "__main__":
-    asyncio.run(run_main())
+    asyncio.run(run_main_full())

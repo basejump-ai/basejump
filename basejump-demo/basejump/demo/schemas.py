@@ -9,9 +9,13 @@ from basejump.core.models import enums
 from basejump.core.models import schemas as sch
 
 
-class GetClient(sch.CreateClient):
+class GetClientBase(BaseModel):
     client_id: int
     client_uuid: uuid.UUID
+    model_config = ConfigDict(from_attributes=True)
+
+
+class GetClient(sch.CreateClient, GetClientBase):
     client_secret: str
     role: enums.AllUserRoles
     model_config = ConfigDict(from_attributes=True)
@@ -29,7 +33,7 @@ class GetUser(BaseModel):
     user_uuid: uuid.UUID
     username: str
     role: enums.UserRoles
-    email_address: str
+    email_address: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -59,6 +63,7 @@ class CoreSession(BaseModel):
     sql_engine: AsyncEngine
     redis_client_async: RedisAsync
     db: AsyncSession
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class PyTestEnv(sch.BaseModel):
@@ -82,9 +87,6 @@ class PyTestEnv(sch.BaseModel):
     db_uuid: Optional[uuid.UUID] = None
     conn_id: Optional[int] = None
     conn_uuid: Optional[uuid.UUID] = None
-    db: Optional[AsyncSession] = None
-    redis_client_async: Optional[RedisAsync] = None
-    sql_engine: Optional[AsyncEngine] = None
     core_session: Optional[CoreSession] = None
     model_config = ConfigDict(arbitrary_types_allowed=True)
 

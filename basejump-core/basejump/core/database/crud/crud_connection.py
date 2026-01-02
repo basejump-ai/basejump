@@ -73,7 +73,9 @@ async def get_db_conns(db: AsyncSession, db_id: int) -> Sequence[models.DBConn]:
 
 
 async def get_db_conn_from_id(db: AsyncSession, conn_id: int) -> Optional[models.DBConn]:
-    database = await db.execute(select(models.DBConn).filter_by(conn_id=conn_id))
+    database = await db.execute(
+        select(models.DBConn).filter_by(conn_id=conn_id).options(joinedload(models.DBConn.database_params))
+    )
     return database.scalar_one_or_none()
 
 
@@ -218,7 +220,7 @@ async def get_vector_connection_from_id(db: AsyncSession, vector_id: int) -> mod
 
 
 async def get_connections(db: AsyncSession) -> Sequence[models.Connection]:
-    conn = await db.execute(select(models.Connection))
+    conn = await db.execute(select(models.DBConn).options(joinedload(models.DBConn.database_params)))
     return conn.scalars().all()
 
 

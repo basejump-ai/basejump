@@ -18,7 +18,7 @@ from basejump.core.database import db_auth, upload
 from basejump.core.database.crud import crud_chat, crud_connection, crud_result
 from basejump.core.database.db_connect import ConnectDB
 from basejump.core.database.vector_utils import init_semcache
-from basejump.core.models import constants, enums, models
+from basejump.core.models import constants, enums, errors, models
 from basejump.core.models import schemas as sch
 from basejump.core.models.prompts import NO_DB_ACCESS_PROMPT, sql_result_prompt_basic
 from basejump.core.service import service_utils
@@ -54,7 +54,7 @@ class DataChatAgent(BaseChatAgent):
         select_sample_values: bool = False,
         check_if_prompt_is_cached: bool = False,
         create_local_files: bool = True,
-        allow_unrestricted_db_chat: bool = False,
+        conn_id: Optional[int] = None,
     ):
         self.redis_client_async = redis_client_async
         self.large_model_info = large_model_info
@@ -65,7 +65,7 @@ class DataChatAgent(BaseChatAgent):
         self.select_sample_values = select_sample_values
         self.check_if_prompt_is_cached = check_if_prompt_is_cached
         self.create_local_files = create_local_files
-        self.allow_unrestricted_db_chat = allow_unrestricted_db_chat
+        self.conn_id = conn_id
         logger.debug("Here is the chat history %s", chat_history)
         super().__init__(
             prompt_metadata=prompt_metadata,
@@ -86,8 +86,13 @@ class DataChatAgent(BaseChatAgent):
         """Setup tools for the AI Agent to use"""
         tools = []
         # Loop over the available connections and setup the various tools
-        if self.allow_unrestricted_db_chat:
-            connections = await crud_connection.get_connections(db=self.db)
+        if self.conn_id:
+            connection = await crud_connection.get_db_conn_from_id(db=self.db, conn_id=self.conn_id)
+            if not connection:
+                msg = "The connection does not exist based on the provided connection ID."
+                logger.error(msg)
+                raise errors.NotFound(msg)
+            connections = [connection]
         else:
             connections = await ChatAgentSetup.get_connections(
                 db=self.db,
