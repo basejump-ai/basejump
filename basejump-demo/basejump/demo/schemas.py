@@ -54,6 +54,12 @@ class GetChat(sch.BaseModel):
     vector_id: int
 
 
+class CoreSession(BaseModel):
+    sql_engine: AsyncEngine
+    redis_client_async: RedisAsync
+    db: Optional[AsyncSession] = None
+
+
 class PyTestEnv(sch.BaseModel):
     client_id: int
     client_uuid: uuid.UUID
@@ -78,13 +84,8 @@ class PyTestEnv(sch.BaseModel):
     db: Optional[AsyncSession] = None
     redis_client_async: Optional[RedisAsync] = None
     sql_engine: Optional[AsyncEngine] = None
+    core_session: Optional[CoreSession] = None
     model_config = ConfigDict(arbitrary_types_allowed=True)
-
-
-class CoreSession(BaseModel):
-    sql_engine: AsyncEngine
-    redis_client_async: RedisAsync
-    db: Optional[AsyncSession] = None
 
 
 class ServiceContext(CoreSession):

@@ -1,8 +1,7 @@
 import pytest
 
 from basejump.core.database.crud import crud_chat
-from basejump.demo import settings, service
-from basejump.core.database.vector_utils import get_index_name
+from basejump.demo import settings, service, schemas
 from basejump.core.service import service_utils
 
 
@@ -52,25 +51,28 @@ async def test_getviz(chat_session):
     """Test getting a visual result"""
 
     # Get a visual result
-    chat_response = await service.chat(
-        db=chat_session.db,
-        index_name=get_index_name(client_id=chat_session.client_id),
-        prompt="Give me a bar chart of count of clients by type",
-        chat_id=chat_session.chat_id,
+    user_info = schemas.UserInfo(
+        client_id=chat_session.client_id,
+        client_uuid=chat_session.client_id,
+        user_id=chat_session.user_id,
+        user_uuid=chat_session.user_uuid,
+        user_uuid=chat_session.user_role,
         team_id=chat_session.team_id,
-        team_info=chat_session.team_info,
-        client_user=chat_session.client_user,
-        sql_engine=chat_session.sql_engine,
-        redis_client_async=chat_session.redis_client_async,
-        conn_params=chat_session.client_conn_params,
-        vector_id=chat_session.vector_id,
-        chat_uuid=chat_session.chat_uuid,
         team_uuid=chat_session.team_uuid,
-        embedding_model_info=settings.embedding_model_info,
+    )
+    service_context = schemas.ServiceContext(
+        sql_engine=chat_session.core_session.sql_engine,
+        redis_client_async=chat_session.core_session.redis_client_async,
+        db=chat_session.core_session.db,
         large_model_info=settings.large_model_info,
         small_model_info=settings.small_model_info,
-        client_llm=settings.LLM,
-        return_visual_json=True,
+        embedding_model_info=settings.embedding_model_info,
+    )
+    chat_response = await service.chat(
+        prompt="Give me a bar chart of count of clients by type",
+        service_context=service_context,
+        user_info=user_info,
+        allow_unrestricted_db_chat=False,
     )
     assert chat_response.query_result.visual_json
 

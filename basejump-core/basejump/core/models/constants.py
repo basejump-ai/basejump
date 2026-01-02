@@ -85,5 +85,6 @@ ROWS_PER_PAGE_DSC = "The number of messages to return per page."
 TOTAL_ROW_CT_DSC = """This field can be ignored. It is meant to pass the table row count between calls to avoid \
 regenerating every time when using next_page_link and prev_page_link"""
 TEAM_NM_DESC = "Your team name here"
+TEAM_DESC = "A description of the team"
 TEAM_DESC = "A description of the team. This is provided to the AI as context."
 ATHENA_STAGING_DIR_NAME = "s3_staging_dir"

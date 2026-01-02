@@ -15,7 +15,6 @@ from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.db_connect import LocalSession
 from basejump.core.models import enums
 from basejump.core.models import schemas as sch
-from basejump.core.database.vector_utils import get_index_name
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -33,13 +32,9 @@ async def get_session(test_env: schemas.PyTestEnv) -> schemas.PyTestEnv:
     session = LocalSession(client_id=test_env.client_id, engine=sql_engine)
     db = await session.open()
     redis_client_async = settings.get_redis_client_async_instance()
-    updated_env = schemas.PyTestEnv(
-        **{k: v for k, v in test_env.dict().items() if k not in ["db", "redis_client_async", "sql_engine"]},
-        db=db,
-        redis_client_async=redis_client_async,
-        sql_engine=sql_engine
-    )
-    yield updated_env
+    core_session = schemas.CoreSession(db=db, redis_client_async=redis_client_async, sql_engine=sql_engine)
+    test_env.core_session = core_session
+    yield test_env
     await session.close()
     await sql_engine.dispose()
     await redis_client_async.aclose()
@@ -202,24 +197,28 @@ async def chat_init(db_init):
 
     # Ask the AI a question
     redis_client_async = settings.get_redis_client_async_instance()
-    chat_result = await service.chat(
-        db=db,
-        index_name=get_index_name(client_id=db_init.client_id),
-        prompt="Give me a report of all clients.",
-        chat_id=create_chat_result.chat_id,
-        team_id=db_init.team_id,
-        team_info=db_init.team_info,
-        client_user=db_init.client_user,
-        embedding_model_info=settings.embedding_model_info,
+    service_context = schemas.ServiceContext(
         sql_engine=sql_engine,
         redis_client_async=redis_client_async,
-        conn_params=db_init.client_conn_params,
-        vector_id=create_chat_result.vector_id,
-        chat_uuid=create_chat_result.chat_uuid,
-        team_uuid=db_init.team_uuid,
+        db=db,
         large_model_info=settings.large_model_info,
         small_model_info=settings.small_model_info,
-        client_llm=settings.LLM,
+        embedding_model_info=settings.embedding_model_info,
+    )
+    user_info = sch.UserInfo(
+        client_id=db_init.client_user.client_id,
+        client_uuid=db_init.client_user.client_id,
+        user_id=db_init.client_user.user_id,
+        user_uuid=db_init.client_user.user_uuid,
+        user_uuid=db_init.client_user.user_role,
+        team_id=db_init.team_id,
+        team_uuid=db_init.team_uuid,
+    )
+    chat_result = await service.chat(
+        prompt="Give me a report of all clients.",
+        service_context=service_context,
+        user_info=user_info,
+        allow_unrestricted_db_chat=False,
     )
 
     db_init.chat_id = create_chat_result.chat_id

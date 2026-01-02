@@ -1,40 +1,23 @@
 import asyncio
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database.vector_utils import get_index_name
 from basejump.core.models import enums
 from basejump.core.models import schemas as sch
 from basejump.demo import service, settings
+from basejump.demo.settings import client_conn_params
 
 logger = set_logging(handler_option="stream", name=__name__)
 
 
-async def run_simple_main():
-    # Create a session
-    async with service.run_session() as core_session:
-        # Create the service context
-        service_context = service.create_service_context(core_session)
-
-        # Create the client + user
-        client_user = await service.create_internal_client_user(service_context=service_context)
-
-        # Create the database
-        await service.setup_database(
-            service_context=service_context,
-            client_user=client_user,
-            conn_params=settings.client_conn_params,
-        )
-
-        # Use the AI to chat with your database
-        await service.simple_chat(
-            service_context=service_context,
-            prompt="How many users are there?",
-            conn_params=settings.client_conn_params,
-            client_user=client_user,
-        )
-
-
 async def run_main():
+    async with service.run_session() as core_session:
+        service_context = service.create_service_context(core_session)
+        user_info = await service.create_internal_user_info(service_context)
+        await service.setup_database(service_context, user_info, client_conn_params)
+        await service.chat("How many users are there?", service_context, user_info)
+
+
+async def run_main_full():
     # Create a client
     client_result = await service.create_client(
         sql_engine=settings.sql_engine,
@@ -46,6 +29,8 @@ async def run_main():
 
     # Create a session
     async with service.run_session(client_id=client_result.client_id) as core_session:
+        service_context = service.create_service_context(core_session)
+
         # Create a team
         team_result = await service.create_team(
             db=core_session.db,
@@ -57,7 +42,7 @@ async def run_main():
 
         # Create a user
         user_result = await service.create_user(
-            db=db,
+            db=service_context.db,
             client_id=client_result.client_id,
             username="John Doe",
             email_address="john@gmail.com",
@@ -66,7 +51,7 @@ async def run_main():
 
         # Associate a user with a team
         user_team_result = await service.add_user_to_team(
-            db=db,
+            db=service_context.db,
             username=user_result.username,
             team_name=team_result.team_name,
             user_id=user_result.user_id,
@@ -89,7 +74,7 @@ async def run_main():
         client_conn_params.drivername = enums.DBDriverName.POSTGRES
         redis_client_async = settings.get_redis_client_async_instance()
         db_result = await service.setup_database(
-            db=db,
+            db=service_context.db,
             client_id=client_result.client_id,
             conn_params=client_conn_params,  # Using the same database here for simplicity, but feel free to update
             redis_client_async=redis_client_async,
@@ -102,42 +87,28 @@ async def run_main():
 
         # Add a connection to a team
         await service.add_connection_to_team(
-            db=db,
+            db=service_context.db,
             client_id=client_result.client_id,
             team_id=team_result.team_id,
             conn_id=db_result.conn_id,
         )
 
-        # Create a chat
-        create_chat_result = await service.create_chat(
-            db=db,
-            client_id=client_result.client_id,
-            team_id=team_result.team_id,
-            user_id=user_result.user_id,
-        )
-
         # Ask the AI a question
-        redis_client_async = settings.get_redis_client_async_instance()
-        chat_result = await service.chat(
-            db=db,
-            index_name=get_index_name(client_id=client_result.client_id),
-            prompt="How many users are there?",
-            chat_id=create_chat_result.chat_id,
+        user_info = sch.UserInfo(
+            client_id=client_user.client_id,
+            client_uuid=client_user.client_id,
+            user_id=client_user.user_id,
+            user_uuid=client_user.user_uuid,
+            user_role=client_user.user_role,
             team_id=team_result.team_id,
-            team_info=sch.TeamFields.model_validate(team_result),
-            client_user=client_user,
-            embedding_model_info=settings.embedding_model_info,
-            sql_engine=settings.sql_engine,
-            redis_client_async=redis_client_async,
-            conn_params=client_conn_params,
-            vector_id=create_chat_result.vector_id,
-            chat_uuid=create_chat_result.chat_uuid,
             team_uuid=team_result.team_uuid,
-            large_model_info=settings.large_model_info,
-            small_model_info=settings.small_model_info,
-            client_llm=settings.LLM,
         )
-        await redis_client_async.aclose()
+        chat_result = await service.chat(
+            prompt="How many users are there?",
+            service_context=service_context,
+            user_info=user_info,
+            allow_unrestricted_db_chat=False,
+        )
         # Here is the LLM response
         logger.info(chat_result.content)
         # Here is the SQL query that was ran

@@ -303,7 +303,7 @@ class BaseUser(BaseModel):
 
 class TeamFields(BaseModel):
     team_name: str = Field(examples=[constants.TEAM_NM_DESC])
-    team_desc: str = Field(examples=[constants.TEAM_NM_DESC])
+    team_desc: str = Field(examples=[constants.TEAM_DESC])
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -458,6 +458,13 @@ class ClientUserInfo(BaseModel):
     user_id: int
     user_uuid: uuid.UUID
     user_role: str  # UserRoles StrEnum
+
+
+class UserInfo(ClientUserInfo):
+    team_id: Optional[int] = None
+    team_uuid: Optional[uuid.UUID] = None
+    team_name: Optional[str] = Field(default=None, examples=[constants.TEAM_NM_DESC])
+    team_desc: Optional[str] = Field(default=None, examples=[constants.TEAM_DESC])
 
 
 class PromptMetadataBase(ClientUserInfo):

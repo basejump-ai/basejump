@@ -163,24 +163,24 @@ async def create_internal_user(db: AsyncSession, client_id: int):
     return schemas.GetUser.from_orm(user)
 
 
-async def create_internal_client_user(
+async def create_internal_user_info(
     service_context: schemas.ServiceContext,
-) -> sch.ClientUserInfo:
-    # Create a client
+) -> sch.UserInfo:
+    """Create a client, team, and user for an internal user"""
     client = await create_internal_client(db=service_context.db, sql_engine=service_context.sql_engine)
-
-    # Create a user
+    team = create_internal_team(db=service_context.db, client_id=client.client_id)
     user = await create_internal_user(db=service_context.db, client_id=client.client_id)
-
-    # Create the user vars
-    client_user = sch.ClientUser(
+    return sch.UserInfo(
         client_id=client.client_id,
         client_uuid=client.client_uuid,
         user_id=user.user_id,
         user_uuid=user.user_uuid,
         user_role=user.role,
+        team_id=team.team_id,
+        team_uuid=team.team_uuid,
+        team_name=team.team_name,
+        team_desc=team.team_desc,
     )
-    return client_user
 
 
 async def create_internal_team(db: AsyncSession, client_id: int):
@@ -234,8 +234,8 @@ async def add_user_to_team(
 
 async def setup_database(
     service_context: schemas.ServiceContext,
-    conn_params: sch.SQLDBSchema,
     client_user: sch.ClientUserInfo,
+    conn_params: sch.SQLDBSchema,
 ) -> schemas.GetSQLConn:
     """Create a database connection and save it in the database"""
     # Set up the database
@@ -303,78 +303,6 @@ async def create_chat(db: AsyncSession, client_id: int, user_id: int, team_id: i
     return schemas.GetChat(chat_uuid=chat.chat_uuid, chat_id=chat.chat_id, vector_id=vector_id)
 
 
-async def chat(
-    db: AsyncSession,
-    index_name: str,
-    prompt: str,
-    chat_id: int,
-    team_id: int,
-    team_info: sch.TeamFields,
-    client_user: sch.ClientUserInfo,
-    embedding_model_info: sch.AzureModelInfo,
-    sql_engine: AsyncEngine,
-    redis_client_async: RedisAsync,
-    conn_params: sch.SQLDBSchema,
-    vector_id: int,
-    chat_uuid: uuid.UUID,
-    team_uuid: uuid.UUID,
-    large_model_info: sch.AzureModelInfo,
-    small_model_info: sch.AzureModelInfo,
-    client_llm: enums.AIModelSchema = enums.AIModelSchema.GPT41,
-    return_visual_json: bool = True,
-) -> sch.Message:
-    # Setup the chat
-    prompt_metadata_base = await service_utils.create_prompt_base(
-        db=db,
-        client_user=client_user,
-        prompt=prompt,
-        return_visual_json=return_visual_json,
-    )
-    schema = get_index_schema(index_name=index_name)
-    vector_store = RedisVectorStore(redis_client_async=redis_client_async, schema=schema, legacy_filters=True)
-    agent_setup = AgentSetup.load_from_prompt_metadata(prompt_metadata_base=prompt_metadata_base)
-    chat_metadata = sch.ChatMetadata(
-        chat_id=chat_id,
-        chat_uuid=chat_uuid,
-        vector_id=vector_id,
-        index_name=index_name,
-        team_uuid=team_uuid,
-        team_id=team_id,
-        parent_msg_uuid=uuid.uuid4(),
-        curr_chat_history=[],
-        vector_store=vector_store,
-        embedding_model_info=embedding_model_info,
-    )
-
-    # Setup the agent
-    chat_setup = ChatAgentSetup(
-        db=db,
-        prompt_metadata=agent_setup.prompt_metadata,
-        chat_metadata=chat_metadata,
-        redis_client_async=redis_client_async,
-        embedding_model_info=embedding_model_info,
-        team_info=team_info,
-    )
-    chat = await chat_setup.get_chat()
-    chat_history = await chat_setup.get_chat_history(chat=chat)
-
-    # Initialize the agent
-    agent = DataChatAgent(
-        db_conn_params=conn_params,
-        chat_history=chat_history,
-        prompt_metadata=chat_setup.prompt_metadata,
-        chat_metadata=chat_metadata,
-        agent_llm=client_llm,
-        redis_client_async=redis_client_async,
-        large_model_info=large_model_info,
-        small_model_info=small_model_info,
-        embedding_model_info=embedding_model_info,
-        sql_engine=sql_engine,
-    )
-    message = await agent.prompt_agent()
-    return message
-
-
 async def setup_mermaid_agent(
     client_user: sch.ClientUserInfo,
     prompt_id: int,
@@ -422,35 +350,31 @@ async def setup_mermaid_agent(
     return mermaid_agent
 
 
-async def simple_chat(
+async def chat(
     prompt: str,
-    conn_params: sch.SQLDBSchema,
-    service_context: sch.ServiceContext,
-    client_user: Optional[sch.ClientUserInfo] = None,
+    service_context: schemas.ServiceContext,
+    user_info: sch.UserInfo,
+    get_chat_history: bool = False,
+    allow_unrestricted_db_chat: bool = True,
 ) -> sch.Message:
-    if not client_user:
-        client_user = await create_internal_client_user(service_context=service_context)
-
-    # Create a team
-    team = await create_internal_team(db=service_context.db)
-
     # Create a chat
     create_chat_result = await create_chat(
         db=service_context.db,
-        client_id=client_user.client_id,
-        team_id=team.team_id,
-        user_id=client_user.user_id,
+        client_id=user_info.client_id,
+        team_id=user_info.team_id,
+        user_id=user_info.user_id,
     )
 
     # Set up the prompt
+    client_user = sch.ClientUser.model_validate(user_info)
     prompt_metadata_base = await service_utils.create_prompt_base(
         db=service_context.db,
-        client_user=client_user,
+        client_user=client_user,  # TODO: Replace with UserInfo instead
         prompt=prompt,
     )
 
     # Set up the vector store
-    index_name = get_index_name(client_id=client_user.client_id)
+    index_name = get_index_name(client_id=user_info.client_id)
     schema = get_index_schema(index_name=index_name)
     vector_store = RedisVectorStore(
         redis_client_async=service_context.redis_client_async,
@@ -460,38 +384,54 @@ async def simple_chat(
 
     # Set up the agent
     agent_setup = AgentSetup.load_from_prompt_metadata(prompt_metadata_base=prompt_metadata_base)
+
     chat_metadata = sch.ChatMetadata(
         chat_id=create_chat_result.chat_id,
         chat_uuid=create_chat_result.chat_uuid,
         vector_id=create_chat_result.vector_id,
         index_name=index_name,
-        team_uuid=team.team_uuid,
+        team_uuid=user_info.team_uuid,
         team_id=0,
         parent_msg_uuid=uuid.uuid4(),
         curr_chat_history=[],
         vector_store=vector_store,
         embedding_model_info=service_context.embedding_model_info,
     )
+
+    # Get chat history
+    chat_history = None
+    if get_chat_history:
+        chat_setup = ChatAgentSetup(
+            db=service_context.db,
+            prompt_metadata=agent_setup.prompt_metadata,
+            chat_metadata=chat_metadata,
+            redis_client_async=service_context.redis_client_async,
+            embedding_model_info=service_context.embedding_model_info,
+            team_info=sch.TeamFields.model_validate(user_info),
+        )
+        chat = await chat_setup.get_chat()
+        chat_history = await chat_setup.get_chat_history(chat=chat)
+
+    # Prompt the agent
     agent = DataChatAgent(
-        db_conn_params=conn_params,
+        db_conn_params=settings.conn_params,
         prompt_metadata=agent_setup.prompt_metadata,
         chat_metadata=chat_metadata,
+        chat_history=chat_history,
         agent_llm=service_context.client_llm,
         redis_client_async=service_context.redis_client_async,
         large_model_info=service_context.large_model_info,
         small_model_info=service_context.small_model_info,
         embedding_model_info=service_context.embedding_model_info,
         sql_engine=service_context.sql_engine,
-        allow_unrestricted_db_chat=True,
+        allow_unrestricted_db_chat=allow_unrestricted_db_chat,
     )
-
-    # Prompt the agent
     message = await agent.prompt_agent()
     return message
 
 
 def create_service_context(core_session: schemas.CoreSession):
-    return sch.ServiceContext(
+    return schemas.ServiceContext(
         sql_engine=core_session.sql_engine,
         db=core_session.db,
         redis_client_async=core_session.redis_client_async,
