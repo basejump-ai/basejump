@@ -34,8 +34,8 @@ client_conn_params.drivername = enums.DBDriverName.POSTGRES
 
 def get_redis_client_async_instance() -> RedisAsync:
     return redis_async.Redis(
-        host=os.getenv("LOCAL_REDIS_HOST"),
-        port=os.getenv("LOCAL_REDIS_PORT"),
+        host=os.getenv("LOCAL_REDIS_HOST"),  # type: ignore
+        port=os.getenv("LOCAL_REDIS_PORT"),  # type: ignore
         decode_responses=False,
         ssl=False,
     )
@@ -82,8 +82,8 @@ LLM = AzureOpenAI(
     model=large_model_info.model_name.value,
     temperature=0,
     max_tokens=large_model_info.max_tokens,
-    deployment_name=large_model_info.endpoint_info.deployment_name,
-    api_key=large_model_info.endpoint_info.api_key,
-    azure_endpoint=large_model_info.endpoint_info.endpoint,
+    deployment_name=large_model_info.endpoint_info.deployment_name,  # type: ignore
+    api_key=large_model_info.endpoint_info.api_key,  # type: ignore
+    azure_endpoint=large_model_info.endpoint_info.endpoint,  # type: ignore
     api_version=large_model_info.api_version,
 )

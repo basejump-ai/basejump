@@ -35,7 +35,7 @@ async def run_session():
     session = LocalSession(client_id=0, engine=settings.sql_engine)
     db = await session.open()
     redis_client_async = settings.get_redis_client_async_instance()
-    core_session = sch.CoreSession(db=db, redis_client_async=redis_client_async, sql_engine=settings.sql_engine)
+    core_session = schemas.CoreSession(db=db, redis_client_async=redis_client_async, sql_engine=settings.sql_engine)
     try:
         yield core_session
     except Exception as e:
@@ -113,7 +113,7 @@ async def create_client(
     )
 
 
-def create_internal_client(db: AsyncSession, sql_engine: AsyncEngine) -> sch.GetClient:
+async def create_internal_client(db: AsyncSession, sql_engine: AsyncEngine) -> schemas.GetClient:
     try:
         client_id = 0
         client_result = await create_client(
@@ -168,7 +168,7 @@ async def create_internal_user_info(
 ) -> sch.UserInfo:
     """Create a client, team, and user for an internal user"""
     client = await create_internal_client(db=service_context.db, sql_engine=service_context.sql_engine)
-    team = create_internal_team(db=service_context.db, client_id=client.client_id)
+    team = await create_internal_team(db=service_context.db, client_id=client.client_id)
     user = await create_internal_user(db=service_context.db, client_id=client.client_id)
     return sch.UserInfo(
         client_id=client.client_id,
@@ -366,7 +366,7 @@ async def chat(
     )
 
     # Set up the prompt
-    client_user = sch.ClientUser.model_validate(user_info)
+    client_user = sch.ClientUserInfo.model_validate(user_info)
     prompt_metadata_base = await service_utils.create_prompt_base(
         db=service_context.db,
         client_user=client_user,  # TODO: Replace with UserInfo instead
@@ -384,7 +384,6 @@ async def chat(
 
     # Set up the agent
     agent_setup = AgentSetup.load_from_prompt_metadata(prompt_metadata_base=prompt_metadata_base)
-
     chat_metadata = sch.ChatMetadata(
         chat_id=create_chat_result.chat_id,
         chat_uuid=create_chat_result.chat_uuid,
@@ -413,12 +412,14 @@ async def chat(
         chat_history = await chat_setup.get_chat_history(chat=chat)
 
     # Prompt the agent
+    ai_catalog = AICatalog()
+    agent_llm = ai_catalog.get_llm(model_info=service_context.large_model_info)
     agent = DataChatAgent(
         db_conn_params=settings.conn_params,
         prompt_metadata=agent_setup.prompt_metadata,
         chat_metadata=chat_metadata,
         chat_history=chat_history,
-        agent_llm=service_context.client_llm,
+        agent_llm=agent_llm,
         redis_client_async=service_context.redis_client_async,
         large_model_info=service_context.large_model_info,
         small_model_info=service_context.small_model_info,

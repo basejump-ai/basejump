@@ -37,7 +37,7 @@ async def create_user(db: AsyncSession, user: sch.BaseUser, user_id: Optional[in
     if user_id is not None:
         user_dict["user_id"] = user_id
         # Confirm user is already not in the database
-        user_exists = await get_user_from_id(db=db, team_id=user_id)
+        user_exists = await get_user_from_id(db=db, user_id=user_id)
         if user_exists:
             raise errors.AlreadyExists("The user already exists")
 
@@ -104,7 +104,7 @@ async def create_client(
     if client_id is not None:
         client_dict["client_id"] = client_id
         # Confirm client is already not in the database
-        client_exists = await get_client_from_id(db=db, team_id=client_id)
+        client_exists = await get_client_from_id(db=db, client_id=client_id)
         if client_exists:
             raise errors.AlreadyExists("The client already exists")
 

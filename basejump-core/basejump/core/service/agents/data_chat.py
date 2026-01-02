@@ -87,7 +87,7 @@ class DataChatAgent(BaseChatAgent):
         tools = []
         # Loop over the available connections and setup the various tools
         if self.allow_unrestricted_db_chat:
-            connections = crud_connection.get_connections(db=self.db)
+            connections = await crud_connection.get_connections(db=self.db)
         else:
             connections = await ChatAgentSetup.get_connections(
                 db=self.db,

@@ -461,8 +461,8 @@ class ClientUserInfo(BaseModel):
 
 
 class UserInfo(ClientUserInfo):
-    team_id: Optional[int] = None
-    team_uuid: Optional[uuid.UUID] = None
+    team_id: int
+    team_uuid: uuid.UUID
     team_name: Optional[str] = Field(default=None, examples=[constants.TEAM_NM_DESC])
     team_desc: Optional[str] = Field(default=None, examples=[constants.TEAM_DESC])
 

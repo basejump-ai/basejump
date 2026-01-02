@@ -217,7 +217,7 @@ async def get_vector_connection_from_id(db: AsyncSession, vector_id: int) -> mod
     return conn.scalar_one()
 
 
-async def get_connections(db: AsyncSession) -> list[models.Connection]:
+async def get_connections(db: AsyncSession) -> Sequence[models.Connection]:
     conn = await db.execute(select(models.Connection))
     return conn.scalars().all()
 

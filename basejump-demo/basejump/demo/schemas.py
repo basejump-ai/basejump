@@ -1,7 +1,7 @@
 import uuid
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 from redis.asyncio import Redis as RedisAsync
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
@@ -14,6 +14,7 @@ class GetClient(sch.CreateClient):
     client_uuid: uuid.UUID
     client_secret: str
     role: enums.AllUserRoles
+    model_config = ConfigDict(from_attributes=True)
 
 
 class GetTeam(sch.TeamFields):
@@ -57,7 +58,7 @@ class GetChat(sch.BaseModel):
 class CoreSession(BaseModel):
     sql_engine: AsyncEngine
     redis_client_async: RedisAsync
-    db: Optional[AsyncSession] = None
+    db: AsyncSession
 
 
 class PyTestEnv(sch.BaseModel):
@@ -92,4 +93,3 @@ class ServiceContext(CoreSession):
     large_model_info: sch.AzureModelInfo
     small_model_info: sch.AzureModelInfo
     embedding_model_info: sch.AzureModelInfo
-    client_llm: enums.AIModelSchema = Field(default=enums.AIModelSchema.GPT41)
