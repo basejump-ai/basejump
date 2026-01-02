@@ -77,7 +77,7 @@ class ClientQueryManager:
         return result
 
     async def run_client_query_and_upload(
-        self, initial_prompt: str, small_model_info: sch.ModelInfo, client_id: int, create_local_files: bool = True
+        self, initial_prompt: str, small_model_info: sch.ModelInfo, client_id: int, external_storage: bool = False
     ) -> sch.QueryResult:
         """Function to run queries against client databases.
         Needs to be synchronous queries since not all drivers
@@ -88,7 +88,7 @@ class ClientQueryManager:
             initial_prompt=initial_prompt,
             client_id=client_id,
             small_model_info=small_model_info,
-            create_local_files=create_local_files,
+            external_storage=external_storage,
         )  # type: ignore
 
     async def run_client_query(self) -> sch.QueryResultDF:
@@ -128,13 +128,13 @@ def run_client_query_sync_and_upload(
     small_model_info: sch.ModelInfo,
     client_id: int,
     result_uuid: Optional[uuid.UUID] = None,
-    create_local_files: bool = True,
+    external_storage: bool = False,
 ) -> sch.QueryResult:
     # TODO: Parse and parameterize this SQL query
     # NOTE: This needs to stay as connect so no DDL statements get committed
     with client_engine.connect() as client_db:
         try:
-            query_result = upload.upload_sql_to_s3(
+            query_result = upload.upload_sql(
                 db_conn_params=db_conn_params,
                 conn=client_db,
                 sql_query=sql_query,
@@ -142,7 +142,7 @@ def run_client_query_sync_and_upload(
                 initial_prompt=initial_prompt,
                 client_id=client_id,
                 small_model_info=small_model_info,
-                create_local_files=create_local_files,
+                external_storage=external_storage,
             )
         except Exception as e:
             logger.error("Error in run_client_query_sync_and_upload %s", str(e))

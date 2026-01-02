@@ -161,7 +161,7 @@ async def run_ai_sql_query(
     client_id: int,
     small_model_info: sch.ModelInfo,
     redis_client_async: RedisAsync,
-    create_local_files: bool = True,
+    external_storage: bool = False,
 ) -> str:
     handler = ChatMessageHandler(
         prompt_metadata=prompt_metadata, chat_metadata=chat_metadata, redis_client_async=redis_client_async
@@ -191,7 +191,7 @@ async def run_ai_sql_query(
         initial_prompt=prompt_metadata.initial_prompt,
         client_id=client_id,
         small_model_info=small_model_info,
-        create_local_files=create_local_files,
+        external_storage=external_storage,
     )
     await handler.create_message(
         db=db,

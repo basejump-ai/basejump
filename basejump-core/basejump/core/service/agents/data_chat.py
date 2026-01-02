@@ -53,7 +53,7 @@ class DataChatAgent(BaseChatAgent):
         agent_llm: Optional[FunctionCallingLLM] = None,
         select_sample_values: bool = False,
         check_if_prompt_is_cached: bool = False,
-        create_local_files: bool = True,
+        external_storage: bool = False,
         conn_id: Optional[int] = None,
     ):
         self.redis_client_async = redis_client_async
@@ -64,7 +64,7 @@ class DataChatAgent(BaseChatAgent):
         self.db_conn_params = db_conn_params
         self.select_sample_values = select_sample_values
         self.check_if_prompt_is_cached = check_if_prompt_is_cached
-        self.create_local_files = create_local_files
+        self.external_storage = external_storage
         self.conn_id = conn_id
         logger.debug("Here is the chat history %s", chat_history)
         super().__init__(
@@ -131,7 +131,7 @@ class DataChatAgent(BaseChatAgent):
                 embedding_model_info=self.embedding_model_info,
                 sql_engine=self.sql_engine,
                 select_sample_values=self.select_sample_values,
-                create_local_files=self.create_local_files,
+                external_storage=self.external_storage,
             )
             await self.sql_tool.post_init()
             tools += self.sql_tool.tools

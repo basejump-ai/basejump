@@ -54,6 +54,7 @@ async def create_client(
     client_type: enums.ClientType,
     description: str,
     client_id: Optional[int] = None,
+    external_storage: bool = False,
 ) -> schemas.GetClient:
     """Create a client"""
     session = LocalSession(client_id=0, engine=sql_engine)
@@ -79,20 +80,23 @@ async def create_client(
             client_id=client_id,
         )
         client_secret_uuid = new_client.client_secret_uuid
-        default_storage_conn = models.ClientStorageConnection(
-            client_id=new_client.client_id,
-            alias="basejump_default",
-            storage_provider="AWS_S3",
-            region="us-east-2",
-            bucket_name=os.environ["AWS_STORAGE_BUCKET_NAME"],
-            access_key=os.environ["AWS_USER_ACCESS_KEY_ID"],
-            secret_access_key=os.environ["AWS_USER_SECRET_ACCESS_KEY"],
-            active=True,
-            prefix=upload.get_default_prefix(client_uuid=new_client.client_uuid),
-            internal=True,
-        )
-        db.add(default_storage_conn)
-        await db.commit()
+        if external_storage:
+            # NOTE: Only support AWS object storage currently
+            # TODO: Add other object storage
+            default_storage_conn = models.ClientStorageConnection(
+                client_id=new_client.client_id,
+                alias="basejump_default",
+                storage_provider="AWS_S3",
+                region=os.environ["AWS_REGION"],
+                bucket_name=os.environ["AWS_STORAGE_BUCKET_NAME"],
+                access_key=os.environ["AWS_USER_ACCESS_KEY_ID"],
+                secret_access_key=os.environ["AWS_USER_SECRET_ACCESS_KEY"],
+                active=True,
+                prefix=upload.get_default_prefix(client_uuid=new_client.client_uuid),
+                internal=True,
+            )
+            db.add(default_storage_conn)
+            await db.commit()
     except errors.AlreadyExists as e:
         raise e
     except Exception as e:
