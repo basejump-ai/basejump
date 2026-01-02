@@ -97,8 +97,3 @@ async def test_get_trust_score(chat_session):
     """Test getting a trust score"""
     result = await service_utils.calc_trust_score(db=chat_session.db)
     assert result
-
-
-@pytest.mark.chat
-async def test_anonymous_chat():
-    pass

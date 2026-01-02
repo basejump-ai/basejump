@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "basejump-core"
-version = "0.30.10"
+version = "0.30.11"
 description = "Text-to-SQL tool to chat with your database"
 authors = [
     { name = "Andreas Martinson", email = "andreas.martinson@basejump.ai" },
@@ -58,8 +58,8 @@ dependencies = [
     "basejump-llama-index-embeddings-azure-openai==0.3.2.post1",
     "basejump-llama-index-llms-azure-openai==0.3.2.post1",
     "basejump-llama-index-embeddings-openai==0.3.1.post1",
-    "basejump-llama-index-llms-openai==0.3.39.post1",
-    "basejump-llama-index-llms-bedrock-converse==0.5.0.post1",
+    "basejump-llama-index-llms-openai==0.3.39.post2",
+    "basejump-llama-index-llms-bedrock-converse==0.5.0.post2",
     "basejump-llama-index-program-openai==0.3.1.post1",
     "basejump-llama-index-agent-openai==0.4.7.post1",
     "basejump-chat2plot==0.0.11.post1",
