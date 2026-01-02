@@ -20,8 +20,7 @@ from llama_index.core.vector_stores import (
     MetadataFilters,
 )
 from llama_index.vector_stores.redis.base import NO_DOCS
-from redis.asyncio import Redis as RedisAsync
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlglot import errors as sqlglot_errors
 from sqlglot import exp, parse_one
 from sqlglot.dialects.dialect import Dialects
@@ -62,11 +61,7 @@ class SQLTool:
         prompt_metadata: sch.PromptMetadata,
         client_conn_params: sch.SQLDBSchema,
         db_conn_params: sch.SQLDBSchema,
-        redis_client_async: RedisAsync,
-        sql_engine: AsyncEngine,
-        large_model_info: sch.ModelInfo,
-        small_model_info: sch.ModelInfo,
-        embedding_model_info: sch.AzureModelInfo,
+        service_context: sch.ServiceContext,
         select_sample_values: bool = False,
         external_storage: bool = False,
     ):
@@ -90,11 +85,11 @@ class SQLTool:
         self.col_check_ct = 0
         self.provided_sample_vals = False
         self.db_cols: list = []
-        self.large_model_info = large_model_info
-        self.small_model_info = small_model_info
-        self.embedding_model_info = embedding_model_info
-        self.sql_engine = sql_engine
-        self.redis_client_async = redis_client_async
+        self.large_model_info = service_context.large_model_info
+        self.small_model_info = service_context.small_model_info
+        self.embedding_model_info = service_context.embedding_model_info
+        self.sql_engine = service_context.sql_engine
+        self.redis_client_async = service_context.redis_client_async
         self.stuck_in_loop_ct = 0
         self.select_sample_values = select_sample_values
         self.external_storage = external_storage

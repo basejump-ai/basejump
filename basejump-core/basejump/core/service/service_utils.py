@@ -358,7 +358,7 @@ async def refresh_result(
     small_model_info: sch.ModelInfo,
     db_conn_params: sch.SQLDBSchema,
     commit: bool = True,
-    create_local_files: bool = True,
+    external_storage: bool = False,
 ) -> Optional[models.ResultHistory]:
     db_conn = await crud_connection.get_db_conn_from_id(db=db, conn_id=result.result_conn_id)
     if not db_conn:
@@ -379,7 +379,7 @@ async def refresh_result(
         initial_prompt=initial_prompt,
         client_id=client_id,
         small_model_info=small_model_info,
-        create_local_files=create_local_files,
+        external_storage=external_storage,
     )
     # Update record
     # TODO: Update this to use schemas instead

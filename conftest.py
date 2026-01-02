@@ -197,7 +197,7 @@ async def chat_init(db_init):
 
     # Ask the AI a question
     redis_client_async = settings.get_redis_client_async_instance()
-    service_context = sch.ServiceContext(
+    service_context = sch.ServiceContextDB(
         sql_engine=sql_engine,
         redis_client_async=redis_client_async,
         db=db,

@@ -9,9 +9,7 @@ from typing import Optional, Sequence
 from llama_index.core.llms import ChatMessage, MessageRole
 from llama_index.core.llms.function_calling import FunctionCallingLLM
 from llama_index.core.tools.types import AsyncBaseTool
-from redis.asyncio import Redis as RedisAsync
 from redisvl.query.filter import Tag
-from sqlalchemy.ext.asyncio import AsyncEngine
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database import db_auth, upload
@@ -43,11 +41,7 @@ class DataChatAgent(BaseChatAgent):
         db_conn_params: sch.SQLDBSchema,
         prompt_metadata: sch.PromptMetadata,
         chat_metadata: sch.ChatMetadata,
-        redis_client_async: RedisAsync,
-        large_model_info: sch.ModelInfo,
-        small_model_info: sch.ModelInfo,
-        embedding_model_info: sch.AzureModelInfo,
-        sql_engine: AsyncEngine,
+        service_context: sch.ServiceContext,
         chat_history: Optional[list[ChatMessage]] = None,
         max_iterations: int = constants.MAX_ITERATIONS,
         agent_llm: Optional[FunctionCallingLLM] = None,
@@ -56,11 +50,7 @@ class DataChatAgent(BaseChatAgent):
         external_storage: bool = False,
         conn_id: Optional[int] = None,
     ):
-        self.redis_client_async = redis_client_async
-        self.large_model_info = large_model_info
-        self.small_model_info = small_model_info
-        self.embedding_model_info = embedding_model_info
-        self.sql_engine = sql_engine
+        self.service_context = service_context
         self.db_conn_params = db_conn_params
         self.select_sample_values = select_sample_values
         self.check_if_prompt_is_cached = check_if_prompt_is_cached
@@ -73,9 +63,9 @@ class DataChatAgent(BaseChatAgent):
             chat_history=chat_history,
             max_iterations=max_iterations,
             agent_llm=agent_llm,
-            sql_engine=sql_engine,
-            redis_client_async=redis_client_async,
-            large_model_info=large_model_info,
+            sql_engine=service_context.sql_engine,
+            redis_client_async=service_context.redis_client_async,
+            large_model_info=service_context.large_model_info,
         )
 
     @staticmethod
@@ -87,18 +77,20 @@ class DataChatAgent(BaseChatAgent):
         tools = []
         # Loop over the available connections and setup the various tools
         if self.conn_id:
-            connection = await crud_connection.get_db_conn_from_id(db=self.db, conn_id=self.conn_id)
-            if not connection:
+            db_connection = await crud_connection.get_db_conn_from_id(db=self.db, conn_id=self.conn_id)
+            if not db_connection:
                 msg = "The connection does not exist based on the provided connection ID."
                 logger.error(msg)
-                raise errors.NotFound(msg)
-            connections = [connection]
+                raise errors.NotFoundError(msg)
+            connections: list[models.Connection] = [db_connection]
         else:
             connections = await ChatAgentSetup.get_connections(
                 db=self.db,
                 team_id=self.chat_metadata.team_id,
                 user_id=self.prompt_metadata.user_id,
             )
+        if not connections:
+            raise errors.NotFoundError("No connections found")
         self.connections = []
         for conn in connections:
             assert isinstance(conn, models.DBConn)
@@ -125,11 +117,7 @@ class DataChatAgent(BaseChatAgent):
                 db_uuid=connection.db_uuid,
                 vector_id=connection.vector_id,
                 prompt_metadata=self.prompt_metadata,
-                redis_client_async=self.redis_client_async,
-                large_model_info=self.large_model_info,
-                small_model_info=self.small_model_info,
-                embedding_model_info=self.embedding_model_info,
-                sql_engine=self.sql_engine,
+                service_context=self.service_context,
                 select_sample_values=self.select_sample_values,
                 external_storage=self.external_storage,
             )
@@ -139,8 +127,8 @@ class DataChatAgent(BaseChatAgent):
             db=self.db,
             agent=self,
             llm=self.agent_llm,
-            small_model_info=self.small_model_info,
-            embedding_model_info=self.embedding_model_info,
+            small_model_info=self.service_context.small_model_info,
+            embedding_model_info=self.service_context.embedding_model_info,
         )
         tools.append(vis_tool.get_plot_tool())
         return tools
@@ -212,9 +200,9 @@ class DataChatAgent(BaseChatAgent):
                         result=result,
                         commit=False,
                         client_id=self.prompt_metadata.client_id,
-                        small_model_info=self.small_model_info,
+                        small_model_info=self.service_context.small_model_info,
                         db_conn_params=self.db_conn_params,
-                        create_local_files=self.create_local_files,
+                        external_storage=self.external_storage,
                     )
                     file_gen_func = upload.get_stream_result_generator(result.result_file_path)
                     stream_gen = file_gen_func()
@@ -241,9 +229,9 @@ class DataChatAgent(BaseChatAgent):
                             visual_result=visual_result,
                             client_user=client_user,
                             sql_engine=self.sql_engine,
-                            small_model_info=self.small_model_info,
-                            large_model_info=self.large_model_info,
-                            embedding_model_info=self.embedding_model_info,
+                            small_model_info=self.service_context.small_model_info,
+                            large_model_info=self.service_context.large_model_info,
+                            embedding_model_info=self.service_context.embedding_model_info,
                             redis_client_async=self.redis_client_async,
                         )
                         self.query_result.visual_result_uuid = visual_result.visual_result_uuid

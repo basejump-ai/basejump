@@ -11,7 +11,7 @@ logger = set_logging(handler_option="stream", name=__name__)
 
 async def run_main():
     async with service.run_session() as core_session:
-        service_context = service.create_service_context(core_session)
+        service_context = service.create_service_context_db(core_session)
         user_info = await service.create_internal_user_info(service_context)
         connection = await service.setup_database(service_context, user_info, client_conn_params)
         await service.chat("Provide a report of all clients.", service_context, user_info, connection)

@@ -78,5 +78,5 @@ class PyTestEnv(sch.BaseModel):
     db_uuid: Optional[uuid.UUID] = None
     conn_id: Optional[int] = None
     conn_uuid: Optional[uuid.UUID] = None
-    core_session: Optional[sch.CoreSession] = None
+    core_session: Optional[sch.CoreSessionDB] = None
     model_config = ConfigDict(arbitrary_types_allowed=True)

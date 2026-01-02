@@ -698,11 +698,23 @@ class UploadResult(BaseModel):
 class CoreSession(BaseModel):
     sql_engine: AsyncEngine
     redis_client_async: RedisAsync
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+
+class CoreSessionDB(BaseModel):
+    sql_engine: AsyncEngine
+    redis_client_async: RedisAsync
     db: AsyncSession
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class ServiceContext(CoreSession):
+    large_model_info: AzureModelInfo
+    small_model_info: AzureModelInfo
+    embedding_model_info: AzureModelInfo
+
+
+class ServiceContextDB(CoreSessionDB):
     large_model_info: AzureModelInfo
     small_model_info: AzureModelInfo
     embedding_model_info: AzureModelInfo

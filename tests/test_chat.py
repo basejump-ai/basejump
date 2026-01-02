@@ -61,7 +61,7 @@ async def test_getviz(chat_session):
         team_id=chat_session.team_id,
         team_uuid=chat_session.team_uuid,
     )
-    service_context = sch.ServiceContext(
+    service_context = sch.ServiceContextDB(
         sql_engine=chat_session.core_session.sql_engine,
         redis_client_async=chat_session.core_session.redis_client_async,
         db=chat_session.core_session.db,
