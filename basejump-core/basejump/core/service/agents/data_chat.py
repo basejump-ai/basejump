@@ -49,14 +49,8 @@ class DataChatAgent(BaseChatAgent):
         check_if_prompt_is_cached: bool = False,
         external_storage: bool = False,
         conn_id: Optional[int] = None,
+        verbose: bool = False,
     ):
-        self.service_context = service_context
-        self.db_conn_params = db_conn_params
-        self.select_sample_values = select_sample_values
-        self.check_if_prompt_is_cached = check_if_prompt_is_cached
-        self.external_storage = external_storage
-        self.conn_id = conn_id
-        logger.debug("Here is the chat history %s", chat_history)
         super().__init__(
             prompt_metadata=prompt_metadata,
             chat_metadata=chat_metadata,
@@ -66,7 +60,16 @@ class DataChatAgent(BaseChatAgent):
             sql_engine=service_context.sql_engine,
             redis_client_async=service_context.redis_client_async,
             large_model_info=service_context.large_model_info,
+            verbose=verbose,
         )
+        self.service_context = service_context
+        self.db_conn_params = db_conn_params
+        self.select_sample_values = select_sample_values
+        self.check_if_prompt_is_cached = check_if_prompt_is_cached
+        self.external_storage = external_storage
+        self.conn_id = conn_id
+        if self.verbose:
+            logger.debug("Here is the chat history %s", chat_history)
 
     @staticmethod
     def get_llm_type() -> enums.LLMType:
@@ -119,6 +122,7 @@ class DataChatAgent(BaseChatAgent):
                 prompt_metadata=self.prompt_metadata,
                 service_context=self.service_context,
                 select_sample_values=self.select_sample_values,
+                verbose=self.verbose,
                 external_storage=self.external_storage,
             )
             await self.sql_tool.post_init()

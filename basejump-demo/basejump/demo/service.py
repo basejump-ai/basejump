@@ -241,6 +241,7 @@ async def setup_database(
     service_context: sch.ServiceContext,
     user_info: sch.UserInfo,
     conn_params: sch.SQLDBSchema,
+    verbose: bool = False,
 ) -> schemas.GetSQLConn:
     """Create a database connection and save it in the database"""
     # Set up the database
@@ -270,6 +271,7 @@ async def setup_database(
         small_model_info=service_context.small_model_info,
         redis_client_async=service_context.redis_client_async,
         sql_engine=service_context.sql_engine,
+        verbose=verbose,
     )
     return get_sql_conn
 

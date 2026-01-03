@@ -541,6 +541,7 @@ class BaseAgent(ABC):
         large_model_info: sch.ModelInfo,
         agent_llm: Optional[FunctionCallingLLM] = None,
         max_iterations: int = constants.MAX_ITERATIONS,
+        verbose: bool = False,
     ):
         self.prompt_metadata = prompt_metadata
         self.query_result: Optional[sch.MessageQueryResult] = None
@@ -550,6 +551,7 @@ class BaseAgent(ABC):
         self.chat_history = chat_history or []
         self.max_iterations = max_iterations  # NOTE: This only works with streaming off
         self.sql_engine = sql_engine
+        self.verbose = verbose
 
     @abstractmethod
     def get_llm_type() -> enums.LLMType:  # type: ignore
@@ -608,7 +610,7 @@ instructions for the expected output format: \n{EXPECTED_OUTPUT_INSTRUCTIONS}\
             agent = FunctionCallingAgent.from_tools(  # type: ignore
                 tools,  # type: ignore
                 llm=self.agent_llm,
-                verbose=True,
+                verbose=self.verbose,
                 memory=self.memory,
                 max_function_calls=self.max_iterations,
                 callback_manager=self.agent_llm.callback_manager,
@@ -718,6 +720,7 @@ class BaseChatAgent(BaseAgent):
         large_model_info: sch.ModelInfo,
         agent_llm: Optional[FunctionCallingLLM] = None,
         max_iterations: int = constants.MAX_ITERATIONS,
+        verbose: bool = False,
     ):
         super().__init__(
             prompt_metadata=prompt_metadata,
@@ -727,6 +730,7 @@ class BaseChatAgent(BaseAgent):
             redis_client_async=redis_client_async,
             sql_engine=sql_engine,
             large_model_info=large_model_info,
+            verbose=verbose,
         )
         self.chat_metadata = chat_metadata
         self.redis_client_async = redis_client_async
@@ -883,6 +887,7 @@ class SimpleAgent(BaseAgent):
         chat_history: Optional[list[ChatMessage]] = None,
         agent_llm: Optional[FunctionCallingLLM] = None,
         max_iterations: int = 10,
+        verbose: bool = False,
     ):
         super().__init__(
             prompt_metadata=prompt_metadata,
@@ -892,6 +897,7 @@ class SimpleAgent(BaseAgent):
             sql_engine=sql_engine,
             large_model_info=large_model_info,
             redis_client_async=redis_client_async,
+            verbose=verbose,
         )
 
     @staticmethod

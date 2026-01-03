@@ -154,6 +154,7 @@ async def index_db(
     schemas: Optional[list[sch.DBSchema]] = None,
     tables: Optional[list[sch.SQLTable]] = None,
     update_only: bool = False,
+    verbose: bool = False,
 ) -> sch.IndexedTables:
     try:
         if update_only:
@@ -162,12 +163,13 @@ async def index_db(
             except AssertionError:
                 raise Exception("Need tables provided if update_only = True")
         # Upload tables
-        mng_tbls = TableManager(conn_params=conn_params, schemas=schemas)
+        mng_tbls = TableManager(conn_params=conn_params, schemas=schemas, verbose=verbose)
         if not tables:
             tables = await mng_tbls.get_db_tables()
         # logger.debug("All tables found: %s", tables)
         permitted_tables = await asyncio.to_thread(mng_tbls.ingest_table_names, permitted_only=True)
-        logger.debug("Permitted tables found: %s", permitted_tables)
+        if verbose:
+            logger.debug("Permitted tables found: %s", permitted_tables)
         await asyncio.to_thread(mng_tbls.dispose_engine)
         # NOTE: This is called in a task, so it needs its own AsyncSession
         session = LocalSession(client_id=client_user.client_id, engine=sql_engine)

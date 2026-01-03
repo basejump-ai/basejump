@@ -6,9 +6,6 @@ import uuid
 from datetime import datetime
 from typing import Optional, Type, Union
 
-from basejump.core.common.config.logconfig import set_logging
-from basejump.core.models import constants, enums, errors
-from basejump.core.models import schemas as sch
 from sqlglot import diff
 from sqlglot import errors as sqlglot_errors
 from sqlglot import exp, parse_one
@@ -17,6 +14,10 @@ from sqlglot.diff import Keep, Move
 from sqlglot.expressions import Expression
 from sqlglot.optimizer.qualify import qualify
 from sqlglot.optimizer.scope import Scope, build_scope
+
+from basejump.core.common.config.logconfig import set_logging
+from basejump.core.models import constants, enums, errors
+from basejump.core.models import schemas as sch
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -378,8 +379,6 @@ def unquote_identifiers(sql: str, dialect: DialectType) -> str:
 
 
 def qualify_names(sql_query: str, dialect: DialectType) -> exp.Expression:
-    logger.info("Getting fully qualified column names")
-    logger.info("Dialect: %s", dialect)
     check_for_star(sql_query=sql_query, dialect=dialect)
     # quoting columns for case sensitivity in qualify because qualify lowercases everything
     sql_query = quote_identifiers(sql=sql_query, dialect=dialect)

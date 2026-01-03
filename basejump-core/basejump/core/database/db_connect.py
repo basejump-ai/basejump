@@ -259,7 +259,9 @@ selection is not supported."""
             if not table_dict["primary_keys"]:
                 del table_dict["primary_keys"]
         except Exception:
-            logger.debug("No primary keys defined for table")
+            # TODO: Make this an instance function and then use verbose so this debug statement isn't used
+            # logger.debug("No primary keys defined for table")
+            pass
         # Have columns go last
         table_dict["columns"] = table_dict.pop("columns", None)
         # Create a YAML instance
@@ -316,8 +318,9 @@ selection is not supported."""
             table_columns[tbl_column.column_name] = tbl_column.dict()
         try:
             # try to retrieve table comment
-            logger.debug("Here is the table name: %s", table.table_name)
-            logger.debug("Here is the schema name: %s", table.table_schema_rendered)
+            if self.verbose:
+                logger.debug("Here is the table name: %s", table.table_name)
+                logger.debug("Here is the schema name: %s", table.table_schema_rendered)
             try:
                 table_comment = inspector.get_table_comment(
                     table_name=table.table_name, schema=table.table_schema_rendered
@@ -336,12 +339,13 @@ selection is not supported."""
             raise Exception("There must be a rendered schema defined to avoid matching on only table name.")
         for column in inspector.get_columns(table_name=table.table_name, schema=table.table_schema_rendered):
             # if quoted then preserve casing
-            logger.debug("Column: %s", column)
-            logger.debug(
-                "Here is the case sensitivity: %s",
-                (self.is_column_case_sensitive(column["name"]) or isinstance(column["name"], quoted_name)),
-            )
-            logger.debug("Here is the name: %s", column["name"])
+            if self.verbose:
+                logger.debug("Column: %s", column)
+                logger.debug(
+                    "Here is the case sensitivity: %s",
+                    (self.is_column_case_sensitive(column["name"]) or isinstance(column["name"], quoted_name)),
+                )
+                logger.debug("Here is the name: %s", column["name"])
             if self.is_column_case_sensitive(column["name"]) or isinstance(column["name"], quoted_name):
                 column_name = str(column["name"])
             # SQLAlchemy returns lower case by default must uppercase for dbs that use default uppercase
@@ -349,7 +353,8 @@ selection is not supported."""
                 column_name = str(column["name"]).upper()
             else:
                 column_name = str(column["name"])
-            logger.debug("Column name: %s", column_name)
+            if self.verbose:
+                logger.debug("Column name: %s", column_name)
             columns[column["name"]] = sch.SQLTableColumn(
                 column_name=column["name"],
                 column_type=str(column["type"]),
@@ -373,8 +378,9 @@ selection is not supported."""
                 # If there is schema templated, the schema needs to be updated to use the template
                 foreign_tbl_schema = foreign_tbl_nm.split(".")[0] if len(foreign_tbl_nm.split(".")) > 1 else None
                 if foreign_tbl_schema:
-                    logger.debug("Here is the foreign_tbl_schema: %s", foreign_tbl_schema)
-                    logger.debug("Here is the schema mapping: %s", self.schema_mapping)
+                    if self.verbose:
+                        logger.debug("Here is the foreign_tbl_schema: %s", foreign_tbl_schema)
+                        logger.debug("Here is the schema mapping: %s", self.schema_mapping)
                     foreign_tbl_schema = self.schema_mapping.get(foreign_tbl_schema)
                     if foreign_tbl_schema:
                         tbl_nm = foreign_tbl_nm.split(".")[1]
@@ -407,7 +413,8 @@ selection is not supported."""
             for future in asyncio.as_completed(futures, timeout=TABLE_PROFILING_TIME_LIMIT):
                 try:
                     result = await future
-                    logger.debug("Table profiling result: %s", result)
+                    if self.verbose:
+                        logger.debug("Table profiling result: %s", result)
                 except Exception as exc:
                     logger.error("Error when running table profiling in threads: %s", str(exc))
                     raise exc

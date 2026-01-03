@@ -162,7 +162,7 @@ class AIModelSchema(StrEnum):
     GPT51 = "gpt-5.1"
     GPT5 = "gpt-5"
     GPT4o = "gpt-4o"
-    GPT41 = "gpt-41"
+    GPT41 = "gpt-4.1"
     GPT4 = "gpt-4"
     GPT4oMINI = "gpt-4o-mini"
     GPT35_TURBO_AZURE = "gpt-3.5-turbo"

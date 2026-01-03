@@ -64,6 +64,7 @@ class SQLTool:
         service_context: sch.ServiceContext,
         select_sample_values: bool = False,
         external_storage: bool = False,
+        verbose: bool = False,
     ):
         self.agent = agent
         self.db = db
@@ -93,6 +94,7 @@ class SQLTool:
         self.stuck_in_loop_ct = 0
         self.select_sample_values = select_sample_values
         self.external_storage = external_storage
+        self.verbose = verbose
 
     async def post_init(self):
         loaded_sql_tool = await self._get_sql_tables_tool()
@@ -208,6 +210,7 @@ Here is a description of the SQL database connection: """
 
     async def check_all_tables(self, sql_query: str) -> Optional[str]:
         try:
+            logger.info("Dialect: %s", self.sqlglot_dialect)
             parsed_query = parse_one(sql_query, dialect=self.sqlglot_dialect)
             parsed_query_tbls = parsed_query.find_all(exp.Table)
             cte_tbls = parsed_query.find_all(exp.CTE)
@@ -293,18 +296,20 @@ table. Do not use these column(s): {", ".join(query_cols_lowered-valid_cols_lowe
         # logger.info("here are the columns to quote: %s", columns)
         table_aliases = {}
         table_dbs = {}
-        logger.info("Qualifying names in quote_case_sensitive_cols")
         try:
             qualified_ast = db_utils.qualify_names(sql_query, dialect=self.sqlglot_dialect)
-            logger.info("Unquoting identifiers")
+            if self.verbose:
+                logger.info("Unquoting identifiers")
             sql_query_unquoted = db_utils.unquote_identifiers(
                 qualified_ast.sql(dialect=self.sqlglot_dialect), dialect=self.sqlglot_dialect
             )
-            logger.info("Completed unquote")
+            if self.verbose:
+                logger.info("Completed unquote")
         except Exception as e:
             logger.warning("Here is the error: %s", str(e))
             raise e
-        logger.info("Here is the SQL query unquoted: %s", sql_query_unquoted)
+        if self.verbose:
+            logger.info("Here is the SQL query unquoted: %s", sql_query_unquoted)
 
         for node in parse_one(sql_query_unquoted).find_all(exp.Table):
             # If the table has an alias, store it
@@ -359,7 +364,8 @@ table. Do not use these column(s): {", ".join(query_cols_lowered-valid_cols_lowe
             except Exception as e:
                 logger.warning(str(e))
                 logger.traceback()
-            logger.info("Here is the SQL query after quoting: %s", sql_query)
+            if self.verbose:
+                logger.info("Here is the SQL query after quoting: %s", sql_query)
             return sql_query
         except (errors.StarQueryError, errors.ColumnCapitalizationError, errors.HallucinatedColumnError) as e:
             logger.warning("Error in validating columns: %s", str(e))
@@ -791,9 +797,10 @@ After stating your plan, do one of the following:
         if not self.sql_query_created:
             logger.info("Planning SQL query")
             llm_prompt = await self.create_sql_query(initial_sql_query=sql_query)
-            logger.info(
-                "Causing the AI to self-reflect on the SQL query with the following prompt: \n\n %s", llm_prompt
-            )
+            if self.verbose:
+                logger.info(
+                    "Causing the AI to self-reflect on the SQL query with the following prompt: \n\n %s", llm_prompt
+                )
             return llm_prompt
         logger.info("SQL query plan made and SQL query created")
         logger.info("Verifying column values")
@@ -996,7 +1003,8 @@ Here is the prompt that needs to be broken out: \n\n\
         except errors.NoRelevantTables as e:
             logger.warning("The AI was unable to find any relevant tables")
             return str(e)
-        logger.debug("Here are the retrieved tables: %s", tables_str)
+        if self.verbose:
+            logger.debug("Here are the retrieved tables: %s", tables_str)
         # Resolve jinja
         tables_str = await TableManager.arender_query_jinja(jinja_str=tables_str, schemas=self.schemas)
         # If there is unresolved Jinja, then throw an error

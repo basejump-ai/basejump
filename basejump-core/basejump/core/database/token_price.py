@@ -81,7 +81,7 @@ def get_model_cost(model: Optional[str], type_: enums.AIModelType) -> tuple[Deci
         cost_per_1k_tokens_output = enums.DefaultTokenPrices.GPT5_output.value
         model = enums.AIModelSchema.GPT5.value
         ai_model_provider = enums.AIModelProvider.AZURE_OPENAI.value
-    elif enums.AIModelSchema.GPT41.value in model.replace(".", ""):
+    elif enums.AIModelSchema.GPT41.value in model:
         # TODO: Implement the azure pricing queries for GPT 4.1 instead of the manually input default token prices
         cost_per_1k_tokens_input = enums.DefaultTokenPrices.GPT41_input.value
         cost_per_1k_tokens_output = enums.DefaultTokenPrices.GPT41_output.value
