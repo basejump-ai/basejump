@@ -10,10 +10,13 @@ from llama_index.core.callbacks import (
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.db_connect import ConnectDB
 from basejump.core.models import enums
 from basejump.core.models import schemas as sch
 from basejump.core.models.models import Base, DBParams
+
+logger = set_logging(handler_option="stream", name=__name__)
 
 
 async def get_next_val(db: AsyncSession, full_table_nm: str, column_nm: str):
@@ -35,7 +38,16 @@ def create_callback_mgrs(model_name: enums.AIModelSchema) -> sch.CallbackMgrs:
     Do not move this out of this function to the app level
     """
     llama_debug = LlamaDebugHandler(print_trace_on_end=True)
-    token_counter = TokenCountingHandler(tokenizer=tiktoken.encoding_for_model(model_name.value).encode)
+    try:
+        token_counter = TokenCountingHandler(tokenizer=tiktoken.encoding_for_model(model_name.value).encode)
+    except Exception:
+        # TODO: Use a more specific Exception here
+        default_tiktoken_model = enums.AIModelSchema.GPT4o.value
+        logger.warning(
+            f"Encoding not found for model. Defaulting to token counting for \
+                {default_tiktoken_model}: {model_name.value}"
+        )
+        token_counter = TokenCountingHandler(tokenizer=tiktoken.encoding_for_model(default_tiktoken_model).encode)
     callback_manager = CallbackManager([llama_debug, token_counter])
     callback_mgrs = sch.CallbackMgrs(
         token_counter=token_counter, callback_manager=callback_manager, llama_debug=llama_debug
