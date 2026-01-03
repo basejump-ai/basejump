@@ -93,11 +93,11 @@ async def run_main_full():
             user_info=user_info,
         )
         # Here is the LLM response
-        logger.info(chat_result.content)
+        logger.info("LLM response: %s", chat_result.content)
         # Here is the SQL query that was ran
-        logger.info(chat_result.query_result.sql_query)
+        logger.debug("SQL query: %s", chat_result.query_result.sql_query)
         # Use this to get the result in AWS S3
-        logger.info(chat_result.query_result.result_uuid)
+        logger.debug("Result UUID: %s", chat_result.query_result.result_uuid)
 
 
 if __name__ == "__main__":

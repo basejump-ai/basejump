@@ -311,8 +311,9 @@ selection is not supported."""
         Originally taken from llama index sql_wrapper.py
         """
         # Create a dictionary from the current column information
-        logger.debug("Getting info for table: %s", table)
-        logger.debug("Rendered schema: %s", table.table_schema_rendered)
+        if self.verbose:
+            logger.debug("Getting info for table: %s", table)
+            logger.debug("Rendered schema: %s", table.table_schema_rendered)
         table_columns = {}
         for tbl_column in table.columns:
             table_columns[tbl_column.column_name] = tbl_column.dict()
@@ -426,9 +427,12 @@ selection is not supported."""
     async def get_db_tables(self) -> list[sch.SQLTable]:
         """Helper function to retrieve client database information"""
         # Get the tables from the client database
+        logger.info("Retrieving database tables")
         tables_base = await asyncio.to_thread(self.ingest_table_names)
-        logger.debug("Here is tables base: %s", tables_base)
+        if self.verbose:
+            logger.debug("Here are the tables: %s", tables_base)
         tables = await self.get_tables_info(tables=tables_base)
+        logger.info("Finishing retrieving database tables")
         return tables
 
 
@@ -880,7 +884,7 @@ class ConnectDB:
                     invalid_schemas = errors.InvalidSchemas(non_perm_schemas=non_perm_schemas)
                     logger.error("Invalid schemas %s", str(invalid_schemas))
                     raise invalid_schemas
-                logger.info("The following schemas successfully verified: %s", schemas)
+                logger.info("The following schemas were successfully verified: %s", schemas)
         finally:
             mng_tables.dispose_engine()
 

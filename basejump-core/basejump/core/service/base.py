@@ -82,10 +82,12 @@ class ChatMessageHandler(MessageHandler):
         chat_metadata: sch.ChatMetadata,
         redis_client_async: RedisAsync,
         query_result: Optional[sch.MessageQueryResult] = None,
+        verbose: bool = False,
     ):
         super().__init__(prompt_metadata=prompt_metadata, query_result=query_result)
         self.chat_metadata = chat_metadata
         self.redis_client_async = redis_client_async
+        self.verbose = verbose
 
     @property
     def api_message(self):
@@ -134,8 +136,8 @@ class ChatMessageHandler(MessageHandler):
         if self.chat_metadata.reset_parent_msg_uuid:
             # Sending an extra message if a new parent msg UUID needs to be reset
             # TODO: Create message here with blanks
-
-            logger.debug("Webhook message: %s", "Sending solution status to indicate AI has finalized reply")
+            if self.verbose:
+                logger.debug("Webhook message: %s", "Sending solution status to indicate AI has finalized reply")
             await self._send_solution_message(db=db)
             self.chat_metadata.parent_msg_uuid = self.message.msg_uuid
             self.chat_metadata.reset_parent_msg_uuid = False
@@ -175,7 +177,8 @@ class ChatMessageHandler(MessageHandler):
         if not self.chat_metadata:
             # Need a webhook url for anything to be sent
             return
-        logger.debug("Webhook message: %s", self.message.content)
+        if self.verbose:
+            logger.debug("Webhook message: %s", self.message.content)
         api_message = self.format_message()
         await self._send_api_message(api_message=api_message)
         # Make sure to send a solution message after the error message
@@ -188,7 +191,8 @@ class ChatMessageHandler(MessageHandler):
                 await self._send_solution_message(db=send_solution.db)
 
     async def _send_api_message(self, api_message: str):
-        logger.debug("Webhook API message: %s", api_message)
+        if self.verbose:
+            logger.debug("Webhook API message: %s", api_message)
         try:
             assert self.chat_metadata.webhook_url
             webhook_url = self.chat_metadata.webhook_url
@@ -279,6 +283,7 @@ class ChatMessageHandler(MessageHandler):
             callback_manager=self.prompt_metadata.callback_manager,
             vector_store=self.chat_metadata.vector_store,
             embedding_model_info=self.chat_metadata.embedding_model_info,
+            verbose=self.verbose,
         )
         for api_message in self.chat_metadata.curr_chat_history:
             await crud_chat.save_message(
@@ -775,6 +780,7 @@ https://go.microsoft.com/fwlink/?linkid=2198766"""
                 prompt_metadata=self.prompt_metadata,
                 chat_metadata=self.chat_metadata,
                 redis_client_async=self.redis_client_async,
+                verbose=self.verbose,
             )
             if self.chat_metadata.semcache_response:
                 self.chat_metadata.semcache_response.verified = False
@@ -795,6 +801,7 @@ https://go.microsoft.com/fwlink/?linkid=2198766"""
             chat_metadata=self.chat_metadata,
             query_result=self.query_result,
             redis_client_async=self.redis_client_async,
+            verbose=self.verbose,
         )
         await handler.create_message(
             db=self.db,
@@ -827,7 +834,7 @@ https://go.microsoft.com/fwlink/?linkid=2198766"""
             else:
                 sentence_ls.append(sentence)
         for sentence in sentence_ls:
-            logger.info("Here is a pre-filtered thought: %s", sentence)
+            logger.info("LLM thought: %s", sentence)
             # TODO: Make this more robust
             # TODO: Fix the hard reference to structured_sql_generation_tool
             if not sentence:
@@ -860,11 +867,13 @@ https://go.microsoft.com/fwlink/?linkid=2198766"""
         for thought in thoughts:
             if not thought:
                 continue
-            logger.debug("Webhook message: %s", thought)
+            if self.verbose:
+                logger.debug("Webhook message: %s", thought)
             handler = ChatMessageHandler(
                 prompt_metadata=self.prompt_metadata,
                 chat_metadata=self.chat_metadata,
                 redis_client_async=self.redis_client_async,
+                verbose=self.verbose,
             )
             await handler.create_message(
                 db=self.db, role=MessageRole.ASSISTANT, content=thought, msg_type=enums.MessageType.THOUGHT

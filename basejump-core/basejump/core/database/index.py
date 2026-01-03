@@ -163,6 +163,7 @@ async def index_db(
             except AssertionError:
                 raise Exception("Need tables provided if update_only = True")
         # Upload tables
+        logger.info("Starting database index")
         mng_tbls = TableManager(conn_params=conn_params, schemas=schemas, verbose=verbose)
         if not tables:
             tables = await mng_tbls.get_db_tables()
@@ -183,6 +184,7 @@ async def index_db(
                 tables=tables,
                 permitted_tables=permitted_tables,
                 update_only=update_only,
+                verbose=verbose,
             )
             # Create index
             await index_db_tables.create_index(tables=tables, redis_client_async=redis_client_async)

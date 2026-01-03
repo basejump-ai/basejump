@@ -10,7 +10,7 @@ from typing import Callable, Literal, Optional
 BACKUP_COUNT = 10
 MAX_BYTES = 200000
 FILE_PATH = Path.cwd() / "logs"
-LOGGER_LEVEL = logging.DEBUG
+LOGGER_LEVEL = logging.INFO
 
 
 class LogColor(StrEnum):

@@ -3,6 +3,10 @@
 import uuid
 from typing import Sequence
 
+from sqlalchemy import Row, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import load_only, selectinload
+
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.crud import crud_utils
 from basejump.core.database.db_connect import TableManager
@@ -14,9 +18,6 @@ from basejump.core.models.models import (
     DBTableColumns,
     DBTables,
 )
-from sqlalchemy import Row, func, select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import load_only, selectinload
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -122,6 +123,7 @@ async def upload_table_names(
     tables: list[sch.SQLTable],
     permitted_tables: list[sch.SQLTable],
     update_only: bool = False,
+    verbose: bool = False,
 ) -> list[sch.SQLTable]:
     """Uploads the names of the tables in the client database
     to the client_tables table in the basejump database"""
@@ -137,7 +139,8 @@ async def upload_table_names(
 
     found_permitted_table = False
     for table in tables:
-        logger.debug("Table name: %s", table.full_table_name)
+        if verbose:
+            logger.debug("Table name: %s", table.full_table_name)
         if update_only:
             retrieved_tables = await get_tables_from_nms(db=db, table_names=[table.full_table_name], db_id=db_id)
             retrieved_table = retrieved_tables[0]

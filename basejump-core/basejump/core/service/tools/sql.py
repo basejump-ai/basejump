@@ -615,6 +615,7 @@ database, please update your filter value to one or multiple of these instead: {
             prompt_metadata=self.prompt_metadata,
             chat_metadata=self.agent.chat_metadata,
             redis_client_async=self.redis_client_async,
+            verbose=self.verbose,
         )
         await handler.create_message(
             db=self.db,
@@ -764,7 +765,6 @@ After stating your plan, do one of the following:
         logger.info("No hallucinated tables")
         # Check for any hallucinated columns
         try:
-            logger.info("Validating all cols for run_sql")
             sql_query = await self.validate_all_columns(sql_query=sql_query)
             logger.info("Validated sql query: %s", sql_query)
         except (
@@ -855,6 +855,7 @@ After reviewing, run this tool again to run your original or updated SQL query."
                     small_model_info=self.small_model_info,
                     redis_client_async=self.redis_client_async,
                     external_storage=self.external_storage,
+                    verbose=self.verbose,
                 )
         except TimeoutError:
             error_msg = f"SQL query took longer to execute than the max {TIMEOUT/60} minute time out limit."
@@ -875,7 +876,8 @@ Connection timed out. Please try again."""
             self.sql_query_created = False  # Reset so it checks it again
             return msg
         self.prior_sql_query = sql_query
-        logger.info("Message sent to LLM from run_sql: %s", query_result_str)
+        if self.verbose:
+            logger.info("Message sent to LLM: %s", query_result_str)
         return query_result_str
 
     async def get_table_metadata_filters(

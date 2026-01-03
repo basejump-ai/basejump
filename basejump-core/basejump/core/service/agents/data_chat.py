@@ -68,8 +68,7 @@ class DataChatAgent(BaseChatAgent):
         self.check_if_prompt_is_cached = check_if_prompt_is_cached
         self.external_storage = external_storage
         self.conn_id = conn_id
-        if self.verbose:
-            logger.debug("Here is the chat history %s", chat_history)
+        logger.debug("Chat history: %s", chat_history)
 
     @staticmethod
     def get_llm_type() -> enums.LLMType:
@@ -266,6 +265,7 @@ class DataChatAgent(BaseChatAgent):
             prompt_metadata=self.prompt_metadata,
             chat_metadata=self.chat_metadata,
             redis_client_async=self.redis_client_async,
+            verbose=self.verbose,
         )
         if self.chat_history:
             await handler.create_message(

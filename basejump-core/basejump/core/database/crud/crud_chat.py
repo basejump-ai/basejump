@@ -289,6 +289,7 @@ async def index_chat_history(
     callback_manager: CallbackManager,
     vector_store: BasePydanticVectorStore,
     embedding_model_info: sch.AzureModelInfo,
+    verbose: bool = False,
 ) -> None:
     chat = await get_chat_from_id(db=db, chat_id=chat_id)
     assert chat
@@ -312,8 +313,9 @@ async def index_chat_history(
         vector_store=vector_store,
         embed_model=ai_catalog.get_embedding_model(model_info=embedding_model_info),
     )
-    logger.debug("Using the following chat_uuid %s", chat_uuid)
-    logger.debug("Indexing the following chat history: %s", chat_history)
+    if verbose:
+        logger.debug("Using the following chat_uuid %s", chat_uuid)
+        logger.debug("Indexing the following chat history: %s", chat_history)
     for chat_msg in chat_history:
         idx_msg = copy.deepcopy(chat_msg)
         idx_msg.content = add_message_context(

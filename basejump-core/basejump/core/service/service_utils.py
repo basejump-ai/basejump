@@ -162,17 +162,22 @@ async def run_ai_sql_query(
     small_model_info: sch.ModelInfo,
     redis_client_async: RedisAsync,
     external_storage: bool = False,
+    verbose: bool = False,
 ) -> str:
     handler = ChatMessageHandler(
-        prompt_metadata=prompt_metadata, chat_metadata=chat_metadata, redis_client_async=redis_client_async
+        prompt_metadata=prompt_metadata,
+        chat_metadata=chat_metadata,
+        redis_client_async=redis_client_async,
+        verbose=verbose,
     )
     # TODO: Find a way to start running the query right away, but then still send the running sql query
     # in the correct order
     await asyncio.sleep(1.5)  # Adding so thoughts have time to come in from response hook
+    running_query_msg = "Running SQL Query..."
     await handler.create_message(
         db=db,
         role=sch.MessageRole.ASSISTANT,
-        content="Running SQL Query...",
+        content=running_query_msg,
         msg_type=enums.MessageType.THOUGHT,
     )
     await handler.send_api_message()
@@ -187,6 +192,7 @@ async def run_ai_sql_query(
     mng_query = query.ClientQueryManager(
         db_conn_params=db_conn_params, client_conn_params=client_conn_params, sql_query=sql_query
     )
+    logger.info(running_query_msg)
     query_result = await mng_query.run_client_query_and_upload(
         initial_prompt=prompt_metadata.initial_prompt,
         client_id=client_id,
@@ -200,7 +206,7 @@ async def run_ai_sql_query(
         msg_type=enums.MessageType.THOUGHT,
     )
     await handler.send_api_message()
-    logger.debug("Completed running the SQL query")
+    logger.info("Completed running the SQL query")
     # TODO: Consider creating a class with these result handling functions
     assert isinstance(query_result, sch.QueryResult)
     query_result_str = get_sql_result_prompt(

@@ -50,7 +50,6 @@ class ClientQueryManager:
         self.result_uuid = result_uuid
 
     async def get_sql_query(self):
-        logger.info("Getting SQL query for %s", self.sql_query_base)
         return await TableManager.arender_query_jinja(
             jinja_str=self.sql_query_base, schemas=self.client_conn_params.schemas
         )
@@ -68,7 +67,7 @@ class ClientQueryManager:
         conn_db = ConnectDB(conn_params=self.client_conn_params)
         client_engine = conn_db.connect_db()
         sql_query = await self.get_sql_query()
-        logger.info("Running query: %s", sql_query)
+        logger.debug("Running query: %s", sql_query)
 
         result = await asyncio.to_thread(
             func, client_engine=client_engine, sql_query=sql_query, result_uuid=self.result_uuid, **kwargs

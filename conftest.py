@@ -228,12 +228,12 @@ async def chat_init(db_init):
     db_init.chat_uuid = create_chat_result.chat_uuid
     db_init.vector_id = create_chat_result.vector_id
     # Here is the LLM response
-    logger.info(chat_result.content)
+    logger.info("LLM response: %s", chat_result.content)
     # Here is the SQL query that was ran
-    logger.info(chat_result.query_result.sql_query)
+    logger.debug("SQL query: %s", chat_result.query_result.sql_query)
     # Use this to get the result in AWS S3
     db_init.result_uuid = chat_result.query_result.result_uuid
-    logger.info(chat_result.query_result.result_uuid)
+    logger.debug("Result UUID: %s", chat_result.query_result.result_uuid)
     await session.close()
     await sql_engine.dispose()
     await redis_client_async.aclose()
