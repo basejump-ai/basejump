@@ -476,6 +476,7 @@ class PromptMetadataBase(ClientUserInfo):
     initial_prompt: str
     prompt_uuid: uuid.UUID
     prompt_id: int
+    model_name: enums.AIModelSchema
     llm_type: enums.LLMType
     prompt_time: datetime
     return_visual_json: bool = False

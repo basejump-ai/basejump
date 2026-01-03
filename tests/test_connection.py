@@ -20,15 +20,11 @@ async def test_invalid_db_schemas(client_session):
     conn_params = sch.SQLDBSchema.parse_obj(client_session.client_conn_params)
     conn_params.schemas = [schema]
     with pytest.raises(errors.InvalidSchemas):
-        await service.add_client_database(
+        await service.setup_database(
             db=client_session.db,
-            client_id=client_session.client_id,
+            service_context=client_session.service_context,
+            user_info=client_session.user_info,
             conn_params=conn_params,
-            redis_client_async=client_session.redis_client_async,
-            client_user=client_session.client_user,
-            embedding_model_info=settings.embedding_model_info,
-            small_model_info=settings.small_model_info,
-            sql_engine=client_session.sql_engine,
         )
 
 
@@ -51,6 +47,7 @@ async def test_get_connections(db_session):
 
     # Get the connection
     connection = await crud_connection.get_connection(db=db_session.db, conn_uuid=result.conn_uuid)
+    assert connection, "Missing connection"
 
     # Add a connection to a team
     await service.add_connection_to_team(
@@ -82,6 +79,7 @@ async def test_get_mermaid_erd_diagram(db_session):
         llm_type=enums.LLMType.MERMAID_AGENT,
     )
     vector_db = await crud_connection.get_vector_from_connection(db=db_session.db, db_uuid=db_session.db_uuid)
+    assert vector_db, "Missing vector_db"
 
     # Set up the agent
     mermaid_agent = await service.setup_mermaid_agent(
@@ -118,15 +116,11 @@ async def test_invalid_creds(db_session):
     wrong_password = "1234"
     conn_params_local.password = wrong_password
     with pytest.raises(errors.ConnectDBError):
-        await service.add_client_database(
+        await service.setup_database(
             db=db_session.db,
-            client_id=db_session.client_id,
+            service_context=db_session.service_context,
+            user_info=db_session.user_info,
             conn_params=conn_params_local,
-            redis_client_async=db_session.redis_client_async,
-            client_user=db_session.client_user,
-            embedding_model_info=settings.embedding_model_info,
-            small_model_info=settings.small_model_info,
-            sql_engine=db_session.sql_engine,
         )
     with pytest.raises(errors.ConnectDBError):
         login_params = sch.CreateDBConn(
@@ -154,15 +148,11 @@ async def test_jinjafied_schemas(db_session):
             jinja_values={"client_id": str(db_session.client_id)},
         )
     ]
-    await service.add_client_database(
+    await service.setup_database(
         db=db_session.db,
-        client_id=db_session.client_id,
+        service_context=db_session.service_context,
+        user_info=db_session.user_info,
         conn_params=conn_params_local,
-        redis_client_async=db_session.redis_client_async,
-        client_user=db_session.client_user,
-        embedding_model_info=settings.embedding_model_info,
-        small_model_info=settings.small_model_info,
-        sql_engine=db_session.sql_engine,
     )
     with pytest.raises(errors.InvalidSchemas):
         conn_params_local.schemas = [
@@ -170,15 +160,11 @@ async def test_jinjafied_schemas(db_session):
                 schema_nm="accountz123",
             )
         ]
-        await service.add_client_database(
+        await service.setup_database(
             db=db_session.db,
-            client_id=db_session.client_id,
+            service_context=db_session.service_context,
+            user_info=db_session.user_info,
             conn_params=conn_params_local,
-            redis_client_async=db_session.redis_client_async,
-            client_user=db_session.client_user,
-            embedding_model_info=settings.embedding_model_info,
-            small_model_info=settings.small_model_info,
-            sql_engine=db_session.sql_engine,
         )
 
 

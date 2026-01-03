@@ -3,11 +3,12 @@ import re
 from logging.config import fileConfig
 
 from alembic import context
-from basejump.demo.service import conn_params
-from basejump.core.database.db_connect import ConnectDB
-from basejump.core.models.models import Base
 from sqlalchemy import Table
 from sqlalchemy.engine import Connection
+
+from basejump.core.database.db_connect import ConnectDB
+from basejump.core.models.models import Base
+from basejump.demo.settings import conn_params
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

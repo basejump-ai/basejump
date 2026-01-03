@@ -274,6 +274,7 @@ async def create_prompt_base(
     db: AsyncSession,
     client_user: sch.ClientUserInfo,
     prompt: str,
+    model_name: enums.AIModelSchema,
     return_visual_json: bool = True,
 ) -> sch.PromptMetadataBase:
     """Create prompt metadata before starting to interact with the Agent"""
@@ -289,6 +290,7 @@ async def create_prompt_base(
         prompt_uuid=prompt_uuid,
         prompt_id=prompt_id,
         llm_type=enums.LLMType.DATA_AGENT,
+        model_name=model_name,
         prompt_time=datetime.now(),
         return_visual_json=return_visual_json,
         user_role=client_user.user_role,
@@ -332,7 +334,7 @@ well as the same/similar axis ranges and/or format. Here is the visual informati
     # Query the VisTool
     result_uuid = visual_result.result_uuid
     prompt_metadata_base = await create_prompt_base(
-        db=db, client_user=client_user, prompt=prompt, return_visual_json=True
+        db=db, client_user=client_user, prompt=prompt, model_name=large_model_info.model_name, return_visual_json=True
     )
     agent_setup = AgentSetup.load_from_prompt_metadata(prompt_metadata_base=prompt_metadata_base)
     base_agent = SimpleAgent(

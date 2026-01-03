@@ -66,13 +66,16 @@ def get_table_names() -> list[tuple]:
 
 
 class TableManager:
-    def __init__(self, conn_params: sch.SQLDBSchema, schemas: Optional[list[sch.DBSchema]] = None):
+    def __init__(
+        self, conn_params: sch.SQLDBSchema, schemas: Optional[list[sch.DBSchema]] = None, verbose: bool = False
+    ):
         self.conn_params = conn_params
         self.db_type = conn_params.database_type
         self.schemas = schemas or conn_params.schemas
         self.include_default_schema = conn_params.include_default_schema
         self.conn_db = ConnectDB(conn_params=conn_params)
         self.engine = self.conn_db.connect_db(echo=False)
+        self.verbose = verbose
 
     @staticmethod
     def sanitize_jinja_schema_input(jinja_values: dict) -> None:

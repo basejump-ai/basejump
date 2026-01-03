@@ -2,6 +2,8 @@ import uuid
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict
+from redis.asyncio import Redis as RedisAsync
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from basejump.core.models import enums
 from basejump.core.models import schemas as sch
@@ -78,5 +80,9 @@ class PyTestEnv(sch.BaseModel):
     db_uuid: Optional[uuid.UUID] = None
     conn_id: Optional[int] = None
     conn_uuid: Optional[uuid.UUID] = None
-    core_session: Optional[sch.CoreSessionDB] = None
+    db: Optional[AsyncSession] = None
+    redis_client_async: Optional[RedisAsync] = None
+    sql_engine: Optional[AsyncEngine] = None
+    service_context: Optional[sch.ServiceContextDB] = None
+    user_info: Optional[sch.UserInfo] = None
     model_config = ConfigDict(arbitrary_types_allowed=True)

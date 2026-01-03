@@ -5,6 +5,9 @@ import uuid
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+from redis.asyncio import Redis as RedisAsync
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.crud import crud_chat, crud_connection
 from basejump.core.database.format_response import JSONResponseFormatter
@@ -14,8 +17,6 @@ from basejump.core.models import pydantic_ai_formats as fmt
 from basejump.core.models import schemas as sch
 from basejump.core.service.agents.mermaid import MermaidAgent
 from basejump.core.service.base import AgentSetup
-from redis.asyncio import Redis as RedisAsync
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -63,6 +64,7 @@ class MermaidAgentManager:
             user_role=self.client_user.user_role,
             prompt_uuid=prompt_uuid,
             prompt_id=prompt_id,
+            model_name=self.large_model_info.model_name,
             llm_type=enums.LLMType.MERMAID_AGENT,
             prompt_time=datetime.now(),
         )

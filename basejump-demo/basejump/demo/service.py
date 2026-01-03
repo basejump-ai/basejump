@@ -237,7 +237,8 @@ async def add_user_to_team(
 
 
 async def setup_database(
-    service_context: sch.ServiceContextDB,
+    db: AsyncSession,
+    service_context: sch.ServiceContext,
     user_info: sch.UserInfo,
     conn_params: sch.SQLDBSchema,
 ) -> schemas.GetSQLConn:
@@ -245,7 +246,7 @@ async def setup_database(
     # Set up the database
     client_user = sch.ClientUserInfo.model_validate(user_info)
     sql_conn, index_db_tables = await service_utils.setup_db(
-        db=service_context.db,
+        db=db,
         client_user=client_user,
         redis_client_async=service_context.redis_client_async,
         conn_params=conn_params,
@@ -326,6 +327,7 @@ async def setup_mermaid_agent(
         user_role=client_user.user_role,
         prompt_uuid=prompt_uuid,
         prompt_id=prompt_id,
+        model_name=large_model_info.model_name,
         llm_type=enums.LLMType.MERMAID_AGENT,
         prompt_time=datetime.now(),
     )
@@ -356,8 +358,9 @@ async def setup_mermaid_agent(
 
 
 async def chat(
+    db: AsyncSession,
     prompt: str,
-    service_context: sch.ServiceContextDB,
+    service_context: sch.ServiceContext,
     user_info: sch.UserInfo,
     connection: Optional[schemas.GetSQLConn] = None,
     chat: Optional[schemas.GetChat] = None,
@@ -366,7 +369,7 @@ async def chat(
     # Create a chat
     if not chat:
         chat = await create_chat(
-            db=service_context.db,
+            db=db,
             client_id=user_info.client_id,
             team_id=user_info.team_id,
             user_id=user_info.user_id,
@@ -375,9 +378,10 @@ async def chat(
     # Set up the prompt
     client_user = sch.ClientUserInfo.model_validate(user_info)
     prompt_metadata_base = await service_utils.create_prompt_base(
-        db=service_context.db,
+        db=db,
         client_user=client_user,  # TODO: Replace with UserInfo instead
         prompt=prompt,
+        model_name=service_context.large_model_info.model_name,
     )
 
     # Set up the vector store
@@ -408,7 +412,7 @@ async def chat(
     chat_history = None
     if get_chat_history:
         chat_setup = ChatAgentSetup(
-            db=service_context.db,
+            db=db,
             prompt_metadata=agent_setup.prompt_metadata,
             chat_metadata=chat_metadata,
             redis_client_async=service_context.redis_client_async,
@@ -427,17 +431,27 @@ async def chat(
         chat_metadata=chat_metadata,
         chat_history=chat_history,
         agent_llm=agent_llm,
-        service_context=sch.ServiceContext.model_validate(service_context),
+        service_context=sch.ServiceContext.model_validate(service_context.model_dump()),
         conn_id=connection.conn_id if connection else None,
     )
     message = await agent.prompt_agent()
     return message
 
 
-def create_service_context_db(core_session: sch.CoreSessionDB):
+def create_service_context_db(core_session: sch.CoreSessionDB) -> sch.ServiceContextDB:
     return sch.ServiceContextDB(
         sql_engine=core_session.sql_engine,
         db=core_session.db,
+        redis_client_async=core_session.redis_client_async,
+        large_model_info=settings.large_model_info,
+        small_model_info=settings.small_model_info,
+        embedding_model_info=settings.embedding_model_info,
+    )
+
+
+def create_service_context(core_session: sch.CoreSession) -> sch.ServiceContext:
+    return sch.ServiceContext(
+        sql_engine=core_session.sql_engine,
         redis_client_async=core_session.redis_client_async,
         large_model_info=settings.large_model_info,
         small_model_info=settings.small_model_info,

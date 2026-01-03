@@ -77,7 +77,7 @@ class AICatalog:
     def get_azure_llm(self, model_info: sch.AzureModelInfo) -> FunctionCallingLLM:
         assert model_info.endpoint_info, "Missing endpoint info - the pydantic schema should be validating this"
         return AzureOpenAI(
-            model=model_info.model_name.value,  # AIModelSchema.GPT4o.value
+            model=model_info.model_name.value,
             temperature=0,
             max_tokens=model_info.max_tokens,
             deployment_name=model_info.endpoint_info.deployment_name,

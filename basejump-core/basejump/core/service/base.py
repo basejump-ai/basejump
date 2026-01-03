@@ -330,7 +330,7 @@ class AgentSetup:
 
     @staticmethod
     def _load_from_prompt_metadata(prompt_metadata_base: sch.PromptMetadataBase):
-        callback_managers = create_callback_mgrs()
+        callback_managers = create_callback_mgrs(prompt_metadata_base.model_name)
 
         # NOTE: Re-instantiating prompt metadata here since this is background submitted
         prompt_metadata = sch.PromptMetadata(

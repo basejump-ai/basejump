@@ -2,10 +2,6 @@ import json
 
 import sqlalchemy as sa
 import tiktoken
-from basejump.core.database.db_connect import ConnectDB
-from basejump.core.models import enums
-from basejump.core.models import schemas as sch
-from basejump.core.models.models import Base, DBParams
 from llama_index.core.callbacks import (
     CallbackManager,
     LlamaDebugHandler,
@@ -13,6 +9,11 @@ from llama_index.core.callbacks import (
 )
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from basejump.core.database.db_connect import ConnectDB
+from basejump.core.models import enums
+from basejump.core.models import schemas as sch
+from basejump.core.models.models import Base, DBParams
 
 
 async def get_next_val(db: AsyncSession, full_table_nm: str, column_nm: str):
@@ -25,7 +26,7 @@ async def get_next_val(db: AsyncSession, full_table_nm: str, column_nm: str):
     return next_val_base.scalar()
 
 
-def create_callback_mgrs() -> sch.CallbackMgrs:
+def create_callback_mgrs(model_name: enums.AIModelSchema) -> sch.CallbackMgrs:
     """
     Set up callback manager scoped to this specific conversation
 
@@ -34,7 +35,7 @@ def create_callback_mgrs() -> sch.CallbackMgrs:
     Do not move this out of this function to the app level
     """
     llama_debug = LlamaDebugHandler(print_trace_on_end=True)
-    token_counter = TokenCountingHandler(tokenizer=tiktoken.encoding_for_model(enums.AIModelSchema.GPT4o.value).encode)
+    token_counter = TokenCountingHandler(tokenizer=tiktoken.encoding_for_model(model_name.value).encode)
     callback_manager = CallbackManager([llama_debug, token_counter])
     callback_mgrs = sch.CallbackMgrs(
         token_counter=token_counter, callback_manager=callback_manager, llama_debug=llama_debug

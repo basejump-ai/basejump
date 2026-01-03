@@ -32,8 +32,11 @@ async def get_session(test_env: schemas.PyTestEnv) -> schemas.PyTestEnv:
     session = LocalSession(client_id=test_env.client_id, engine=sql_engine)
     db = await session.open()
     redis_client_async = settings.get_redis_client_async_instance()
-    core_session = sch.CoreSession(db=db, redis_client_async=redis_client_async, sql_engine=sql_engine)
-    test_env.core_session = core_session
+    test_env.db = db
+    test_env.redis_client_async = redis_client_async
+    test_env.sql_engine = sql_engine
+    core_session = sch.CoreSession(redis_client_async=redis_client_async, sql_engine=sql_engine)
+    test_env.service_context = service.create_service_context(core_session=core_session)
     yield test_env
     await session.close()
     await sql_engine.dispose()
@@ -84,6 +87,17 @@ async def client_init():
             user_uuid=user_result.user_uuid,
             user_role="MEMBER",
         )
+
+        user_info = sch.UserInfo(
+            client_id=client_user.client_id,
+            client_uuid=client_user.client_uuid,
+            user_id=client_user.user_id,
+            user_uuid=client_user.user_uuid,
+            user_role=client_user.user_role,
+            team_id=team_result.team_id,
+            team_uuid=team_result.team_uuid,
+        )
+
         # Create a connection params object
         client_conn_params = sch.SQLDBSchema(**settings.conn_params.dict())
         client_conn_params.drivername = enums.DBDriverName.POSTGRES
@@ -102,6 +116,7 @@ async def client_init():
             client_user=client_user,
             team_info=sch.TeamFields.model_validate(team_result),
             client_conn_params=client_conn_params,
+            user_info=user_info,
         )
     except Exception as e:
         await db.rollback()
@@ -132,16 +147,13 @@ async def db_init(client_init):
     redis_client_async = settings.get_redis_client_async_instance()
 
     # Add database
-    db_result = await service.add_client_database(
+    core_session = sch.CoreSession(redis_client_async=redis_client_async, sql_engine=sql_engine)
+    service_context = service.create_service_context(core_session=core_session)
+    db_result = await service.setup_database(
         db=db,
-        client_id=client_init.client_id,
-        # Using the same database here for simplicity, but feel free to update
+        service_context=service_context,
+        user_info=client_init.user_info,
         conn_params=client_init.client_conn_params,
-        redis_client_async=redis_client_async,
-        client_user=client_init.client_user,
-        embedding_model_info=settings.embedding_model_info,
-        small_model_info=settings.small_model_info,
-        sql_engine=sql_engine,
     )
 
     # Update test env vars
@@ -197,28 +209,19 @@ async def chat_init(db_init):
 
     # Ask the AI a question
     redis_client_async = settings.get_redis_client_async_instance()
-    service_context = sch.ServiceContextDB(
+    service_context = sch.ServiceContext(
         sql_engine=sql_engine,
         redis_client_async=redis_client_async,
-        db=db,
         large_model_info=settings.large_model_info,
         small_model_info=settings.small_model_info,
         embedding_model_info=settings.embedding_model_info,
     )
-    user_info = sch.UserInfo(
-        client_id=db_init.client_user.client_id,
-        client_uuid=db_init.client_user.client_id,
-        user_id=db_init.client_user.user_id,
-        user_uuid=db_init.client_user.user_uuid,
-        user_role=db_init.client_user.user_role,
-        team_id=db_init.team_id,
-        team_uuid=db_init.team_uuid,
-    )
+
     chat_result = await service.chat(
-        prompt="Provide a list of all clients.",
+        db=db,
+        prompt="Give me a report of all clients.",
         service_context=service_context,
-        user_info=user_info,
-        allow_unrestricted_db_chat=False,
+        user_info=db_init.user_info,
     )
 
     db_init.chat_id = create_chat_result.chat_id

@@ -31,7 +31,7 @@ async def get_user_from_id(db: AsyncSession, user_id: int):
     return user.scalar_one_or_none()
 
 
-async def create_user(db: AsyncSession, user: sch.BaseUser, user_id: Optional[int]):
+async def create_user(db: AsyncSession, user: sch.BaseUser, user_id: Optional[int] = None):
     # Create dictionary for user arguments
     user_dict = user.model_dump()
     if user_id is not None:
