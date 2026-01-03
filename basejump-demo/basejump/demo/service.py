@@ -376,7 +376,6 @@ async def chat(
             team_id=user_info.team_id,
             user_id=user_info.user_id,
         )
-
     # Set up the prompt
     client_user = sch.ClientUserInfo.model_validate(user_info)
     prompt_metadata_base = await service_utils.create_prompt_base(

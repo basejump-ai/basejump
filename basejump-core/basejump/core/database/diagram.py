@@ -109,8 +109,8 @@ the AI to process them in chunks"""
                 if "erDiagram" in chunk:
                     start_idx = idx
                 if "--o{" in chunk:
-                    if not start_idx:
-                        raise Exception("Needs to have erDiagram")
+                    if start_idx is None:
+                        raise Exception("Missing keyword 'erDiagram' in mermaid diagram code text")
                     # Start at 2 since the first 2 include mermaid + erDiagram
                     mermaid_body += code_chunks[start_idx:idx]
                     mermaid_appendix += code_chunks[idx:]
