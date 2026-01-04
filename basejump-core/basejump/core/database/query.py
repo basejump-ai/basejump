@@ -5,8 +5,8 @@ from typing import Optional
 import sqlalchemy as sa
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database import upload
 from basejump.core.database.db_connect import ConnectDB, SSLEngine, TableManager
+from basejump.core.database.result import result_utils, store
 from basejump.core.models import schemas as sch
 
 logger = set_logging(handler_option="stream", name=__name__)
@@ -66,7 +66,7 @@ class ClientQueryRunner:
                 client_db.rollback()
                 raise e
             query_result = result.all()
-        query_result_df = upload.get_output_df(query_result=list(query_result), sql_query=self.sql_query)
+        query_result_df = result_utils.get_output_df(query_result=list(query_result), sql_query=self.sql_query)
         return query_result_df
 
     async def arun_client_query(self) -> sch.QueryResultDF:
@@ -82,7 +82,7 @@ class ClientQueryRecorder(ClientQueryRunner):
         client_id: int,
         initial_prompt: str,
         small_model_info: sch.ModelInfo,
-        result_store: upload.ResultStore,
+        result_store: store.ResultStore,
         client_conn_params: sch.SQLDBSchema,
         sql_query: str,
     ):

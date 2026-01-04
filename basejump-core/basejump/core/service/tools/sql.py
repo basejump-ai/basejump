@@ -26,11 +26,12 @@ from sqlglot import exp, parse_one
 from sqlglot.dialects.dialect import Dialects
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database import db_utils, query, upload
+from basejump.core.database import db_utils, query
 from basejump.core.database.ai_catalog import AICatalog
 from basejump.core.database.crud import crud_connection, crud_table
 from basejump.core.database.db_connect import POOL_TIMEOUT, TableManager
 from basejump.core.database.format_response import JSONResponseFormatter
+from basejump.core.database.result import store
 from basejump.core.database.vector_utils import get_vector_idx
 from basejump.core.models import constants, enums, errors
 from basejump.core.models import pydantic_ai_formats as fmt
@@ -62,7 +63,7 @@ class SQLTool:
         client_conn_params: sch.SQLDBSchema,
         db_conn_params: sch.SQLDBSchema,
         service_context: sch.ServiceContext,
-        result_store: upload.ResultStore,
+        result_store: store.ResultStore,
         select_sample_values: bool = False,
         verbose: bool = False,
     ):

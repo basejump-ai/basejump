@@ -13,12 +13,13 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy.orm.exc import NoResultFound
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database import query, upload
+from basejump.core.database import query
 from basejump.core.database.crud import crud_chat, crud_connection, crud_result
 from basejump.core.database.db_connect import ConnectDB
 from basejump.core.database.db_utils import extract_visual_info
 from basejump.core.database.format_response import get_title_description
 from basejump.core.database.index import DBTableIndexer
+from basejump.core.database.result import store
 from basejump.core.database.vector_utils import get_index_name
 from basejump.core.models import enums, models
 from basejump.core.models import schemas as sch
@@ -161,7 +162,7 @@ async def run_ai_sql_query(
     client_id: int,
     small_model_info: sch.ModelInfo,
     redis_client_async: RedisAsync,
-    result_store: upload.ResultStore,
+    result_store: store.ResultStore,
     verbose: bool = False,
 ) -> str:
     handler = ChatMessageHandler(
@@ -313,7 +314,7 @@ async def refresh_visual_result(
     redis_client_async: RedisAsync,
     visual_result: models.VisualResultHistory,
     client_user: sch.ClientUserInfo,
-    result_store: upload.ResultStore,
+    result_store: store.ResultStore,
 ) -> models.VisualResultHistory:
     """Refresh the visualization result"""
     # Create the prompt that includes the axis from the prior chart
@@ -370,7 +371,7 @@ async def refresh_result(
     client_id: int,
     small_model_info: sch.ModelInfo,
     db_conn_params: sch.SQLDBSchema,
-    result_store: upload.ResultStore,
+    result_store: store.ResultStore,
     commit: bool = True,
 ) -> Optional[models.ResultHistory]:
     db_conn = await crud_connection.get_db_conn_from_id(db=db, conn_id=result.result_conn_id)

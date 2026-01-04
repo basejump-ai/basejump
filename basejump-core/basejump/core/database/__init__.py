@@ -9,7 +9,6 @@ from . import (
     query,
     token_price,
     update,
-    upload,
     vector_utils,
 )
 
@@ -24,6 +23,5 @@ __all__ = [
     "query",
     "token_price",
     "update",
-    "upload",
     "vector_utils",
 ]

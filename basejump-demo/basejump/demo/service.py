@@ -13,11 +13,11 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from basejump.core.common.common_utils import hash_value
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database import upload
 from basejump.core.database.ai_catalog import AICatalog
 from basejump.core.database.crud import crud_main, crud_utils
 from basejump.core.database.db_connect import LocalSession
 from basejump.core.database.index import index_db
+from basejump.core.database.result import store
 from basejump.core.database.vector_utils import get_index_name, get_index_schema
 from basejump.core.models import enums, errors, models, prompts
 from basejump.core.models import schemas as sch
@@ -92,7 +92,7 @@ async def create_client(
                 access_key=os.environ["AWS_USER_ACCESS_KEY_ID"],
                 secret_access_key=os.environ["AWS_USER_SECRET_ACCESS_KEY"],
                 active=True,
-                prefix=upload.get_default_prefix(client_uuid=new_client.client_uuid),
+                prefix=store.S3ResultStore.get_default_prefix(client_uuid=new_client.client_uuid),
                 internal=True,
             )
             db.add(default_storage_conn)

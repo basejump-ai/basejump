@@ -12,9 +12,10 @@ from llama_index.core.tools.types import AsyncBaseTool
 from redisvl.query.filter import Tag
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database import db_auth, upload
+from basejump.core.database import db_auth
 from basejump.core.database.crud import crud_chat, crud_connection, crud_result
 from basejump.core.database.db_connect import ConnectDB
+from basejump.core.database.result import store
 from basejump.core.database.vector_utils import init_semcache
 from basejump.core.models import constants, enums, errors, models
 from basejump.core.models import schemas as sch
@@ -47,7 +48,7 @@ class DataChatAgent(BaseChatAgent):
         agent_llm: Optional[FunctionCallingLLM] = None,
         select_sample_values: bool = False,
         check_if_prompt_is_cached: bool = False,
-        result_store: Optional[upload.ResultStore] = None,
+        result_store: Optional[store.ResultStore] = None,
         conn_id: Optional[int] = None,
         verbose: bool = False,
     ):
@@ -66,7 +67,7 @@ class DataChatAgent(BaseChatAgent):
         self.db_conn_params = db_conn_params
         self.select_sample_values = select_sample_values
         self.check_if_prompt_is_cached = check_if_prompt_is_cached
-        self.result_store = result_store or upload.LocalResultStore(client_id=self.prompt_metadata.client_id)
+        self.result_store = result_store or store.LocalResultStore(client_id=self.prompt_metadata.client_id)
         self.conn_id = conn_id
         logger.debug("Chat history: %s", chat_history)
 
