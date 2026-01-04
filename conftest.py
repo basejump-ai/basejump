@@ -222,6 +222,7 @@ async def chat_init(db_init):
         prompt="Give me a report of all clients.",
         service_context=service_context,
         user_info=db_init.user_info,
+        chat=create_chat_result,
     )
 
     db_init.chat_id = create_chat_result.chat_id

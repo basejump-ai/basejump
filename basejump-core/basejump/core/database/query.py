@@ -113,9 +113,7 @@ class ClientQueryRecorder(ClientQueryRunner):
                 raise e
         return query_result
 
-    async def astore_query_result(
-        self, initial_prompt: str, small_model_info: sch.ModelInfo, client_id: int
-    ) -> sch.QueryResult:
+    async def astore_query_result(self) -> sch.QueryResult:
         """Function to run queries against client databases.
         Needs to be synchronous queries since not all drivers
         support async"""
