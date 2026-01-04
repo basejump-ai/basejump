@@ -11,7 +11,7 @@ from typing import Optional, Sequence
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
-from sqlalchemy.orm import Session, joinedload, selectinload
+from sqlalchemy.orm import joinedload, selectinload
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.crud import crud_table, crud_utils
@@ -357,12 +357,6 @@ def get_client_active_storage_conn_stmt(client_id: int):
 async def get_client_active_storage_conn(db: AsyncSession, client_id: int) -> Optional[models.ClientStorageConnection]:
     stmt = get_client_active_storage_conn_stmt(client_id=client_id)
     result = await db.execute(stmt)
-    return result.scalar_one_or_none()
-
-
-def get_client_active_storage_conn_sync(db: Session, client_id: int) -> Optional[models.ClientStorageConnection]:
-    stmt = get_client_active_storage_conn_stmt(client_id=client_id)
-    result = db.execute(stmt)
     return result.scalar_one_or_none()
 
 

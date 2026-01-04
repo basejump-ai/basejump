@@ -719,3 +719,11 @@ class ServiceContextDB(CoreSessionDB):
     large_model_info: AzureModelInfo
     small_model_info: AzureModelInfo
     embedding_model_info: AzureModelInfo
+
+
+class AWSS3Config(BaseModel):
+    prefix: str
+    bucket_name: str
+    region_name: str
+    access_key: str
+    secret_access_key: str

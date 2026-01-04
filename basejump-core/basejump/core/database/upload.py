@@ -19,8 +19,6 @@ from fastapi import UploadFile
 from sqlalchemy.engine import Row
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database.crud import crud_connection
-from basejump.core.database.db_connect import ConnectDB
 from basejump.core.database.format_response import JSONResponseFormatter
 from basejump.core.models import constants, enums, errors
 from basejump.core.models import pydantic_ai_formats as fmt
@@ -120,7 +118,6 @@ class ResultStore:
     def __init__(
         self,
         client_id: int,
-        db_conn_params: sch.SQLDBSchema,
         result_uuid: Optional[uuid.UUID] = None,
         n_rows=5,
     ):
@@ -204,13 +201,12 @@ class S3ResultStore(ResultStore):
     def __init__(
         self,
         client_id: int,
-        db_conn_params: sch.SQLDBSchema,
+        aws_s3_config: sch.AWSS3Config,
         result_uuid: Optional[uuid.UUID] = None,
         n_rows=5,
     ):
         super().__init__(
             client_id=client_id,
-            db_conn_params=db_conn_params,
             result_uuid=result_uuid,
             n_rows=n_rows,
         )
@@ -219,7 +215,24 @@ class S3ResultStore(ResultStore):
         self.upload_id: Optional[str] = None
         self.multipart_upload = False
         self.etags: list = []
-        self.initialize_s3_bucket(db_conn_params=db_conn_params)
+        self.aws_s3_config = aws_s3_config
+        self.prefix = self.aws_s3_config.prefix
+        self.bucket_name = self.aws_s3_config.bucket_name
+        self.region = self.aws_s3_config.region
+        self.access_key_id = self.aws_s3_config.access_key
+        self.secret_access_key = self.secret_access_key
+        self.s3_client = boto3.client(  # type: ignore
+            "s3",
+            region_name=self.region,
+            aws_access_key_id=self.access_key_id,
+            aws_secret_access_key=self.secret_access_key,
+        )
+        self.athena_client = boto3.client(  # type: ignore
+            "athena",
+            region_name=self.region,
+            aws_access_key_id=self.access_key_id,
+            aws_secret_access_key=self.secret_access_key,
+        )
 
     @property
     def preview_file_name(self) -> str:
@@ -228,42 +241,6 @@ class S3ResultStore(ResultStore):
     @property
     def s3_file_key(self) -> str:
         return get_s3_key(file_name=self.result_file_name, prefix=self.prefix)
-
-    def initialize_s3_bucket(self, db_conn_params: sch.SQLDBSchema):
-        conn_db = ConnectDB(conn_params=db_conn_params)
-        sql_engine_noasync = conn_db.connect_db()
-        session = sa.orm.sessionmaker(
-            bind=sql_engine_noasync,
-            expire_on_commit=False,
-            autocommit=False,
-            autoflush=False,
-        )
-        try:
-            with session() as connect:
-                session_result = crud_connection.get_client_active_storage_conn_sync(
-                    db=connect, client_id=self.client_id
-                )
-                if session_result:
-                    self.bucket_name = session_result.bucket_name
-                    self.prefix = session_result.prefix
-                    self.s3_client = boto3.client(  # type: ignore
-                        "s3",
-                        region_name=session_result.region,
-                        aws_access_key_id=session_result.access_key,
-                        aws_secret_access_key=session_result.secret_access_key,
-                    )
-                    self.athena_client = boto3.client(  # type: ignore
-                        "athena",
-                        region_name=session_result.region,
-                        aws_access_key_id=session_result.access_key,
-                        aws_secret_access_key=session_result.secret_access_key,
-                    )
-                else:
-                    msg = "No bucket name found"
-                    logger.info(msg)
-                    raise Exception(msg)
-        finally:
-            sql_engine_noasync.dispose()
 
     def _upload_chunk(self, part_number):
         self.buffer.seek(0)
