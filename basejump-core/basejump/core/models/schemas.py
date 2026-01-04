@@ -703,9 +703,9 @@ class CoreSession(BaseModel):
 
 
 class ServiceContext(CoreSession):
-    large_model_info: AzureModelInfo
-    small_model_info: AzureModelInfo
-    embedding_model_info: AzureModelInfo
+    large_model_info: ModelInfo
+    small_model_info: ModelInfo
+    embedding_model_info: AzureModelInfo  # TODO: Support other models besides Azure for embedding
 
 
 class AWSS3Config(BaseModel):

@@ -3,7 +3,7 @@ from typing import Optional, Type
 
 from llama_index.core import ChatPromptTemplate
 from llama_index.core.llms import LLM, ChatMessage
-from llama_index.program.openai import OpenAIPydanticProgram
+from llama_index.core.program import FunctionCallingProgram
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -51,7 +51,7 @@ class JSONResponseFormatter:
             my_small_model_info.max_tokens = self.max_tokens
             ai_catalog = AICatalog()
             self.llm = ai_catalog.get_llm(model_info=my_small_model_info)
-        program = OpenAIPydanticProgram.from_defaults(
+        program = FunctionCallingProgram.from_defaults(
             output_cls=self.pydantic_format,
             llm=self.llm,
             prompt=self.feedback_template,

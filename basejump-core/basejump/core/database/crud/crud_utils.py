@@ -45,7 +45,7 @@ def create_callback_mgrs(model_name: enums.AIModelSchema) -> sch.CallbackMgrs:
         default_tiktoken_model = enums.AIModelSchema.GPT4o.value
         logger.warning(
             f"Encoding not found for model. Defaulting to token counting for \
-                {default_tiktoken_model}: {model_name.value}"
+{default_tiktoken_model}: {model_name.value}"
         )
         token_counter = TokenCountingHandler(tokenizer=tiktoken.encoding_for_model(default_tiktoken_model).encode)
     callback_manager = CallbackManager([llama_debug, token_counter])

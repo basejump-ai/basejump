@@ -263,11 +263,6 @@ class SubPlanType(StrEnum):
     DEVELOPER = "developer"
 
 
-class TransactionType(StrEnum):
-    CREDITS_PURCHASE = "credits_purchase"
-    SUBSCRIPTION = "subscription_renewal"
-
-
 class SQLSimilarityLabel(StrEnum):
     IDENTICAL = "identical"
     EQUIVALENT = "equivalent"

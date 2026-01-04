@@ -83,7 +83,7 @@ shown to the user to provide more insight into their data.""",
             nodes = await retriever.aretrieve(col)
             # Get similarity score
             similarity_score = nodes[0].score
-            logger.info(f"Cosine similarity: {similarity_score}")
+            logger.debug(f"Cosine similarity: {similarity_score}")
             if similarity_score > 0.6:  # type: ignore
                 date_cols.append(col)
         return date_cols

@@ -316,7 +316,7 @@ async def setup_mermaid_agent(
     client_user: sch.ClientUserInfo,
     prompt_id: int,
     prompt_uuid: uuid.UUID,
-    large_model_info: sch.AzureModelInfo,
+    large_model_info: sch.ModelInfo,
     sql_engine: AsyncEngine,
     redis_client_async: RedisAsync,
 ) -> MermaidAgent:
@@ -433,7 +433,7 @@ async def chat(
         chat_metadata=chat_metadata,
         chat_history=chat_history,
         agent_llm=agent_llm,
-        service_context=sch.ServiceContext.model_validate(service_context.model_dump()),
+        service_context=service_context,
         conn_id=connection.conn_id if connection else None,
     )
     message = await agent.prompt_agent()

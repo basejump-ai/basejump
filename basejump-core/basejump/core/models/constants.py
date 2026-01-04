@@ -64,7 +64,6 @@ def get_sql_execution_tool_nm(conn_id: int) -> str:
 USER_UUID_DSC = "Universally unique user ID."
 TEAM_UUID_DSC = "Universally unique team ID."
 CLIENT_UUID_DSC = "Universally unique client ID."
-SUB_UUID_DSC = "Universally unique subscription ID."
 CHAT_UUID_DSC = "Universally unique chat ID."
 SAVED_RESULT_UUID_DSC = "Universally unique result ID for a saved generated data object."
 SAVED_RESULT_UUID_DSC = "Universally unique saved result ID for generated data objects."
@@ -79,7 +78,6 @@ VISUAL_RESULT_UUID_DSC = "Universally unique visual result ID for a generated vi
 MSG_UUID_DSC = "Universally unique message ID."
 PROMPT_UUID_DSC = "Universally unique prompt ID."
 PARENT_MSG_UUID_DSC = "Universally unique parent message ID. This is used to AI thoughts and the final reply together."
-SUB_PLAN_UUID_DSC = "Universally unique subscription plan ID."
 PAGE_NUMBER_DSC = "The current page number to return."
 ROWS_PER_PAGE_DSC = "The number of messages to return per page."
 TOTAL_ROW_CT_DSC = """This field can be ignored. It is meant to pass the table row count between calls to avoid \

@@ -65,13 +65,21 @@ small_model_info = sch.AzureModelInfo(
 )
 
 # Set up large model
-large_model_endpoint_info = sch.AzureEndpointInfo(
-    endpoint=os.environ["AZURE_LARGE_MODEL_ENDPOINT"],
-    api_key=os.environ["AZURE_LARGE_MODEL_KEY"],
-    deployment_name=os.environ["AZURE_LARGE_MODEL_DEPLOY_NAME"],
+# large_model_endpoint_info = sch.AzureEndpointInfo(
+#     endpoint=os.environ["AZURE_LARGE_MODEL_ENDPOINT"],
+#     api_key=os.environ["AZURE_LARGE_MODEL_KEY"],
+#     deployment_name=os.environ["AZURE_LARGE_MODEL_DEPLOY_NAME"],
+# )
+# large_model_info = sch.AzureModelInfo(
+#     model_name=enums.AIModelSchema.GPT41,
+#     endpoint_info=large_model_endpoint_info,
+#     api_version="2024-12-01-preview",
+# )
+
+large_model_endpoint_info = sch.AWSEndpointInfo(
+    endpoint=os.environ["AWS_LARGE_MODEL_ENDPOINT"],
+    access_key=os.environ["AWS_USER_ACCESS_KEY_ID"],
+    secret_access_key=os.environ["AWS_USER_SECRET_ACCESS_KEY"],
+    deployment_region=os.environ["AWS_LARGE_MODEL_DEPLOYMENT_REGION"],
 )
-large_model_info = sch.AzureModelInfo(
-    model_name=enums.AIModelSchema.GPT41,
-    endpoint_info=large_model_endpoint_info,
-    api_version="2024-12-01-preview",
-)
+large_model_info = sch.AWSModelInfo(model_name=enums.AIModelSchema.SONNET37, endpoint_info=large_model_endpoint_info)
