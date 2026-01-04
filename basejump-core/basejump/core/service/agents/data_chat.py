@@ -47,7 +47,7 @@ class DataChatAgent(BaseChatAgent):
         agent_llm: Optional[FunctionCallingLLM] = None,
         select_sample_values: bool = False,
         check_if_prompt_is_cached: bool = False,
-        external_storage: bool = False,
+        result_store: Optional[upload.ResultStore] = None,
         conn_id: Optional[int] = None,
         verbose: bool = False,
     ):
@@ -66,7 +66,7 @@ class DataChatAgent(BaseChatAgent):
         self.db_conn_params = db_conn_params
         self.select_sample_values = select_sample_values
         self.check_if_prompt_is_cached = check_if_prompt_is_cached
-        self.external_storage = external_storage
+        self.result_store = result_store or upload.LocalResultStore(client_id=self.prompt_metadata.client_id)
         self.conn_id = conn_id
         logger.debug("Chat history: %s", chat_history)
 
@@ -122,7 +122,7 @@ class DataChatAgent(BaseChatAgent):
                 service_context=self.service_context,
                 select_sample_values=self.select_sample_values,
                 verbose=self.verbose,
-                external_storage=self.external_storage,
+                result_store=self.result_store,
             )
             await self.sql_tool.post_init()
             tools += self.sql_tool.tools
@@ -205,7 +205,7 @@ class DataChatAgent(BaseChatAgent):
                         client_id=self.prompt_metadata.client_id,
                         small_model_info=self.service_context.small_model_info,
                         db_conn_params=self.db_conn_params,
-                        external_storage=self.external_storage,
+                        result_store=self.result_store,
                     )
                     file_gen_func = upload.get_stream_result_generator(result.result_file_path)
                     stream_gen = file_gen_func()

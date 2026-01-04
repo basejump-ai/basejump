@@ -654,39 +654,6 @@ async def upload_csv_to_s3(
     return sch.UploadResult(result_uuid=result_uuid, s3_file_key=result_store.s3_file_key)
 
 
-def upload_sql(
-    conn: sa.Connection,
-    db_conn_params: sch.SQLDBSchema,
-    sql_query: str,
-    initial_prompt: str,
-    client_id: int,
-    small_model_info: sch.ModelInfo,
-    result_uuid: Optional[uuid.UUID] = None,
-    external_storage: bool = False,
-) -> sch.QueryResult:
-    result_store: ResultStore
-
-    # NOTE: Only support AWS S3 currently
-    if external_storage:
-        result_store = S3ResultStore(
-            db_conn_params=db_conn_params,
-            client_id=client_id,
-            result_uuid=result_uuid,
-        )
-    else:
-        result_store = LocalResultStore(
-            db_conn_params=db_conn_params,
-            client_id=client_id,
-            result_uuid=result_uuid,
-        )
-
-    with conn.execute(sa.text(sql_query)) as result:
-        upload_result = result_store.store_sql_result(
-            result=result, small_model_info=small_model_info, initial_prompt=initial_prompt, sql_query=sql_query
-        )
-    return upload_result
-
-
 class ResultManager(ABC):
     def __init__(self, result_file_path: str):
         self.result_file_path = result_file_path

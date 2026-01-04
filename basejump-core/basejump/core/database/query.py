@@ -1,7 +1,5 @@
 import asyncio
-import uuid
 from functools import cached_property
-from typing import Optional
 
 import sqlalchemy as sa
 from sqlalchemy.engine import Engine
@@ -14,18 +12,14 @@ from basejump.core.models import schemas as sch
 logger = set_logging(handler_option="stream", name=__name__)
 
 
-class ClientQueryManager:
+class ClientQueryRunner:
     def __init__(
         self,
-        db_conn_params: sch.SQLDBSchema,
         client_conn_params: sch.SQLDBSchema,
         sql_query: str,
-        result_uuid: Optional[uuid.UUID] = None,
     ):
         self._sql_query = sql_query
-        self.db_conn_params = db_conn_params
         self.client_conn_params = client_conn_params
-        self.result_uuid = result_uuid
         self._client_engine = None
 
     def __enter__(self):
@@ -81,13 +75,21 @@ class ClientQueryManager:
         support async"""
         return await asyncio.to_thread(self.run_client_query)
 
-    def run_client_query_and_store(
+
+class ClientQueryRecorder(ClientQueryRunner):
+    def __init__(
         self,
+        client_id: int,
         initial_prompt: str,
         small_model_info: sch.ModelInfo,
-        client_id: int,
-        external_storage: bool = False,
-    ) -> sch.QueryResult:
+        result_store: upload.ResultStore,
+    ):
+        self.client_id = client_id
+        self.initial_prompt = initial_prompt
+        self.small_model_info = small_model_info
+        self.result_store = result_store
+
+    def store_query_result(self) -> sch.QueryResult:
         """Run a SQL query against a client database and store the results."""
         logger.debug("Running client query and storing results for SQL query: %s", self.sql_query)
         # TODO: Parse and parameterize this SQL query
@@ -95,32 +97,23 @@ class ClientQueryManager:
 
         with self.client_engine.connect() as client_db:
             try:
-                query_result = upload.upload_sql(
-                    db_conn_params=self.db_conn_params,
-                    conn=client_db,
-                    sql_query=self.sql_query,
-                    result_uuid=self.result_uuid,
-                    initial_prompt=initial_prompt,
-                    client_id=client_id,
-                    small_model_info=small_model_info,
-                    external_storage=external_storage,
-                )
+                with client_db.execute(sa.text(self.sql_query)) as result:
+                    query_result = self.result_store.store_sql_result(
+                        result=result,
+                        small_model_info=self.small_model_info,
+                        initial_prompt=self.initial_prompt,
+                        sql_query=self.sql_query,
+                    )
             except Exception as e:
                 logger.error("Error running client sql query and storing results: %s", str(e))
                 client_db.rollback()
                 raise e
         return query_result
 
-    async def arun_client_query_and_store(
-        self, initial_prompt: str, small_model_info: sch.ModelInfo, client_id: int, external_storage: bool = False
+    async def astore_query_result(
+        self, initial_prompt: str, small_model_info: sch.ModelInfo, client_id: int
     ) -> sch.QueryResult:
         """Function to run queries against client databases.
         Needs to be synchronous queries since not all drivers
         support async"""
-        return await asyncio.to_thread(
-            self.run_client_query_and_store,
-            initial_prompt=initial_prompt,
-            small_model_info=small_model_info,
-            client_id=client_id,
-            external_storage=external_storage,
-        )
+        return await asyncio.to_thread(self.run_client_query_and_store)

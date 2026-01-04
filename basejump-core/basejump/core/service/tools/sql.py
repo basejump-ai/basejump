@@ -26,7 +26,7 @@ from sqlglot import exp, parse_one
 from sqlglot.dialects.dialect import Dialects
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database import db_utils, query
+from basejump.core.database import db_utils, query, upload
 from basejump.core.database.ai_catalog import AICatalog
 from basejump.core.database.crud import crud_connection, crud_table
 from basejump.core.database.db_connect import POOL_TIMEOUT, TableManager
@@ -62,8 +62,8 @@ class SQLTool:
         client_conn_params: sch.SQLDBSchema,
         db_conn_params: sch.SQLDBSchema,
         service_context: sch.ServiceContext,
+        result_store: upload.ResultStore,
         select_sample_values: bool = False,
-        external_storage: bool = False,
         verbose: bool = False,
     ):
         self.agent = agent
@@ -93,7 +93,7 @@ class SQLTool:
         self.redis_client_async = service_context.redis_client_async
         self.stuck_in_loop_ct = 0
         self.select_sample_values = select_sample_values
-        self.external_storage = external_storage
+        self.result_store = result_store
         self.verbose = verbose
 
     async def post_init(self):
@@ -854,7 +854,7 @@ After reviewing, run this tool again to run your original or updated SQL query."
                     client_id=self.prompt_metadata.client_id,
                     small_model_info=self.small_model_info,
                     redis_client_async=self.redis_client_async,
-                    external_storage=self.external_storage,
+                    result_store=self.result_store,
                     verbose=self.verbose,
                 )
         except TimeoutError:
@@ -1070,10 +1070,10 @@ or check the underlying SQL database connection for misconfiguration."""
         logger.info("Running client query... %s", sql_query)
         try:
             async with asyncio.timeout(TIMEOUT):
-                async with query.ClientQueryManager(
-                    db_conn_params=self.db_conn_params, client_conn_params=self.client_conn_params, sql_query=sql_query
-                ) as query_mgr:
-                    query_result = await query_mgr.arun_client_query()
+                async with query.ClientQueryRunner(
+                    client_conn_params=self.client_conn_params, sql_query=sql_query
+                ) as query_runner:
+                    query_result = await query_runner.arun_client_query()
                     logger.info("Completed running client query")
         except TimeoutError:
             error_msg = f"SQL query took longer to execute than the max {TIMEOUT/60} minute time out limit."

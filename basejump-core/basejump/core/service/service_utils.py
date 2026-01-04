@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy.orm.exc import NoResultFound
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database import query
+from basejump.core.database import query, upload
 from basejump.core.database.crud import crud_chat, crud_connection, crud_result
 from basejump.core.database.db_connect import ConnectDB
 from basejump.core.database.db_utils import extract_visual_info
@@ -161,7 +161,7 @@ async def run_ai_sql_query(
     client_id: int,
     small_model_info: sch.ModelInfo,
     redis_client_async: RedisAsync,
-    external_storage: bool = False,
+    result_store: upload.ResultStore,
     verbose: bool = False,
 ) -> str:
     handler = ChatMessageHandler(
@@ -189,16 +189,16 @@ async def run_ai_sql_query(
             msg_type=enums.MessageType.THOUGHT,
         )
         await handler.send_api_message()
-    async with query.ClientQueryManager(
-        db_conn_params=db_conn_params, client_conn_params=client_conn_params, sql_query=sql_query
-    ) as query_mgr:
+    async with query.ClientQueryRecorder(
+        client_conn_params=client_conn_params,
+        sql_query=sql_query,
+        initial_prompt=prompt_metadata.initial_prompt,
+        client_id=client_id,
+        small_model_info=small_model_info,
+        result_store=result_store,
+    ) as query_recorder:
         logger.info(running_query_msg)
-        query_result = await query_mgr.arun_client_query_and_store(
-            initial_prompt=prompt_metadata.initial_prompt,
-            client_id=client_id,
-            small_model_info=small_model_info,
-            external_storage=external_storage,
-        )
+        query_result = await query_recorder.astore_query_result()
     await handler.create_message(
         db=db,
         role=sch.MessageRole.ASSISTANT,
@@ -365,8 +365,8 @@ async def refresh_result(
     client_id: int,
     small_model_info: sch.ModelInfo,
     db_conn_params: sch.SQLDBSchema,
+    result_store: upload.ResultStore,
     commit: bool = True,
-    external_storage: bool = False,
 ) -> Optional[models.ResultHistory]:
     db_conn = await crud_connection.get_db_conn_from_id(db=db, conn_id=result.result_conn_id)
     if not db_conn:
@@ -377,18 +377,16 @@ async def refresh_result(
     # Get the initial prompt
     initial_prompt = await crud_chat.get_initial_prompt_for_result(db=db, result_uuid=result.result_uuid)
     assert initial_prompt, "Missing chat history"
-    async with query.ClientQueryManager(
-        db_conn_params=db_conn_params,
+    async with query.ClientQueryRecorder(
         client_conn_params=conn_db.conn_params,
         sql_query=result.sql_query,
         result_uuid=result.result_uuid,
-    ) as query_mgr:
-        query_result = await query_mgr.arun_client_query_and_store(
-            initial_prompt=initial_prompt,
-            client_id=client_id,
-            small_model_info=small_model_info,
-            external_storage=external_storage,
-        )
+        initial_prompt=initial_prompt,
+        client_id=client_id,
+        small_model_info=small_model_info,
+        result_store=result_store,
+    ) as query_recorder:
+        query_result = await query_recorder.astore_query_result()
     # Update record
     # TODO: Update this to use schemas instead
     result.refresh_result = False
