@@ -1070,11 +1070,11 @@ or check the underlying SQL database connection for misconfiguration."""
         logger.info("Running client query... %s", sql_query)
         try:
             async with asyncio.timeout(TIMEOUT):
-                mng_query = query.ClientQueryManager(
+                async with query.ClientQueryManager(
                     db_conn_params=self.db_conn_params, client_conn_params=self.client_conn_params, sql_query=sql_query
-                )
-                query_result = await mng_query.run_client_query()
-                logger.info("Completed running client query")
+                ) as query_mgr:
+                    query_result = await query_mgr.arun_client_query()
+                    logger.info("Completed running client query")
         except TimeoutError:
             error_msg = f"SQL query took longer to execute than the max {TIMEOUT/60} minute time out limit."
             logger.error(error_msg)

@@ -189,16 +189,16 @@ async def run_ai_sql_query(
             msg_type=enums.MessageType.THOUGHT,
         )
         await handler.send_api_message()
-    mng_query = query.ClientQueryManager(
+    async with query.ClientQueryManager(
         db_conn_params=db_conn_params, client_conn_params=client_conn_params, sql_query=sql_query
-    )
-    logger.info(running_query_msg)
-    query_result = await mng_query.run_client_query_and_upload(
-        initial_prompt=prompt_metadata.initial_prompt,
-        client_id=client_id,
-        small_model_info=small_model_info,
-        external_storage=external_storage,
-    )
+    ) as query_mgr:
+        logger.info(running_query_msg)
+        query_result = await query_mgr.arun_client_query_and_store(
+            initial_prompt=prompt_metadata.initial_prompt,
+            client_id=client_id,
+            small_model_info=small_model_info,
+            external_storage=external_storage,
+        )
     await handler.create_message(
         db=db,
         role=sch.MessageRole.ASSISTANT,
@@ -377,18 +377,18 @@ async def refresh_result(
     # Get the initial prompt
     initial_prompt = await crud_chat.get_initial_prompt_for_result(db=db, result_uuid=result.result_uuid)
     assert initial_prompt, "Missing chat history"
-    mng_query = query.ClientQueryManager(
+    async with query.ClientQueryManager(
         db_conn_params=db_conn_params,
         client_conn_params=conn_db.conn_params,
         sql_query=result.sql_query,
         result_uuid=result.result_uuid,
-    )
-    query_result = await mng_query.run_client_query_and_upload(
-        initial_prompt=initial_prompt,
-        client_id=client_id,
-        small_model_info=small_model_info,
-        external_storage=external_storage,
-    )
+    ) as query_mgr:
+        query_result = await query_mgr.arun_client_query_and_store(
+            initial_prompt=initial_prompt,
+            client_id=client_id,
+            small_model_info=small_model_info,
+            external_storage=external_storage,
+        )
     # Update record
     # TODO: Update this to use schemas instead
     result.refresh_result = False

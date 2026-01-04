@@ -16,6 +16,7 @@ import pandas as pd
 import sqlalchemy as sa
 from botocore.exceptions import ClientError
 from fastapi import UploadFile
+from sqlalchemy.engine import Row
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.crud import crud_connection
@@ -41,6 +42,27 @@ def get_result_type(num_cols: int, num_rows: int) -> enums.ResultType:
         result_type = enums.ResultType.DATASET
 
     return result_type
+
+
+def get_output_df(query_result: list[Row], sql_query: str) -> sch.QueryResultDF:
+    # TODO: Have some handling in case this gets too big
+    output_df = pd.DataFrame(query_result)
+    result_row_ct = len(output_df)
+    preview_row_ct = RESULT_PREVIEW_CT if result_row_ct > RESULT_PREVIEW_CT else result_row_ct
+    preview_output_df = output_df.head(preview_row_ct)
+    num_rows = output_df.shape[0]
+    num_cols = output_df.shape[1]
+    result_type = get_result_type(num_rows=num_rows, num_cols=num_cols)
+    return sch.QueryResultDF(
+        output_df=output_df,
+        query_result=query_result,
+        preview_output_df=preview_output_df,
+        preview_row_ct=preview_row_ct,
+        num_rows=num_rows,
+        num_cols=num_cols,
+        result_type=result_type,
+        sql_query=sql_query,
+    )
 
 
 def get_preview_file_name(file_path: str) -> str:
@@ -665,7 +687,7 @@ def upload_sql(
     return upload_result
 
 
-class ResultRetriever(ABC):
+class ResultManager(ABC):
     def __init__(self, result_file_path: str):
         self.result_file_path = result_file_path
 
@@ -678,6 +700,14 @@ class ResultRetriever(ABC):
         pass
 
     @abstractmethod
+    def delete_result(self) -> None:
+        pass
+
+    @abstractmethod
+    async def adelete_result(self) -> None:
+        pass
+
+    @abstractmethod
     def stream_result(self):
         pass
 
@@ -685,7 +715,7 @@ class ResultRetriever(ABC):
         return self.stream_result
 
 
-class LocalResultRetriever(ResultRetriever):
+class LocalResultManager(ResultManager):
     def __init__(self, result_file_path: str):
         super().__init__(result_file_path=result_file_path)
 
@@ -709,7 +739,7 @@ class LocalResultRetriever(ResultRetriever):
             return
 
 
-class S3ResultRetriever(ResultRetriever):
+class S3ResultManager(ResultManager):
     def __init__(self, result_file_path: str):
         super().__init__(result_file_path=result_file_path)
 
@@ -734,6 +764,31 @@ class S3ResultRetriever(ResultRetriever):
             buffer.seek(0)
             return pd.read_csv(buffer)
 
+    def delete_result(bucket_name, s3_key):
+        """Deletes a file from an S3 bucket."""
+        s3_client = boto3.client("s3")
+        try:
+            # Delete the file from S3
+            response = s3_client.delete_object(Bucket=bucket_name, Key=s3_key)
+
+            # Log the result (Optional, for debugging purposes)
+            logger.info(f"File {s3_key} deleted successfully from bucket {bucket_name}.")
+            return response
+
+        except Exception as e:
+            logger.error(f"Error deleting file {s3_key} from bucket {bucket_name}: {e}")
+            return None
+
+    async def adelete_result(bucket_name, s3_key):
+        async with aioboto3.client("s3") as s3_client:
+            try:
+                response = await s3_client.delete_object(Bucket=bucket_name, Key=s3_key)
+                logger.info(f"File {s3_key} deleted successfully from bucket {bucket_name}.")
+                return response
+            except Exception as e:
+                logger.error(f"Error deleting file {s3_key} from bucket {bucket_name}: {e}")
+                return None
+
     def stream_result(self):
         """Generator to stream a file from S3."""
         chunk_size = 1024 * 1024
@@ -757,27 +812,27 @@ class S3ResultRetriever(ResultRetriever):
             return
 
 
-def determine_retriever(result_file_path: str) -> ResultRetriever:
+def get_result_manager(result_file_path: str) -> ResultManager:
     if S3_PREFIX in result_file_path:
-        return S3ResultRetriever(result_file_path=result_file_path)
-    return LocalResultRetriever(result_file_path=result_file_path)
+        return S3ResultManager(result_file_path=result_file_path)
+    return LocalResultManager(result_file_path=result_file_path)
 
 
 async def aget_result(result_file_path: str) -> pd.DataFrame:
-    retriever = determine_retriever(result_file_path=result_file_path)
-    return await retriever.aget_result()
+    result_manager = get_result_manager(result_file_path=result_file_path)
+    return await result_manager.aget_result()
 
 
 def get_result(result_file_path: str) -> pd.DataFrame:
-    retriever = determine_retriever(result_file_path=result_file_path)
-    return retriever.get_result()
+    result_manager = get_result_manager(result_file_path=result_file_path)
+    return result_manager.get_result()
 
 
 def stream_result(result_file_path: str) -> Iterator:
-    retriever = determine_retriever(result_file_path=result_file_path)
-    return retriever.stream_result()
+    result_manager = get_result_manager(result_file_path=result_file_path)
+    return result_manager.stream_result()
 
 
 def get_stream_result_generator(result_file_path: str) -> Callable[[], Iterator]:
-    retriever = determine_retriever(result_file_path=result_file_path)
-    return retriever.get_stream_result_generator()
+    result_manager = get_result_manager(result_file_path=result_file_path)
+    return result_manager.get_stream_result_generator()
