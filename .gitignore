@@ -13,6 +13,7 @@ credentials/
 logging/*
 
 # Data files
+data/
 files/
 *.json
 *.jsonl
