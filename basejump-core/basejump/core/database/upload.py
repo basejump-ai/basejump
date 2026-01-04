@@ -84,19 +84,6 @@ def get_s3_upload_prefix(prefix: str, result_uuid: uuid.UUID):
     return f"{prefix}{str(result_uuid)}/"
 
 
-def get_s3_info_from_filepath(filepath) -> tuple[str, str]:
-    logger.info("Here is the S3 filepath: %s", filepath)
-    try:
-        s3_bucket_key = filepath.split(S3_PREFIX)[1]
-        file_components = s3_bucket_key.split("/")
-        # NOTE: The bucket should be first and the key last, in between is the prefix
-        bucket = file_components[0]
-        s3_key = "/".join(file_components[1:])
-    except Exception:
-        raise Exception("Error getting the S3 key and bucket")
-    return s3_key, bucket
-
-
 def get_default_prefix(client_uuid: uuid.UUID):
     return os.environ["AWS_DEFAULT_PREFIX"] + str(client_uuid) + "/"
 
@@ -108,7 +95,7 @@ def get_s3_folder_path(bucket_name: str, prefix: Optional[str] = None):
     return f"{S3_PREFIX}{bucket_name}/"
 
 
-class ResultStore:
+class ResultStore(ABC):
     chunk_size = 8192
     upload_size_mb = 5
     upload_size = upload_size_mb * 1024 * 1024
@@ -137,6 +124,12 @@ class ResultStore:
         self.metric_value_formatted: Optional[str] = None
 
         logger.info("Uploading result_uuid: %s", str(self.result_uuid))
+
+    @abstractmethod
+    def store(
+        self, result: sa.engine.CursorResult, small_model_info: sch.ModelInfo, initial_prompt: str, sql_query: str
+    ):
+        pass
 
     def create_query_result(
         self, sql_query: str, result_file_path: str, preview_file_path: str, columns: sa.engine.result.RMKeyView
@@ -350,7 +343,7 @@ class S3ResultStore(ResultStore):
         )
         self.saved_preview = True
 
-    def store_sql_result(
+    def store(
         self, result: sa.engine.CursorResult, small_model_info: sch.ModelInfo, initial_prompt: str, sql_query: str
     ) -> sch.QueryResult:
         # Create a CSV writer that writes into the buffer
@@ -482,35 +475,33 @@ class LocalResultStore(ResultStore):
     def __init__(
         self,
         client_id: int,
-        db_conn_params: sch.SQLDBSchema,
         result_uuid: Optional[uuid.UUID] = None,
         n_rows=5,
+        output_path: Optional[str] = None,
     ):
         super().__init__(
             client_id=client_id,
-            db_conn_params=db_conn_params,
             result_uuid=result_uuid,
             n_rows=n_rows,
         )
+        self.output_path = output_path
+        # Decide where to write
+        if self.output_path is None:
+            # default to something like ./sql_results/<some_name>.csv
+            output_dir = pathlib.Path("./data/sql_results")
+            output_dir.mkdir(parents=True, exist_ok=True)
+            self.output_file = output_dir / self.result_file_name
+        else:
+            self.output_file = pathlib.Path(self.output_path)
+            self.output_file.parent.mkdir(parents=True, exist_ok=True)
 
-    def store_sql_result(
+    def store(
         self,
         result: sa.engine.CursorResult,
         small_model_info: sch.ModelInfo,
         initial_prompt: str,
         sql_query: str,
-        output_path: Optional[str] = None,
     ) -> sch.QueryResult:
-        # Decide where to write
-        if output_path is None:
-            # default to something like ./sql_results/<some_name>.csv
-            output_dir = pathlib.Path("./data/sql_results")
-            output_dir.mkdir(parents=True, exist_ok=True)
-            output_file = output_dir / self.result_file_name
-        else:
-            output_file = pathlib.Path(output_path)
-            output_file.parent.mkdir(parents=True, exist_ok=True)
-
         # Open local CSV file
         # Create a CSV writer that writes into the buffer
         csv_writer = csv.writer(self.text_wrapper)
@@ -523,8 +514,8 @@ class LocalResultStore(ResultStore):
         self.counter = 0
         self.total_row_counter = 0
         self.ai_query_result_view = []
-        preview_file_path = get_preview_file_name(output_file.as_posix())
-        result_file_path = output_file.as_posix()
+        preview_file_path = get_preview_file_name(self.output_file.as_posix())
+        result_file_path = self.output_file.as_posix()
         # Process rows and write directly to file
         for row in result:
             if self.counter <= constants.AI_RESULT_PREVIEW_CT:
@@ -609,11 +600,10 @@ def get_athena_type(pd_type) -> str:
 
 
 async def upload_csv_to_s3(
-    db_conn_params: sch.SQLDBSchema, file: UploadFile, client_id: int, result_uuid: Optional[uuid.UUID] = None
+    file: UploadFile, client_id: int, result_uuid: Optional[uuid.UUID] = None
 ) -> sch.UploadResult:
     result_uuid = result_uuid or uuid.uuid4()
     result_store = S3ResultStore(
-        db_conn_params=db_conn_params,
         client_id=client_id,
         result_uuid=result_uuid,
     )
@@ -660,8 +650,8 @@ class ResultManager(ABC):
 
 
 class LocalResultManager(ResultManager):
-    def __init__(self, result_file_path: str):
-        super().__init__(result_file_path=result_file_path)
+    def __init__(self, client_id: int, result_file_path: str):
+        super().__init__(client_id=client_id, result_file_path=result_file_path)
 
     def get_result(self) -> pd.DataFrame:
         return pd.read_csv(self.result_file_path)
@@ -684,8 +674,9 @@ class LocalResultManager(ResultManager):
 
 
 class S3ResultManager(ResultManager):
-    def __init__(self, result_file_path: str):
+    def __init__(self, result_file_path: str, aws_s3_config: sch.AWSS3Config):
         super().__init__(result_file_path=result_file_path)
+        self.aws_s3_config = aws_s3_config
 
     def get_result(self) -> pd.DataFrame:
         raise NotImplementedError("Synchronous get result not implemented for AWS S3.")
@@ -699,7 +690,7 @@ class S3ResultManager(ResultManager):
             region_name=os.environ["AWS_REGION"],
         )
         async with session.client("s3") as s3_client:
-            key, bucket = get_s3_info_from_filepath(filepath=self.result_file_path)
+            key, bucket = self.get_s3_info_from_filepath(filepath=self.result_file_path)
             response = await s3_client.head_object(Bucket=bucket, Key=key)
             file_size = response["ContentLength"]
             if file_size > 5 * 1024 * 1024:
@@ -708,9 +699,10 @@ class S3ResultManager(ResultManager):
             buffer.seek(0)
             return pd.read_csv(buffer)
 
-    def delete_result(bucket_name, s3_key):
+    def delete_result(self):
         """Deletes a file from an S3 bucket."""
         s3_client = boto3.client("s3")
+        s3_key, bucket_name = self.get_s3_info_from_filepath()
         try:
             # Delete the file from S3
             response = s3_client.delete_object(Bucket=bucket_name, Key=s3_key)
@@ -723,7 +715,8 @@ class S3ResultManager(ResultManager):
             logger.error(f"Error deleting file {s3_key} from bucket {bucket_name}: {e}")
             return None
 
-    async def adelete_result(bucket_name, s3_key):
+    async def adelete_result(self):
+        s3_key, bucket_name = self.get_s3_info_from_filepath()
         async with aioboto3.client("s3") as s3_client:
             try:
                 response = await s3_client.delete_object(Bucket=bucket_name, Key=s3_key)
@@ -736,7 +729,7 @@ class S3ResultManager(ResultManager):
     def stream_result(self):
         """Generator to stream a file from S3."""
         chunk_size = 1024 * 1024
-        s3_key, bucket = get_s3_info_from_filepath(self.result_file_path)
+        s3_key, bucket = self.get_s3_info_from_filepath()
         try:
             # Fetch the file from S3
             s3_client = boto3.client("s3")
@@ -754,6 +747,18 @@ class S3ResultManager(ResultManager):
             logger.error(f"Error fetching file {s3_key} from S3 bucket {bucket}: {e}")
             # Handle error: You could raise an HTTPException or handle differently
             return
+
+    def get_s3_info_from_filepath(self) -> tuple[str, str]:
+        logger.info("Here is the S3 filepath: %s", self.filepath)
+        try:
+            s3_bucket_key = self.filepath.split(S3_PREFIX)[1]
+            file_components = s3_bucket_key.split("/")
+            # NOTE: The bucket should be first and the key last, in between is the prefix
+            bucket = file_components[0]
+            s3_key = "/".join(file_components[1:])
+        except Exception:
+            raise Exception("Error getting the S3 key and bucket")
+        return s3_key, bucket
 
 
 def get_result_manager(result_file_path: str) -> ResultManager:

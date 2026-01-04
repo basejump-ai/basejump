@@ -98,7 +98,7 @@ class ClientQueryRecorder(ClientQueryRunner):
         with self.client_engine.connect() as client_db:
             try:
                 with client_db.execute(sa.text(self.sql_query)) as result:
-                    query_result = self.result_store.store_sql_result(
+                    query_result = self.result_store.store(
                         result=result,
                         small_model_info=self.small_model_info,
                         initial_prompt=self.initial_prompt,
