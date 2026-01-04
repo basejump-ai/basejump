@@ -117,8 +117,6 @@ class ResultStore(ABC):
         self.chunk_counter = 0
         self.total_row_counter = 0
         self.client_id = client_id
-        self.buffer = io.BytesIO()
-        self.text_wrapper = io.TextIOWrapper(self.buffer, newline="", encoding="utf-8")
         self.aborted_upload = False
         self.metric_value: Optional[str] = None
         self.metric_value_formatted: Optional[str] = None
@@ -163,11 +161,13 @@ class ResultStore(ABC):
             aborted_upload=self.aborted_upload,
         )
 
-    def get_metric_value(self, small_model_info: sch.ModelInfo, initial_prompt: str, sql_query: str):
+    def get_metric_value(
+        self, small_model_info: sch.ModelInfo, initial_prompt: str, sql_query: str, buffer: io.BytesIO
+    ):
         # Get the metric values
         # TODO: Possibly stop saving metrics in S3 since we're saving them in ResultHistory now
         # Doing this does cause issues elsewhere in the code though, so needs to be done carefully
-        metric_value_binary = self.buffer.getvalue()
+        metric_value_binary = buffer.getvalue()
         self.metric_value = str(metric_value_binary.decode().replace("\n", " ").replace("\r", "").strip())
         prompt = f"""\
 Update the following metric value to be formatted based on the context. \
@@ -239,30 +239,31 @@ class S3ResultStore(ResultStore):
     def s3_file_key(self) -> str:
         return get_s3_key(file_name=self.result_file_name, prefix=self.prefix)
 
-    def _upload_chunk(self, part_number):
-        self.buffer.seek(0)
+    def _upload_chunk(self, part_number, buffer: io.BytesIO):
+        buffer.seek(0)
         response = self.s3_client.upload_part(
             Bucket=self.bucket_name,
             Key=self.s3_file_key,
             PartNumber=part_number,
             UploadId=self.upload_id,
-            Body=self.buffer.getvalue(),
+            Body=buffer.getvalue(),
         )
         return response["ETag"]
 
-    def upload_chunk(self):
-        self.text_wrapper.flush()
+    def upload_chunk(self, buffer: io.BytesIO, text_wrapper: io.TextIOWrapper):
+        if text_wrapper:
+            text_wrapper.flush()
         # If buffer exceeds 5 MB, upload and reset the buffer
-        if self.buffer.tell() >= self.chunk_size:
+        if buffer.tell() >= self.chunk_size:
             self.chunk_counter += 1
             if self.chunk_counter > self.upload_chunk_limit:
                 # Not allowing uploads past 100 MB currently
                 self.abort_multipart_upload()
             else:
                 try:
-                    etag = self._upload_chunk(part_number=len(self.etags) + 1)
+                    etag = self._upload_chunk(part_number=len(self.etags) + 1, buffer=buffer)
                     self.etags.append(etag)
-                    self.buffer.truncate(0)  # Reset the buffer for the next chunk
+                    buffer.truncate(0)  # Reset the buffer for the next chunk
                 except Exception as e:
                     logger.error("Error in upload to s3 in chunks %s", str(e))
                     # Not raising error since this could also indicate it completed
@@ -277,13 +278,11 @@ class S3ResultStore(ResultStore):
             raise e
         self.upload_id = multipart_upload["UploadId"]
 
-    def complete_multipart_upload(self):
-        self.text_wrapper.flush()
+    def complete_multipart_upload(self, buffer: io.BytesIO, text_wrapper: io.TextIOWrapper):
+        text_wrapper.flush()
         # Upload the last part if there is any data remaining
-        if self.buffer.tell() > 0:
-            etag = self._upload_chunk(
-                part_number=len(self.etags) + 1,
-            )
+        if buffer.tell() > 0:
+            etag = self._upload_chunk(part_number=len(self.etags) + 1, buffer=buffer)
             self.etags.append(etag)
         # Complete the multipart upload
         self.s3_client.complete_multipart_upload(
@@ -321,14 +320,14 @@ class S3ResultStore(ResultStore):
             logger.error("Error in save_preview %s", str(e))
             raise errors.InvalidClientCredentials
 
-    def single_upload(self):
-        self.text_wrapper.flush()
+    def single_upload(self, buffer: io.BytesIO, text_wrapper: io.TextIOWrapper):
+        text_wrapper.flush()
         if not self.saved_preview:
-            preview_buffer_to_upload = copy.deepcopy(self.buffer)
+            preview_buffer_to_upload = copy.deepcopy(buffer)
             self._save_preview(preview_buffer_to_upload, self.s3_client, self.bucket_name, self.preview_file_name)
             self.saved_preview = True
-        self.buffer.seek(0)
-        buffer_to_upload = copy.deepcopy(self.buffer)
+        buffer.seek(0)
+        buffer_to_upload = copy.deepcopy(buffer)
         try:
             self.s3_client.upload_fileobj(buffer_to_upload, self.bucket_name, self.s3_file_key)
         except ClientError as e:
@@ -336,9 +335,9 @@ class S3ResultStore(ResultStore):
             raise errors.InvalidClientCredentials
         assert self.saved_preview
 
-    def save_preview(self):
-        self.text_wrapper.flush()
-        buffer_to_upload = copy.deepcopy(self.buffer)
+    def save_preview(self, buffer: io.BytesIO, text_wrapper: io.TextIOWrapper):
+        text_wrapper.flush()
+        buffer_to_upload = copy.deepcopy(buffer)
         self._save_preview(
             buffer=buffer_to_upload,
             s3_client=self.s3_client,
@@ -350,8 +349,10 @@ class S3ResultStore(ResultStore):
     def store(
         self, result: sa.engine.CursorResult, small_model_info: sch.ModelInfo, initial_prompt: str, sql_query: str
     ) -> sch.QueryResult:
+        buffer = io.BytesIO()
+        text_wrapper = io.TextIOWrapper(buffer, newline="", encoding="utf-8")
         # Create a CSV writer that writes into the buffer
-        csv_writer = csv.writer(self.text_wrapper)
+        csv_writer = csv.writer(text_wrapper)
 
         # Write the header
         columns = result.keys()
@@ -369,24 +370,24 @@ class S3ResultStore(ResultStore):
 
             # Save the preview if it hasn't been saved
             if self.counter == 100 and not self.saved_preview:
-                self.save_preview()
+                self.save_preview(buffer=buffer, text_wrapper=text_wrapper)
 
             # Flush the underlying buffer after writing - only flush every 500 rows to improve performance
             if self.counter > self.chunk_size:
                 self.counter = 0
                 if not self.multipart_upload:
                     self.create_multipart_upload()
-                self.upload_chunk()
+                self.upload_chunk(buffer=buffer, text_wrapper=text_wrapper)
 
         # Complete the multipart upload
         if self.multipart_upload:
-            self.complete_multipart_upload()
+            self.complete_multipart_upload(buffer=buffer, text_wrapper=text_wrapper)
         else:
             # Otherwise use a single upload
-            self.single_upload()
+            self.single_upload(buffer=buffer, text_wrapper=text_wrapper)
         if self.counter == 1:
             self.get_metric_value(
-                small_model_info=small_model_info, initial_prompt=initial_prompt, sql_query=sql_query
+                small_model_info=small_model_info, initial_prompt=initial_prompt, sql_query=sql_query, buffer=buffer
             )
         result_file_path = get_s3_file_path(s3_file_key=self.s3_file_key, bucket_name=self.bucket_name)
         preview_file_path = get_s3_file_path(s3_file_key=self.preview_file_name, bucket_name=self.bucket_name)
@@ -400,13 +401,17 @@ class S3ResultStore(ResultStore):
     def get_result_manager(self, result_file_path: str):
         return S3ResultManager(result_file_path=result_file_path, aws_s3_config=self.aws_s3_config)
 
-    async def upload_file(self, file: UploadFile) -> pd.DataFrame:
+    async def upload_file(
+        self,
+        file: UploadFile,
+    ) -> pd.DataFrame:
         # Update the prefix since all files for Athena need to be in a single directory
         self.prefix = get_s3_upload_prefix(prefix=self.prefix, result_uuid=self.result_uuid)
 
         # Create buffer
-        buffer = io.StringIO()
-        writer = csv.writer(self.text_wrapper)
+        buffer = io.BytesIO()
+        text_wrapper = io.TextIOWrapper(buffer, newline="", encoding="utf-8")
+        writer = csv.writer(text_wrapper)
 
         # Stream and write headers
         chunk = await file.read(self.chunk_size)  # Small chunk to get headers
@@ -419,8 +424,11 @@ class S3ResultStore(ResultStore):
         # Process rest of file
         while chunk:
             if buffer.tell() >= self.upload_size:
-                self.upload_chunk()
-                writer = csv.writer(buffer)
+                self.upload_chunk(buffer=buffer, text_wrapper=text_wrapper)
+                buffer.seek(0)
+                buffer.truncate()
+                text_wrapper = io.TextIOWrapper(buffer, newline="", encoding="utf-8")
+                writer = csv.writer(text_wrapper)
 
             for row in csv.reader(text.splitlines()):
                 if len(headers) <= 5:
@@ -431,7 +439,7 @@ class S3ResultStore(ResultStore):
             text = chunk.decode("utf-8") if chunk else ""
 
         # Upload final chunk
-        self.complete_multipart_upload()
+        self.complete_multipart_upload(buffer=buffer, text_wrapper=text_wrapper)
         return pd.DataFrame(data=headers[1:], columns=headers[0])
 
     def create_table_from_csv(self, headers: pd.DataFrame):
@@ -509,9 +517,11 @@ class LocalResultStore(ResultStore):
         initial_prompt: str,
         sql_query: str,
     ) -> sch.QueryResult:
+        buffer = io.BytesIO()
+        text_wrapper = io.TextIOWrapper(buffer, newline="", encoding="utf-8")
         # Open local CSV file
         # Create a CSV writer that writes into the buffer
-        csv_writer = csv.writer(self.text_wrapper)
+        csv_writer = csv.writer(text_wrapper)
 
         # Write the header
         columns = result.keys()
@@ -535,24 +545,22 @@ class LocalResultStore(ResultStore):
 
             # Save the preview if it hasn't been saved
             if self.counter == 100 and not self.saved_preview:
-                self.save_preview(preview_file_path)
+                self.save_preview(preview_file_path, buffer=buffer, text_wrapper=text_wrapper)
 
         # If exactly one row, compute metric as before
         if self.counter == 1:
             self.get_metric_value(
-                small_model_info=small_model_info,
-                initial_prompt=initial_prompt,
-                sql_query=sql_query,
+                small_model_info=small_model_info, initial_prompt=initial_prompt, sql_query=sql_query, buffer=buffer
             )
 
         # Save the preview
         if not self.saved_preview:
-            self.save_preview(preview_file_path)
+            self.save_preview(preview_file_path, buffer=buffer, text_wrapper=text_wrapper)
 
         # Save the result
-        self.text_wrapper.flush()
-        self.buffer.seek(0)
-        data = self.buffer.getvalue()
+        text_wrapper.flush()
+        buffer.seek(0)
+        data = buffer.getvalue()
         with open(result_file_path, "wb") as f:
             f.write(data)
 
@@ -567,9 +575,9 @@ class LocalResultStore(ResultStore):
     def get_result_manager(self, result_file_path: str):
         return LocalResultManager(result_file_path=result_file_path)
 
-    def save_preview(self, preview_file_path: str):
-        self.text_wrapper.flush()
-        buffer_to_upload = copy.deepcopy(self.buffer)
+    def save_preview(self, preview_file_path: str, buffer: io.BytesIO, text_wrapper: io.TextIOWrapper):
+        text_wrapper.flush()
+        buffer_to_upload = copy.deepcopy(buffer)
         buffer_to_upload.seek(0)
         data = buffer_to_upload.getvalue()
         with open(preview_file_path, "wb") as f:
