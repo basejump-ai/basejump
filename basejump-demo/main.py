@@ -34,12 +34,15 @@ async def run_main_full():
     logger.info(client_result)
 
     # Create a session
-    async with service.run_session(client_id=client_result.client_id) as core_session:
+    async with service.run_session(client_id=client_result.client_id) as (
+        core_session,
+        db,
+    ):
         service_context = service.create_service_context(core_session)
 
         # Create a team
         team_result = await service.create_team(
-            db=core_session.db,
+            db=db,
             team_name="AI power users",
             client_id=client_result.client_id,
             team_desc="A team in charge of managing ABC",
@@ -48,7 +51,7 @@ async def run_main_full():
 
         # Create a user
         user_result = await service.create_user(
-            db=core_session.db,
+            db=db,
             client_id=client_result.client_id,
             username="John Doe",
             email_address="john@gmail.com",
@@ -57,7 +60,7 @@ async def run_main_full():
 
         # Associate a user with a team
         user_team_result = await service.add_user_to_team(
-            db=core_session.db,
+            db=db,
             username=user_result.username,
             team_name=team_result.team_name,
             user_id=user_result.user_id,
@@ -79,7 +82,7 @@ async def run_main_full():
 
         # Set up the database
         db_result = await service.setup_database(
-            db=core_session.db,
+            db=db,
             service_context=service_context,
             user_info=user_info,
             conn_params=client_conn_params,
@@ -87,7 +90,7 @@ async def run_main_full():
 
         # Add a connection to a team
         await service.add_connection_to_team(
-            db=core_session.db,
+            db=db,
             client_id=client_result.client_id,
             team_id=team_result.team_id,
             conn_id=db_result.conn_id,
@@ -95,7 +98,7 @@ async def run_main_full():
 
         # Ask the AI a question
         chat_result = await service.chat(
-            db=core_session.db,
+            db=db,
             prompt="Provide a report of all clients.",
             service_context=service_context,
             user_info=user_info,
@@ -109,4 +112,4 @@ async def run_main_full():
 
 
 if __name__ == "__main__":
-    asyncio.run(run_main())
+    asyncio.run(run_main_full())
