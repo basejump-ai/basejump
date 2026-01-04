@@ -36,12 +36,14 @@ class VisTool:
         agent,
         small_model_info: sch.ModelInfo,
         embedding_model_info: sch.AzureModelInfo,
+        result_store: upload.ResultStore,
         llm: Optional[LLM] = None,
     ):
         self.db = db
         self.agent: BaseAgent = agent
         self.small_model_info = small_model_info
         self.embedding_model_info = embedding_model_info
+        self.result_store = result_store
 
     def get_plot_tool(self) -> FunctionTool:
         func = self.get_plot
@@ -109,7 +111,8 @@ result_uuid is incorrect or the originally created data has been deleted."""
 
         # Retrieve the result
         try:
-            df = await upload.aget_result(result.result_file_path)
+            result_manager = self.result_store.get_result_manager(result_file_path=result.result_file_path)
+            df = await result_manager.aget_result()
         except errors.LargerThan5MBError:
             return """File size is larger than 5 MB. Make sure to aggregate the data using SQL \
 before attempting to visualize."""

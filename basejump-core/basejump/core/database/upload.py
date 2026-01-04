@@ -8,7 +8,7 @@ import time
 import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
-from typing import Callable, Optional
+from typing import Optional
 
 import aioboto3
 import boto3
@@ -131,6 +131,10 @@ class ResultStore(ABC):
     ):
         pass
 
+    @abstractmethod
+    def get_result_manager(self, result_file_path: str):
+        pass
+
     def create_query_result(
         self, sql_query: str, result_file_path: str, preview_file_path: str, columns: sa.engine.result.RMKeyView
     ) -> sch.QueryResult:
@@ -213,14 +217,14 @@ class S3ResultStore(ResultStore):
         self.bucket_name = self.aws_s3_config.bucket_name
         self.region = self.aws_s3_config.region
         self.access_key_id = self.aws_s3_config.access_key
-        self.secret_access_key = self.secret_access_key
-        self.s3_client = boto3.client(  # type: ignore
+        self.secret_access_key = self.aws_s3_config.secret_access_key
+        self.s3_client = boto3.client(
             "s3",
             region_name=self.region,
             aws_access_key_id=self.access_key_id,
             aws_secret_access_key=self.secret_access_key,
         )
-        self.athena_client = boto3.client(  # type: ignore
+        self.athena_client = boto3.client(
             "athena",
             region_name=self.region,
             aws_access_key_id=self.access_key_id,
@@ -393,6 +397,9 @@ class S3ResultStore(ResultStore):
             columns=columns,
         )
 
+    def get_result_manager(self, result_file_path: str):
+        return S3ResultManager(result_file_path=result_file_path, aws_s3_config=self.aws_s3_config)
+
     async def upload_file(self, file: UploadFile) -> pd.DataFrame:
         # Update the prefix since all files for Athena need to be in a single directory
         self.prefix = get_s3_upload_prefix(prefix=self.prefix, result_uuid=self.result_uuid)
@@ -557,6 +564,9 @@ class LocalResultStore(ResultStore):
             columns=columns,
         )
 
+    def get_result_manager(self, result_file_path: str):
+        return LocalResultManager(result_file_path=result_file_path)
+
     def save_preview(self, preview_file_path: str):
         self.text_wrapper.flush()
         buffer_to_upload = copy.deepcopy(self.buffer)
@@ -600,13 +610,10 @@ def get_athena_type(pd_type) -> str:
 
 
 async def upload_csv_to_s3(
-    file: UploadFile, client_id: int, result_uuid: Optional[uuid.UUID] = None
+    file: UploadFile, client_id: int, aws_s3_config: sch.AWSS3Config, result_uuid: Optional[uuid.UUID] = None
 ) -> sch.UploadResult:
     result_uuid = result_uuid or uuid.uuid4()
-    result_store = S3ResultStore(
-        client_id=client_id,
-        result_uuid=result_uuid,
-    )
+    result_store = S3ResultStore(client_id=client_id, result_uuid=result_uuid, aws_s3_config=aws_s3_config)
 
     # Upload file
     t1 = time.time()
@@ -650,14 +657,33 @@ class ResultManager(ABC):
 
 
 class LocalResultManager(ResultManager):
-    def __init__(self, client_id: int, result_file_path: str):
-        super().__init__(client_id=client_id, result_file_path=result_file_path)
+    def __init__(self, result_file_path: str):
+        super().__init__(result_file_path=result_file_path)
 
     def get_result(self) -> pd.DataFrame:
         return pd.read_csv(self.result_file_path)
 
     async def aget_result(self) -> pd.DataFrame:
         return pd.read_csv(self.result_file_path)
+
+    def delete_result(self) -> None:
+        """Delete the result file from local storage."""
+        try:
+            os.remove(self.result_file_path)
+            logger.info(f"Deleted file: {self.result_file_path}")
+        except FileNotFoundError:
+            logger.warning(f"File not found: {self.result_file_path}")
+            # Decide: raise or ignore (already deleted is success?)
+        except PermissionError:
+            logger.error(f"Permission denied deleting file: {self.result_file_path}")
+            raise
+        except Exception as e:
+            logger.error(f"Error deleting file {self.result_file_path}: {str(e)}")
+            raise
+
+    async def adelete_result(self) -> None:
+        """Async wrapper to delete the result file."""
+        await asyncio.to_thread(self.delete_result)
 
     def stream_result(self) -> Iterator:
         try:
@@ -690,7 +716,7 @@ class S3ResultManager(ResultManager):
             region_name=os.environ["AWS_REGION"],
         )
         async with session.client("s3") as s3_client:
-            key, bucket = self.get_s3_info_from_filepath(filepath=self.result_file_path)
+            key, bucket = self.get_s3_info_from_filepath()
             response = await s3_client.head_object(Bucket=bucket, Key=key)
             file_size = response["ContentLength"]
             if file_size > 5 * 1024 * 1024:
@@ -717,7 +743,12 @@ class S3ResultManager(ResultManager):
 
     async def adelete_result(self):
         s3_key, bucket_name = self.get_s3_info_from_filepath()
-        async with aioboto3.client("s3") as s3_client:
+        session = aioboto3.Session(
+            aws_access_key_id=self.aws_s3_config.access_key,
+            aws_secret_access_key=self.aws_s3_config.secret_access_key,
+            region_name=self.aws_s3_config.region,
+        )
+        async with session.client("s3") as s3_client:
             try:
                 response = await s3_client.delete_object(Bucket=bucket_name, Key=s3_key)
                 logger.info(f"File {s3_key} deleted successfully from bucket {bucket_name}.")
@@ -749,9 +780,9 @@ class S3ResultManager(ResultManager):
             return
 
     def get_s3_info_from_filepath(self) -> tuple[str, str]:
-        logger.info("Here is the S3 filepath: %s", self.filepath)
+        logger.info("Here is the S3 filepath: %s", self.result_file_path)
         try:
-            s3_bucket_key = self.filepath.split(S3_PREFIX)[1]
+            s3_bucket_key = self.result_file_path.split(S3_PREFIX)[1]
             file_components = s3_bucket_key.split("/")
             # NOTE: The bucket should be first and the key last, in between is the prefix
             bucket = file_components[0]
@@ -759,29 +790,3 @@ class S3ResultManager(ResultManager):
         except Exception:
             raise Exception("Error getting the S3 key and bucket")
         return s3_key, bucket
-
-
-def get_result_manager(result_file_path: str) -> ResultManager:
-    if S3_PREFIX in result_file_path:
-        return S3ResultManager(result_file_path=result_file_path)
-    return LocalResultManager(result_file_path=result_file_path)
-
-
-async def aget_result(result_file_path: str) -> pd.DataFrame:
-    result_manager = get_result_manager(result_file_path=result_file_path)
-    return await result_manager.aget_result()
-
-
-def get_result(result_file_path: str) -> pd.DataFrame:
-    result_manager = get_result_manager(result_file_path=result_file_path)
-    return result_manager.get_result()
-
-
-def stream_result(result_file_path: str) -> Iterator:
-    result_manager = get_result_manager(result_file_path=result_file_path)
-    return result_manager.stream_result()
-
-
-def get_stream_result_generator(result_file_path: str) -> Callable[[], Iterator]:
-    result_manager = get_result_manager(result_file_path=result_file_path)
-    return result_manager.get_stream_result_generator()

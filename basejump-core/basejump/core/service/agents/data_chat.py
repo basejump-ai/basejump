@@ -132,6 +132,7 @@ class DataChatAgent(BaseChatAgent):
             llm=self.agent_llm,
             small_model_info=self.service_context.small_model_info,
             embedding_model_info=self.service_context.embedding_model_info,
+            result_store=self.result_store,
         )
         tools.append(vis_tool.get_plot_tool())
         return tools
@@ -207,7 +208,8 @@ class DataChatAgent(BaseChatAgent):
                         db_conn_params=self.db_conn_params,
                         result_store=self.result_store,
                     )
-                    file_gen_func = upload.get_stream_result_generator(result.result_file_path)
+                    result_manager = self.result_store.get_result_manager(result.result_file_path)
+                    file_gen_func = result_manager.get_stream_result_generator()
                     stream_gen = file_gen_func()
                     rows_base = next(stream_gen)
                     rows = [tuple(row.split(",")) for row in rows_base.decode("utf-8").splitlines()]
@@ -236,6 +238,7 @@ class DataChatAgent(BaseChatAgent):
                             large_model_info=self.service_context.large_model_info,
                             embedding_model_info=self.service_context.embedding_model_info,
                             redis_client_async=self.redis_client_async,
+                            result_store=self.result_store,
                         )
                         self.query_result.visual_result_uuid = visual_result.visual_result_uuid
                         self.query_result.visual_json = visual_result.visual_json

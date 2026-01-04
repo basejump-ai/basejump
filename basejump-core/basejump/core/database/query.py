@@ -1,12 +1,12 @@
 import asyncio
 from functools import cached_property
+from typing import Optional
 
 import sqlalchemy as sa
-from sqlalchemy.engine import Engine
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database import upload
-from basejump.core.database.db_connect import ConnectDB, TableManager
+from basejump.core.database.db_connect import ConnectDB, SSLEngine, TableManager
 from basejump.core.models import schemas as sch
 
 logger = set_logging(handler_option="stream", name=__name__)
@@ -20,7 +20,7 @@ class ClientQueryRunner:
     ):
         self._sql_query = sql_query
         self.client_conn_params = client_conn_params
-        self._client_engine = None
+        self._client_engine: Optional[SSLEngine] = None
 
     def __enter__(self):
         return self
@@ -40,7 +40,7 @@ class ClientQueryRunner:
         return TableManager.render_query_jinja(jinja_str=self._sql_query, schemas=self.client_conn_params.schemas)
 
     @property
-    def client_engine(self) -> Engine:
+    def client_engine(self) -> SSLEngine:
         """Lazily create and reuse the engine."""
         if self._client_engine is None:
             conn_db = ConnectDB(conn_params=self.client_conn_params)
@@ -83,7 +83,10 @@ class ClientQueryRecorder(ClientQueryRunner):
         initial_prompt: str,
         small_model_info: sch.ModelInfo,
         result_store: upload.ResultStore,
+        client_conn_params: sch.SQLDBSchema,
+        sql_query: str,
     ):
+        super().__init__(sql_query=sql_query, client_conn_params=client_conn_params)
         self.client_id = client_id
         self.initial_prompt = initial_prompt
         self.small_model_info = small_model_info
@@ -116,4 +119,4 @@ class ClientQueryRecorder(ClientQueryRunner):
         """Function to run queries against client databases.
         Needs to be synchronous queries since not all drivers
         support async"""
-        return await asyncio.to_thread(self.run_client_query_and_store)
+        return await asyncio.to_thread(self.store_query_result)

@@ -313,6 +313,7 @@ async def refresh_visual_result(
     redis_client_async: RedisAsync,
     visual_result: models.VisualResultHistory,
     client_user: sch.ClientUserInfo,
+    result_store: upload.ResultStore,
 ) -> models.VisualResultHistory:
     """Refresh the visualization result"""
     # Create the prompt that includes the axis from the prior chart
@@ -350,7 +351,11 @@ well as the same/similar axis ranges and/or format. Here is the visual informati
         redis_client_async=redis_client_async,
     )
     vis_tool = VisTool(
-        db=db, agent=base_agent, small_model_info=small_model_info, embedding_model_info=embedding_model_info
+        db=db,
+        agent=base_agent,
+        small_model_info=small_model_info,
+        embedding_model_info=embedding_model_info,
+        result_store=result_store,
     )
     await vis_tool.get_plot(result_uuid=result_uuid, prompt=prompt)
     # Return the new visual result
@@ -377,10 +382,10 @@ async def refresh_result(
     # Get the initial prompt
     initial_prompt = await crud_chat.get_initial_prompt_for_result(db=db, result_uuid=result.result_uuid)
     assert initial_prompt, "Missing chat history"
+    result_store.result_uuid = result.result_uuid
     async with query.ClientQueryRecorder(
         client_conn_params=conn_db.conn_params,
         sql_query=result.sql_query,
-        result_uuid=result.result_uuid,
         initial_prompt=initial_prompt,
         client_id=client_id,
         small_model_info=small_model_info,

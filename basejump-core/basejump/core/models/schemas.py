@@ -724,6 +724,6 @@ class ServiceContextDB(CoreSessionDB):
 class AWSS3Config(BaseModel):
     prefix: str
     bucket_name: str
-    region_name: str
+    region: str
     access_key: str
     secret_access_key: str
