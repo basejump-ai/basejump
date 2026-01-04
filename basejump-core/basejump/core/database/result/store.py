@@ -1,3 +1,5 @@
+"""Result storage for query results."""
+
 import copy
 import csv
 import io
@@ -15,11 +17,11 @@ from botocore.exceptions import ClientError
 from fastapi import UploadFile
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database.format_response import JSONResponseFormatter
 from basejump.core.database.result import manage, result_utils
 from basejump.core.models import constants, errors
-from basejump.core.models import pydantic_ai_formats as fmt
 from basejump.core.models import schemas as sch
+from basejump.core.models.ai import formats as fmt
+from basejump.core.models.ai import formatter
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -113,7 +115,7 @@ Prompt: {initial_prompt}\n
 SQL Query: {sql_query}\n
 Metric Value: {self.metric_value}\n
 """
-        format_json_response = JSONResponseFormatter(
+        format_json_response = formatter.JSONResponseFormatter(
             small_model_info=small_model_info, response=prompt, pydantic_format=fmt.FormattedMetric
         )
         extract = format_json_response.format_sync()
@@ -225,8 +227,6 @@ class LocalResultStore(ResultStore):
 
 # TODO: Stream uploads for databases that allow streaming (Redshift does not allow streaming)
 class S3ResultStore(ResultStore):
-    S3_PREFIX = "s3://"
-
     def __init__(
         self,
         client_id: int,
@@ -279,12 +279,12 @@ class S3ResultStore(ResultStore):
     def get_s3_folder_path(cls, bucket_name: str, prefix: str):
         if prefix:
             # NOTE: Prefixes end with a slash
-            return f"{cls.S3_PREFIX}{bucket_name}/{prefix}"
-        return f"{cls.S3_PREFIX}{bucket_name}/"
+            return f"{result_utils.S3_PREFIX}{bucket_name}/{prefix}"
+        return f"{result_utils.S3_PREFIX}{bucket_name}/"
 
     @classmethod
     def get_s3_file_path(cls, bucket_name: str, s3_file_key: str) -> str:
-        return f"{cls.S3_PREFIX}{bucket_name}/{s3_file_key}"
+        return f"{result_utils.S3_PREFIX}{bucket_name}/{s3_file_key}"
 
     def store(
         self, result: sa.engine.CursorResult, small_model_info: sch.ModelInfo, initial_prompt: str, sql_query: str

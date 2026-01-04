@@ -8,9 +8,9 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database.ai_catalog import AICatalog
-from basejump.core.models import pydantic_ai_formats as fmt
 from basejump.core.models import schemas as sch
+from basejump.core.models.ai import formats as fmt
+from basejump.core.models.ai.catalog import AICatalog
 
 logger = set_logging(handler_option="stream", name=__name__)
 

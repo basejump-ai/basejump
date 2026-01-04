@@ -10,12 +10,12 @@ logger = set_logging(handler_option="stream", name=__name__)
 
 
 async def run_main():
-    async with service.run_session() as core_session:
-        service_context = service.create_service_context_db(core_session)
-        user_info = await service.create_internal_user_info(service_context)
-        connection = await service.setup_database(service_context.db, service_context, user_info, client_conn_params)
+    async with service.run_session() as (core_session, db):
+        service_context = service.create_service_context(core_session)
+        user_info = await service.create_internal_user_info(db, service_context)
+        connection = await service.setup_database(db, service_context, user_info, client_conn_params)
         await service.chat(
-            service_context.db,
+            db,
             "Provide a report of all clients.",
             service_context,
             user_info,
@@ -103,9 +103,9 @@ async def run_main_full():
         # Here is the LLM response
         logger.info("LLM response: %s", chat_result.content)
         # Here is the SQL query that was ran
-        logger.debug("SQL query: %s", chat_result.query_result.sql_query)
+        logger.debug("SQL query: %s", chat_result.query_result.sql_query)  # type: ignore
         # Use this to get the result in AWS S3
-        logger.debug("Result UUID: %s", chat_result.query_result.result_uuid)
+        logger.debug("Result UUID: %s", chat_result.query_result.result_uuid)  # type: ignore
 
 
 if __name__ == "__main__":

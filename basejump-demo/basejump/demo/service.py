@@ -13,7 +13,6 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from basejump.core.common.common_utils import hash_value
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database.ai_catalog import AICatalog
 from basejump.core.database.crud import crud_main, crud_utils
 from basejump.core.database.db_connect import LocalSession
 from basejump.core.database.index import index_db
@@ -21,6 +20,7 @@ from basejump.core.database.result import store
 from basejump.core.database.vector_utils import get_index_name, get_index_schema
 from basejump.core.models import enums, errors, models, prompts
 from basejump.core.models import schemas as sch
+from basejump.core.models.ai.catalog import AICatalog
 from basejump.core.service import service_utils
 from basejump.core.service.agents.data_chat import DataChatAgent
 from basejump.core.service.agents.mermaid import MermaidAgent
@@ -35,9 +35,9 @@ async def run_session(client_id: Optional[int] = None) -> AsyncGenerator:
     session = LocalSession(client_id=client_id or 0, engine=settings.sql_engine)
     db = await session.open()
     redis_client_async = settings.get_redis_client_async_instance()
-    core_session = sch.CoreSessionDB(db=db, redis_client_async=redis_client_async, sql_engine=settings.sql_engine)
+    core_session = sch.CoreSession(redis_client_async=redis_client_async, sql_engine=settings.sql_engine)
     try:
-        yield core_session
+        yield core_session, db
     except Exception as e:
         logger.error(e)
         await db.rollback()
@@ -168,12 +168,13 @@ async def create_internal_user(db: AsyncSession, client_id: int):
 
 
 async def create_internal_user_info(
-    service_context: sch.ServiceContextDB,
+    db: AsyncSession,
+    service_context: sch.ServiceContext,
 ) -> sch.UserInfo:
     """Create a client, team, and user for an internal user"""
-    client = await create_internal_client(db=service_context.db, sql_engine=service_context.sql_engine)
-    team = await create_internal_team(db=service_context.db, client_id=client.client_id)
-    user = await create_internal_user(db=service_context.db, client_id=client.client_id)
+    client = await create_internal_client(db=db, sql_engine=service_context.sql_engine)
+    team = await create_internal_team(db=db, client_id=client.client_id)
+    user = await create_internal_user(db=db, client_id=client.client_id)
     return sch.UserInfo(
         client_id=client.client_id,
         client_uuid=client.client_uuid,
@@ -437,17 +438,6 @@ async def chat(
     )
     message = await agent.prompt_agent()
     return message
-
-
-def create_service_context_db(core_session: sch.CoreSessionDB) -> sch.ServiceContextDB:
-    return sch.ServiceContextDB(
-        sql_engine=core_session.sql_engine,
-        db=core_session.db,
-        redis_client_async=core_session.redis_client_async,
-        large_model_info=settings.large_model_info,
-        small_model_info=settings.small_model_info,
-        embedding_model_info=settings.embedding_model_info,
-    )
 
 
 def create_service_context(core_session: sch.CoreSession) -> sch.ServiceContext:

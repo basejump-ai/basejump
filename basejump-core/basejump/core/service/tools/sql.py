@@ -27,15 +27,15 @@ from sqlglot.dialects.dialect import Dialects
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database import db_utils, query
-from basejump.core.database.ai_catalog import AICatalog
 from basejump.core.database.crud import crud_connection, crud_table
 from basejump.core.database.db_connect import POOL_TIMEOUT, TableManager
-from basejump.core.database.format_response import JSONResponseFormatter
 from basejump.core.database.result import store
 from basejump.core.database.vector_utils import get_vector_idx
 from basejump.core.models import constants, enums, errors
-from basejump.core.models import pydantic_ai_formats as fmt
 from basejump.core.models import schemas as sch
+from basejump.core.models.ai import formats as fmt
+from basejump.core.models.ai import formatter
+from basejump.core.models.ai.catalog import AICatalog
 from basejump.core.models.prompts import DB_METADATA_PROMPT, ZERO_ROW_PROMPT
 from basejump.core.service import service_utils
 from basejump.core.service.base import BaseChatAgent, ChatMessageHandler
@@ -750,7 +750,7 @@ After stating your plan, do one of the following:
     async def run_sql(self, sql_query: str) -> str:
         logger.info("Here is the SQL query trying to be ran: %s", sql_query)
         # Clean the SQL query format
-        format_json_response = JSONResponseFormatter(
+        format_json_response = formatter.JSONResponseFormatter(
             response=sql_query,
             pydantic_format=fmt.CleanSQLFormat,
             max_tokens=1000,
@@ -950,7 +950,7 @@ is in general considered to be complex, return True. Otherwise return False. Her
 {prompt}"""
         agent_output = await agent.achat(message=agent_prompt)
         # Extract the answer
-        format_json_response = JSONResponseFormatter(
+        format_json_response = formatter.JSONResponseFormatter(
             response=agent_output.response,
             pydantic_format=fmt.TrueFalseBool,
             llm=agent_llm,  # NOTE: GPT 4o-mini selects sub-questions too often
@@ -977,7 +977,7 @@ Here is the prompt that needs to be broken out: \n\n\
 """
         agent_output = await agent.achat(message=agent_prompt)
         # Extract the sub prompts
-        format_json_response = JSONResponseFormatter(
+        format_json_response = formatter.JSONResponseFormatter(
             response=agent_output.response,
             pydantic_format=fmt.SubPrompts,
             llm=agent_llm,  # NOTE: GPT 4o-mini selects sub-questions too often

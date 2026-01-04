@@ -1,3 +1,5 @@
+"""Manage query results files."""
+
 import asyncio
 import io
 import os

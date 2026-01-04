@@ -17,12 +17,12 @@ from basejump.core.database import query
 from basejump.core.database.crud import crud_chat, crud_connection, crud_result
 from basejump.core.database.db_connect import ConnectDB
 from basejump.core.database.db_utils import extract_visual_info
-from basejump.core.database.format_response import get_title_description
 from basejump.core.database.index import DBTableIndexer
 from basejump.core.database.result import store
 from basejump.core.database.vector_utils import get_index_name
 from basejump.core.models import enums, models
 from basejump.core.models import schemas as sch
+from basejump.core.models.ai.formatter import get_title_description
 from basejump.core.models.prompts import get_sql_result_prompt
 from basejump.core.service.base import (
     AgentSetup,

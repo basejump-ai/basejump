@@ -83,6 +83,6 @@ class PyTestEnv(sch.BaseModel):
     db: Optional[AsyncSession] = None
     redis_client_async: Optional[RedisAsync] = None
     sql_engine: Optional[AsyncEngine] = None
-    service_context: Optional[sch.ServiceContextDB] = None
+    service_context: Optional[sch.ServiceContext] = None
     user_info: Optional[sch.UserInfo] = None
     model_config = ConfigDict(arbitrary_types_allowed=True)

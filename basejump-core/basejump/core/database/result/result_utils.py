@@ -1,3 +1,5 @@
+"""Utilities for query results."""
+
 import pandas as pd
 from sqlalchemy.engine import Row
 
@@ -6,6 +8,7 @@ from basejump.core.models import schemas as sch
 
 RESULT_PREVIEW_CT = 100
 PREVIEW_SUFFIX = "_preview"
+S3_PREFIX = "s3://"
 
 
 def get_result_type(num_cols: int, num_rows: int) -> enums.ResultType:

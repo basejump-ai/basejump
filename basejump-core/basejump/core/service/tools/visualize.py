@@ -12,13 +12,13 @@ from llama_index.core.tools.function_tool import create_tool_metadata
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database.ai_catalog import AICatalog
 from basejump.core.database.crud import crud_result
-from basejump.core.database.format_response import DateFormatter
 from basejump.core.database.result import store
 from basejump.core.models import constants, enums, errors, models
-from basejump.core.models import pydantic_ai_formats as fmt
 from basejump.core.models import schemas as sch
+from basejump.core.models.ai import formats as fmt
+from basejump.core.models.ai import formatter
+from basejump.core.models.ai.catalog import AICatalog
 from basejump.core.service import service_utils
 from basejump.core.service.base import BaseAgent, BaseChatAgent
 
@@ -91,7 +91,7 @@ shown to the user to provide more insight into their data.""",
     async def format_date(self, cols) -> pd.DataFrame:
         date_prompt = f"""
         dates:{cols}\n"""
-        f = DateFormatter(
+        f = formatter.DateFormatter(
             response=date_prompt,
             pydantic_format=fmt.DateData,
             small_model_info=self.small_model_info,
