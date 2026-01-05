@@ -54,7 +54,7 @@ dependencies = [
     "sentence-transformers==3.4.1",
 
     # AI - Basejump LlamaIndex
-    "basejump-llama-index-vector-stores-redis==0.5.1.post1",
+    "basejump-llama-index-vector-stores-redis==0.5.1.post2",
     "basejump-llama-index-embeddings-azure-openai==0.3.2.post1",
     "basejump-llama-index-llms-azure-openai==0.3.2.post1",
     "basejump-llama-index-embeddings-openai==0.3.1.post1",
