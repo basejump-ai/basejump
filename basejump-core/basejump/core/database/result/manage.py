@@ -52,12 +52,12 @@ class LocalResultManager(ResultManager):
 
     def get_result(self, max_file_size: int = constants.MAX_FILE_SIZE) -> pd.DataFrame:
         if max_file_size != constants.MAX_FILE_SIZE:
-            raise NotImplementedError("Max file size not implemented for LocalResultManager")
+            logger.warning("Max file size not implemented for LocalResultManager")
         return pd.read_csv(self.result_file_path)
 
     async def aget_result(self, max_file_size: int = constants.MAX_FILE_SIZE) -> pd.DataFrame:
         if max_file_size != constants.MAX_FILE_SIZE:
-            raise NotImplementedError("Max file size not implemented for LocalResultManager")
+            logger.warning("Max file size not implemented for LocalResultManager")
         return pd.read_csv(self.result_file_path)
 
     def delete_result(self) -> None:
