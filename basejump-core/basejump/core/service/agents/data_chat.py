@@ -20,7 +20,7 @@ from basejump.core.database.vector_utils import init_semcache
 from basejump.core.models import constants, enums, errors, models
 from basejump.core.models import schemas as sch
 from basejump.core.models.prompts import NO_DB_ACCESS_PROMPT, sql_result_prompt_basic
-from basejump.core.service.agent import agent_utils
+from basejump.core.service.agents import agent_utils
 from basejump.core.service.base import BaseChatAgent, ChatAgentSetup, ChatMessageHandler
 from basejump.core.service.tools import sql, visualize
 

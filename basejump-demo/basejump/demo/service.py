@@ -21,7 +21,7 @@ from basejump.core.database.vector_utils import get_index_name, get_index_schema
 from basejump.core.models import enums, errors, models, prompts
 from basejump.core.models import schemas as sch
 from basejump.core.models.ai.catalog import AICatalog
-from basejump.core.service.agent import agent_utils
+from basejump.core.service.agents import agent_utils
 from basejump.core.service.agents.data_chat import DataChatAgent
 from basejump.core.service.agents.mermaid import MermaidAgent
 from basejump.core.service.base import AgentSetup, ChatAgentSetup
