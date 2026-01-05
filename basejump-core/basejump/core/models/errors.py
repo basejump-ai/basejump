@@ -13,8 +13,6 @@ class InvalidSchemas(Exception):
 class SSLError(Exception):
     """Base exception for SSL-related errors"""
 
-    pass
-
 
 SSL_CONFIG_ERROR = "Missing SSL root certificate. Need ssl root cert if ssl mode is greater than require."
 
@@ -206,11 +204,9 @@ class MissingJinjaKey(Exception):
 class FileSizeError(Exception):
     """Raised when a file is too large"""
 
-    pass
-
 
 class AlreadyExists(Exception):
-    pass
+    """Raised when an object already exists in the database."""
 
 
 class NotFoundError(ValueError):
