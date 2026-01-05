@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from basejump.core.common.common_utils import hash_value
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database.crud import crud_main, crud_utils
+from basejump.core.database.crud import crud_connection, crud_main, crud_utils
 from basejump.core.database.db_connect import LocalSession
 from basejump.core.database.index import index_db
 from basejump.core.database.result import store
@@ -83,7 +83,7 @@ async def create_client(
         if external_storage:
             # NOTE: Only support AWS object storage currently
             # TODO: Add other object storage
-            default_storage_conn = models.ClientStorageConnection(
+            default_storage_conn = sch.ClientStorageConn(
                 client_id=new_client.client_id,
                 alias="basejump_default",
                 storage_provider="AWS_S3",
@@ -95,8 +95,7 @@ async def create_client(
                 prefix=store.S3ResultStore.get_default_prefix(client_uuid=new_client.client_uuid),
                 internal=True,
             )
-            db.add(default_storage_conn)
-            await db.commit()
+            await crud_connection.create_client_storage_conn(db=db, client_storage_conn=default_storage_conn)
     except errors.AlreadyExists as e:
         raise e
     except Exception as e:

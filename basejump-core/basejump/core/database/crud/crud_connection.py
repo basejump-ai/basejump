@@ -6,9 +6,11 @@ and connection-related tables
 import asyncio
 import copy
 import json
+import os
 import uuid
 from typing import Optional, Sequence
 
+from cryptography.fernet import Fernet
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
@@ -364,3 +366,16 @@ async def get_vector_from_connection(db: AsyncSession, db_uuid: uuid.UUID) -> Op
     stmt = select(models.DBVector).join(models.DBParams).filter(models.DBParams.db_uuid == db_uuid)
     result = await db.execute(stmt)
     return result.scalar_one_or_none()
+
+
+async def create_client_storage_conn(db: AsyncSession, client_storage_conn: sch.ClientStorageConn) -> None:
+    client_storage_conn_dict = client_storage_conn.model_dump(exclude={"access_key", "secret_access_key"})
+    try:
+        f = Fernet(os.environ["ENCRYPTION_KEY"])
+    except KeyError:
+        raise errors.MissingEnvironmentVariable("Missing the ENCRYPTION_KEY environment variable.")
+    client_storage_conn_dict["access_key"] = f.encrypt(client_storage_conn.access_key.encode("utf-8"))
+    client_storage_conn_dict["secret_access_key"] = f.encrypt(client_storage_conn.secret_access_key.encode("utf-8"))
+    storage_conn = models.ClientStorageConnection(**client_storage_conn_dict)
+    db.add(storage_conn)
+    await db.commit()

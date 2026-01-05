@@ -1,0 +1,50 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+packages = ["."]
+
+[project]
+name = "basejump"
+version = "0.1.0"
+description = "Text-to-SQL tool to chat with your database"
+authors = [
+    { name = "Andreas Martinson", email = "andreas.martinson@basejump.ai" },
+]
+requires-python = ">=3.11,<3.13"
+readme = "README.md"
+license = {file = "LICENSE.md"}
+dependencies = [
+    "basejump-core==0.31.0",
+    "basejump-demo==0.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black>=25",
+    "mypy>=1.15.0",
+    "pytest>=9",
+    "pytest-asyncio>=0.21.0",
+    "anyio>=3.7.1",
+    "pandas-stubs>=1.5.2.221213",
+    "boto3-stubs>=1.35.74",
+    "botocore-stubs>=1.35.73",
+    "lxml-stubs>=0.4.0",
+    "types-psycopg2",
+    "types-requests>=2.28.11.8",
+    "types-cachetools>=5.5.0.20240820",
+    "types-aioboto3>=13.2.0.post2",
+    "pre_commit>=4.5.0"
+]
+
+[tool.codespell]
+check-filenames = true
+check-hidden = true
+skip = "*.csv,*.html,*.json,*.jsonl,*.pdf,*.txt,*.ipynb,requirements.txt,vector_idx_html.*,scripts/*"
+
+[tool.black]
+line-length = 119
+
+[tool.ruff]
+line-length = 119

@@ -656,8 +656,10 @@ class ConnectDB:
     @staticmethod
     def decrypt_db(dict_to_decrypt: dict) -> dict:
         # Decrypt the sensitive information
-
-        f = Fernet(os.environ["ENCRYPTION_KEY"])
+        try:
+            f = Fernet(os.environ["ENCRYPTION_KEY"])
+        except KeyError:
+            raise errors.MissingEnvironmentVariable("Missing the ENCRYPTION_KEY environment variable.")
         conn_params = {}
         for key, value in dict_to_decrypt.items():
             if key in [
@@ -694,7 +696,10 @@ class ConnectDB:
     @staticmethod
     def encrypt_db(dict_to_encrypt: dict) -> dict:
         # Encrypt the sensitive information
-        f = Fernet(os.environ["ENCRYPTION_KEY"])
+        try:
+            f = Fernet(os.environ["ENCRYPTION_KEY"])
+        except KeyError:
+            raise errors.MissingEnvironmentVariable("Missing the ENCRYPTION_KEY environment variable.")
         conn_params_byte = {}
         for key, value in dict_to_encrypt.items():
             # Convert to binary

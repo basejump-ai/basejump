@@ -3,11 +3,13 @@
 import asyncio
 import copy
 import json
+import os
 import uuid
 from asyncio import Task
 from datetime import datetime
 from typing import Optional
 
+from cryptography.fernet import Fernet
 from redis.asyncio import Redis as RedisAsync
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy.orm.exc import NoResultFound
@@ -20,7 +22,7 @@ from basejump.core.database.db_utils import extract_visual_info
 from basejump.core.database.index import DBTableIndexer
 from basejump.core.database.result import store
 from basejump.core.database.vector_utils import get_index_name
-from basejump.core.models import enums, models
+from basejump.core.models import enums, errors, models
 from basejump.core.models import schemas as sch
 from basejump.core.models.ai.formatter import get_title_description
 from basejump.core.models.prompts import get_sql_result_prompt
@@ -460,3 +462,19 @@ async def create_database_from_existing_connection(
         db_id=db_id,
         sql_engine=sql_engine,
     )
+
+
+async def get_client_active_storage_conn(db: AsyncSession, client_id: int) -> sch.ClientStorageConn:
+    """Get the active client storage connection + decrypt sensitive fields"""
+    storage_conn = await crud_connection.get_client_active_storage_conn(db=db, client_id=client_id)
+    if not storage_conn:
+        raise errors.NotFoundError("No active client storage connection found")
+    storage_conn_schema = sch.ClientStorageConnEncrypted.model_validate(storage_conn)
+    storage_conn_dict = storage_conn_schema.model_dump(exclude={"access_key", "secret_access_key"})
+    try:
+        f = Fernet(os.environ["ENCRYPTION_KEY"])
+    except KeyError:
+        raise errors.MissingEnvironmentVariable("Missing the ENCRYPTION_KEY environment variable.")
+    storage_conn_dict["access_key"] = f.decrypt(storage_conn.access_key).decode("utf-8")
+    storage_conn_dict["secret_access_key"] = f.decrypt(storage_conn.secret_access_key).decode("utf-8")
+    return sch.ClientStorageConn.model_validate(storage_conn_dict)

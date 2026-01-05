@@ -211,3 +211,7 @@ class AlreadyExists(Exception):
 
 class NotFoundError(ValueError):
     """Raised when a requested resource does not exist."""
+
+
+class MissingEnvironmentVariable(KeyError):
+    """Raiseed when missing an environment variable"""

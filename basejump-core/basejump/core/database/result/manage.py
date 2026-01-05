@@ -115,10 +115,16 @@ class S3ResultManager(ResultManager):
     async def aget_result(self, max_file_size: int = constants.MAX_FILE_SIZE) -> pd.DataFrame:
         """Retrieve the result from S3"""
         buffer = io.BytesIO()
+        try:
+            aws_access_key_id = os.environ["AWS_USER_ACCESS_KEY_ID"]
+            aws_secret_access_key = os.environ["AWS_USER_SECRET_ACCESS_KEY"]
+            region_name = os.environ["AWS_REGION"]
+        except KeyError as e:
+            raise errors.MissingEnvironmentVariable(f"Missing an AWS credential environment variable: {str(e)}")
         session = aioboto3.Session(
-            aws_access_key_id=os.environ["AWS_USER_ACCESS_KEY_ID"],
-            aws_secret_access_key=os.environ["AWS_USER_SECRET_ACCESS_KEY"],
-            region_name=os.environ["AWS_REGION"],
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key,
+            region_name=region_name,
         )
         async with session.client("s3") as s3_client:
             key, bucket = self.get_s3_info_from_filepath()

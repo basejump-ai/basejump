@@ -1,13 +1,11 @@
 """Models defining the structure of the database"""
 
-import os
 import uuid
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
 import sqlalchemy as sa
-from cryptography.fernet import Fernet
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import TIMESTAMP, UUID, ForeignKey, String, text
 from sqlalchemy.dialects import postgresql
@@ -24,29 +22,6 @@ from basejump.core.models import enums
 from basejump.core.models import schemas as sch
 
 logger = set_logging(handler_option="stream", name=__name__)
-
-
-# =======================================================
-# Encryption for any models requiring an encrypted column
-# =======================================================
-class Encrypted(sa.TypeDecorator):
-    impl = sa.LargeBinary
-    cache_ok = True
-
-    def __init__(self, encryption_key: str, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.encryption_key = encryption_key
-        self.fernet = Fernet(encryption_key)
-
-    def process_bind_param(self, value, dialect):
-        if value is not None:
-            value = self.fernet.encrypt(value.encode("utf-8"))
-        return value
-
-    def process_result_value(self, value, dialect):
-        if value is not None:
-            value = self.fernet.decrypt(value).decode("utf-8")
-        return value
 
 
 # TODO: Update more tables to use StrEnums
@@ -582,8 +557,8 @@ class ClientStorageConnection(Base):
     region: Mapped[str]
     bucket_name: Mapped[str]
     prefix: Mapped[str]
-    access_key: Mapped[Encrypted] = sa.orm.mapped_column(Encrypted(os.environ["ENCRYPTION_KEY"]))
-    secret_access_key: Mapped[Encrypted] = sa.orm.mapped_column(Encrypted(os.environ["ENCRYPTION_KEY"]))
+    access_key: Mapped[bytes]
+    secret_access_key: Mapped[bytes]
     active: Mapped[bool] = mapped_column(server_default=text("false"))
     internal: Mapped[bool]
 

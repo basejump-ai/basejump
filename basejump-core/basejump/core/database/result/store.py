@@ -272,8 +272,9 @@ class S3ResultStore(ResultStore):
         return self.get_s3_key()
 
     @staticmethod
-    def get_default_prefix(client_uuid: uuid.UUID):
-        return os.environ["AWS_DEFAULT_PREFIX"] + str(client_uuid) + "/"
+    def get_default_prefix(client_uuid: uuid.UUID) -> str:
+        default_prefix = os.getenv("AWS_DEFAULT_PREFIX") or ""
+        return default_prefix + str(client_uuid) + "/"
 
     @classmethod
     def get_s3_folder_path(cls, bucket_name: str, prefix: str):

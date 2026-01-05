@@ -714,3 +714,30 @@ class AWSS3Config(BaseModel):
     region: str
     access_key: str
     secret_access_key: str
+
+
+class ClientStorageConn(BaseModel):
+    client_id: int
+    alias: str
+    storage_provider: str
+    region: str
+    bucket_name: str
+    access_key: str
+    secret_access_key: str
+    active: bool
+    prefix: str
+    internal: bool
+
+
+class ClientStorageConnEncrypted(BaseModel):
+    client_id: int
+    alias: str
+    storage_provider: str
+    region: str
+    bucket_name: str
+    access_key: bytes
+    secret_access_key: bytes
+    active: bool
+    prefix: str
+    internal: bool
+    model_config = ConfigDict(from_attributes=True)
