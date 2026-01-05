@@ -112,8 +112,8 @@ result_uuid is incorrect or the originally created data has been deleted."""
         # Retrieve the result
         try:
             result_manager = self.result_store.get_result_manager(result_file_path=result.result_file_path)
-            df = await result_manager.aget_result()
-        except errors.LargerThan5MBError:
+            df = await result_manager.aget_result(max_file_size=5)
+        except errors.FileSizeError:
             return """File size is larger than 5 MB. Make sure to aggregate the data using SQL \
 before attempting to visualize."""
         dates = await self.select_date_cols(df.columns.to_list())

@@ -203,7 +203,9 @@ class MissingJinjaKey(Exception):
     pass
 
 
-class LargerThan5MBError(Exception):
+class FileSizeError(Exception):
+    """Raised when a file is too large"""
+
     pass
 
 

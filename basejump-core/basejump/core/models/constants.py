@@ -86,3 +86,4 @@ TEAM_NM_DESC = "Your team name here"
 TEAM_DESC = "A description of the team"
 TEAM_DESC = "A description of the team. This is provided to the AI as context."
 ATHENA_STAGING_DIR_NAME = "s3_staging_dir"
+MAX_FILE_SIZE = 100

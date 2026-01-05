@@ -12,7 +12,7 @@ import pandas as pd
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.result import result_utils
-from basejump.core.models import errors
+from basejump.core.models import constants, errors
 from basejump.core.models import schemas as sch
 
 logger = set_logging(handler_option="stream", name=__name__)
@@ -23,11 +23,11 @@ class ResultManager(ABC):
         self.result_file_path = result_file_path
 
     @abstractmethod
-    def get_result(self) -> pd.DataFrame:
+    def get_result(self, max_file_size=constants.MAX_FILE_SIZE) -> pd.DataFrame:
         pass
 
     @abstractmethod
-    async def aget_result(self) -> pd.DataFrame:
+    async def aget_result(self, max_file_size=constants.MAX_FILE_SIZE) -> pd.DataFrame:
         pass
 
     @abstractmethod
@@ -50,10 +50,14 @@ class LocalResultManager(ResultManager):
     def __init__(self, result_file_path: str):
         super().__init__(result_file_path=result_file_path)
 
-    def get_result(self) -> pd.DataFrame:
+    def get_result(self, max_file_size: int = constants.MAX_FILE_SIZE) -> pd.DataFrame:
+        if max_file_size != constants.MAX_FILE_SIZE:
+            raise NotImplementedError("Max file size not implemented for LocalResultManager")
         return pd.read_csv(self.result_file_path)
 
-    async def aget_result(self) -> pd.DataFrame:
+    async def aget_result(self, max_file_size: int = constants.MAX_FILE_SIZE) -> pd.DataFrame:
+        if max_file_size != constants.MAX_FILE_SIZE:
+            raise NotImplementedError("Max file size not implemented for LocalResultManager")
         return pd.read_csv(self.result_file_path)
 
     def delete_result(self) -> None:
@@ -91,13 +95,24 @@ class LocalResultManager(ResultManager):
 
 class S3ResultManager(ResultManager):
     def __init__(self, result_file_path: str, aws_s3_config: sch.AWSS3Config):
+        """Manage results from AWS S3.
+
+        Parameters
+        ----------
+        result_file_path
+            Path to the result file in S3.
+        aws_s3_config
+            AWS S3 configuration object containing connection details.
+        max_file_size
+            The maximum file size in MB before throwing an error when retrieving results.
+        """
         super().__init__(result_file_path=result_file_path)
         self.aws_s3_config = aws_s3_config
 
-    def get_result(self) -> pd.DataFrame:
+    def get_result(self, max_file_size: int = constants.MAX_FILE_SIZE) -> pd.DataFrame:
         raise NotImplementedError("Synchronous get result not implemented for AWS S3.")
 
-    async def aget_result(self) -> pd.DataFrame:
+    async def aget_result(self, max_file_size: int = constants.MAX_FILE_SIZE) -> pd.DataFrame:
         """Retrieve the result from S3"""
         buffer = io.BytesIO()
         session = aioboto3.Session(
@@ -109,8 +124,8 @@ class S3ResultManager(ResultManager):
             key, bucket = self.get_s3_info_from_filepath()
             response = await s3_client.head_object(Bucket=bucket, Key=key)
             file_size = response["ContentLength"]
-            if file_size > 5 * 1024 * 1024:
-                raise errors.LargerThan5MBError
+            if file_size > max_file_size * 1024 * 1024:
+                raise errors.FileSizeError
             await s3_client.download_fileobj(bucket, key, buffer)
             buffer.seek(0)
             return pd.read_csv(buffer)
@@ -147,7 +162,7 @@ class S3ResultManager(ResultManager):
                 logger.error(f"Error deleting file {s3_key} from bucket {bucket_name}: {e}")
                 return None
 
-    def stream_result(self):
+    def stream_result(self) -> Iterator:
         """Generator to stream a file from S3."""
         chunk_size = 1024 * 1024
         s3_key, bucket = self.get_s3_info_from_filepath()
