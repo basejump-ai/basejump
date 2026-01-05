@@ -6,9 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database import db_utils
+from basejump.core.database.client.index import DBTableIndexer
 from basejump.core.database.crud import crud_connection, crud_table, crud_utils
 from basejump.core.database.db_connect import ConnectDB, TableManager
-from basejump.core.database.index import DBTableIndexer
 from basejump.core.models import errors, models
 from basejump.core.models import schemas as sch
 

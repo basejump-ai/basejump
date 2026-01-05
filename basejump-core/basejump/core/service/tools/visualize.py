@@ -19,8 +19,8 @@ from basejump.core.models import schemas as sch
 from basejump.core.models.ai import formats as fmt
 from basejump.core.models.ai import formatter
 from basejump.core.models.ai.catalog import AICatalog
-from basejump.core.service import service_utils
 from basejump.core.service.base import BaseAgent, BaseChatAgent
+from basejump.core.service.tools import tool_utils
 
 bucket_name = "datasetsfromchat"
 
@@ -99,7 +99,7 @@ shown to the user to provide more insight into their data.""",
         return await f.format()
 
     async def get_plot(self, result_uuid: uuid.UUID, prompt: str):
-        await service_utils.update_agent_tokens(agent=self.agent)
+        await tool_utils.update_agent_tokens(agent=self.agent)
         # Get the result
         result = await crud_result.get_result_filtered(
             db=self.db, result_uuid=result_uuid, user_uuid=self.agent.prompt_metadata.user_uuid

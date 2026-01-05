@@ -38,6 +38,9 @@ dev = [
     "pre_commit>=4.5.0"
 ]
 
+[tool.hatch.build.targets.wheel]
+packages = ["basejump"]
+
 [tool.codespell]
 check-filenames = true
 check-hidden = true

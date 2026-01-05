@@ -26,7 +26,8 @@ from sqlglot import exp, parse_one
 from sqlglot.dialects.dialect import Dialects
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database import db_utils, query
+from basejump.core.database import db_utils
+from basejump.core.database.client import query
 from basejump.core.database.crud import crud_connection, crud_table
 from basejump.core.database.db_connect import POOL_TIMEOUT, TableManager
 from basejump.core.database.result import store
@@ -37,8 +38,8 @@ from basejump.core.models.ai import formats as fmt
 from basejump.core.models.ai import formatter
 from basejump.core.models.ai.catalog import AICatalog
 from basejump.core.models.prompts import DB_METADATA_PROMPT, ZERO_ROW_PROMPT
-from basejump.core.service import service_utils
 from basejump.core.service.base import BaseChatAgent, ChatMessageHandler
+from basejump.core.service.tools import tool_utils
 
 logger = set_logging(handler_option="stream", name=__name__)
 TIMEOUT = 60 * 15
@@ -777,7 +778,7 @@ After stating your plan, do one of the following:
             logger.error("Here is the error from validate_all_columns: %s", str(e))
             return str(e)
         logger.info("No hallucinated columns")
-        await service_utils.update_agent_tokens(agent=self.agent, max_tokens=1000)
+        await tool_utils.update_agent_tokens(agent=self.agent, max_tokens=1000)
         if self.prior_sql_query:
             if self.prior_sql_query == sql_query:
                 self.stuck_in_loop_ct += 1
@@ -843,7 +844,7 @@ After reviewing, run this tool again to run your original or updated SQL query."
         try:
             async with asyncio.timeout(TIMEOUT):
                 logger.info("Running AI SQL query: %s", sql_query)
-                query_result_str = await service_utils.run_ai_sql_query(
+                query_result_str = await tool_utils.run_ai_sql_query(
                     db=self.db,
                     conn_id=self.conn_id,
                     sql_query=sql_query,
@@ -997,7 +998,7 @@ Here is the prompt that needs to be broken out: \n\n\
     async def get_sql_tables(self, inquiry):
         """Retrieve SQL tables to use in the SQL query"""
         # Need more tokens for large SQL queries
-        await service_utils.update_agent_tokens(agent=self.agent, max_tokens=1000)
+        await tool_utils.update_agent_tokens(agent=self.agent, max_tokens=1000)
         try:
             tables = await self.use_sub_questions(prompt=inquiry)
             if not tables:

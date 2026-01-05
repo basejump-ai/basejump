@@ -6,8 +6,8 @@ from basejump.core.models import errors
 from basejump.core.models import schemas as sch
 from basejump.demo import service, settings
 from basejump.core.database.crud import crud_connection, crud_chat
-from basejump.core.service import service_utils
-from basejump.core.database.diagram import MermaidAgentManager
+from basejump.core.service.database.client import utils
+from basejump.core.service.database.client.diagram import MermaidAgentManager
 from basejump.core.database.vector_utils import get_index_name
 from basejump.core.models import enums
 from basejump.core.database.db_connect import ConnectDB
@@ -37,7 +37,7 @@ async def test_get_connections(db_session):
         password=db_session.client_conn_params.password,
         data_source_desc=db_session.client_conn_params.data_source_desc,
     )
-    result = await service_utils.create_database_from_existing_connection(
+    result = await utils.create_database_from_existing_connection(
         db=db_session.db,
         client_id=db_session.client_id,
         db_id=db_session.db_id,
@@ -128,7 +128,7 @@ async def test_invalid_creds(db_session):
             password=wrong_password,
             data_source_desc=db_session.client_conn_params.data_source_desc,
         )
-        await service_utils.create_database_from_existing_connection(
+        await utils.create_database_from_existing_connection(
             db=db_session.db,
             client_id=db_session.client_id,
             db_id=db_session.db_id,

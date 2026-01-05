@@ -20,7 +20,7 @@ from basejump.core.database.vector_utils import init_semcache
 from basejump.core.models import constants, enums, errors, models
 from basejump.core.models import schemas as sch
 from basejump.core.models.prompts import NO_DB_ACCESS_PROMPT, sql_result_prompt_basic
-from basejump.core.service import service_utils
+from basejump.core.service.agent import agent_utils
 from basejump.core.service.base import BaseChatAgent, ChatAgentSetup, ChatMessageHandler
 from basejump.core.service.tools import sql, visualize
 
@@ -200,7 +200,7 @@ class DataChatAgent(BaseChatAgent):
                     return await self._get_message(response=semcache_response_obj.response)
                 else:
                     # Refresh the results
-                    await service_utils.refresh_result(
+                    await agent_utils.refresh_result(
                         db=self.db,
                         result=result,
                         commit=False,
@@ -230,7 +230,7 @@ class DataChatAgent(BaseChatAgent):
                     self.query_result = sch.MessageQueryResult.from_orm(result)
                     if visual_result:
                         client_user = sch.ClientUserInfo.parse_obj(self.prompt_metadata)
-                        visual_result = await service_utils.refresh_visual_result(
+                        visual_result = await agent_utils.refresh_visual_result(
                             db=self.db,
                             visual_result=visual_result,
                             client_user=client_user,

@@ -13,18 +13,19 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from basejump.core.common.common_utils import hash_value
 from basejump.core.common.config.logconfig import set_logging
+from basejump.core.database.client.index import index_db
 from basejump.core.database.crud import crud_connection, crud_main, crud_utils
 from basejump.core.database.db_connect import LocalSession
-from basejump.core.database.index import index_db
 from basejump.core.database.result import store
 from basejump.core.database.vector_utils import get_index_name, get_index_schema
 from basejump.core.models import enums, errors, models, prompts
 from basejump.core.models import schemas as sch
 from basejump.core.models.ai.catalog import AICatalog
-from basejump.core.service import service_utils
+from basejump.core.service.agent import agent_utils
 from basejump.core.service.agents.data_chat import DataChatAgent
 from basejump.core.service.agents.mermaid import MermaidAgent
 from basejump.core.service.base import AgentSetup, ChatAgentSetup
+from basejump.core.service.database.client import utils
 from basejump.demo import crud, schemas, settings
 
 logger = set_logging(handler_option="stream", name=__name__)
@@ -246,7 +247,7 @@ async def setup_database(
     """Create a database connection and save it in the database"""
     # Set up the database
     client_user = sch.ClientUserInfo.model_validate(user_info)
-    sql_conn, index_db_tables = await service_utils.setup_db(
+    sql_conn, index_db_tables = await utils.setup_db(
         db=db,
         client_user=client_user,
         redis_client_async=service_context.redis_client_async,
@@ -378,7 +379,7 @@ async def chat(
         )
     # Set up the prompt
     client_user = sch.ClientUserInfo.model_validate(user_info)
-    prompt_metadata_base = await service_utils.create_prompt_base(
+    prompt_metadata_base = await agent_utils.create_prompt_base(
         db=db,
         client_user=client_user,  # TODO: Replace with UserInfo instead
         prompt=prompt,
