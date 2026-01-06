@@ -46,20 +46,14 @@ To run the demo, you will need the following:
 Follow the following steps to get the demo set up:
 1. Clone this repo
 2. Copy `basejump-demo/.env.example` to `basejump-demo/.env` and fill in your credentials
-3. Create and activate the virtual environment:
-```bash
-python3 -m venv .venv
-source .venv/bin/activate  # On Mac/Linux
-# On Windows use: .venv\Scripts\activate
-```
-4. Run the demo:
+3. Run the demo:
 ```bash
 cd basejump-demo
 docker compose up -d
 docker compose exec app python main.py
 ```
-5. That's it! You should also be able to run code outside the container using localhost to refer to the postgres and redis instances running in docker.
 
+That's it! You should also be able to run code outside the container using localhost to refer to the postgres and redis instances running in docker.
 After completing these steps, you should see the AI respond to your question based on the basejump database schema.
 
 ### Example usage

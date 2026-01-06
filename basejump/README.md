@@ -1,4 +1,4 @@
-This package contains `basejump-core` as well as `basejump[dev]`. It's a convenience package to quickly import all basejump packages.
+This package contains basejump-core as well as basejump[dev]. It's a convenience package to quickly import all basejump packages.
 
 Basejump indexes a database and connects it with an AI data agent to chat with your data.
 
@@ -13,7 +13,7 @@ Basejump indexes a database and connects it with an AI data agent to chat with y
 ## Installation
 Create a virtual environment and then install from PYPI:
 ```bash
-pip install basejump
+pip install basejump-core
 ```
 
 ### Example usage
