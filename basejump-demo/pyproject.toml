@@ -6,12 +6,12 @@ build-backend = "hatchling.build"
 [project]
 name = "basejump-demo"
 version = "0.1.0"
-description = "Demo to chat with your database"
-authors = [{ name = "John Doe", email = "john@gmail.com" }]
-requires-python = ">=3.11,<4.0"
+description = "Demo usage of basejump (local development only - not for distribution as a package)"
+authors = [{ name = "Andreas Martinson", email = "andreas.martinson@basejump.ai" }]
+requires-python = ">=3.11,<3.13"
 readme = "README.md"
 license = {file = "LICENSE.md"}
-dependencies = ["basejump-core>=0.30.1"]
+dependencies = ["basejump-core>=0.31.0"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["basejump"]

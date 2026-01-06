@@ -7,7 +7,7 @@ packages = ["."]
 
 [project]
 name = "basejump"
-version = "0.1.0"
+version = "0.1.1"
 description = "Text-to-SQL tool to chat with your database"
 authors = [
     { name = "Andreas Martinson", email = "andreas.martinson@basejump.ai" },
@@ -17,7 +17,6 @@ readme = "README.md"
 license = {file = "LICENSE.md"}
 dependencies = [
     "basejump-core==0.31.0",
-    "basejump-demo==0.1.0",
 ]
 
 [project.optional-dependencies]
