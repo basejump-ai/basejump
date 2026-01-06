@@ -22,7 +22,7 @@ We provide a data agent with features designed for robustness:
 - **Complete audit trail** with queries and results saved in a pre-configured database schema
 
 ## Installation
-Create a virtual environment and then install from PYPI:
+Create a virtual environment and then install from PyPI:
 ```bash
 pip install basejump
 ```
