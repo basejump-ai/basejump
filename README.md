@@ -45,7 +45,7 @@ To run the demo, you will need the following:
 ### Steps
 Follow the following steps to get the demo set up:
 1. Clone this repo
-2. Copy `demo/.env.example` to `demo/.env` and fill in your credentials
+2. Copy `basejump-demo/.env.example` to `basejump-demo/.env` and fill in your credentials
 3. Create and activate the virtual environment:
 ```bash
 python3 -m venv .venv
@@ -63,7 +63,7 @@ docker compose exec app python main.py
 After completing these steps, you should see the AI respond to your question based on the basejump database schema.
 
 ### Example usage
-A complete working example can be found in `demo/main.py`. Here's the core functionality in just 10 lines:
+A complete working example can be found in `basejump-demo/main.py`. Here's the core functionality in just 10 lines:
 
 ```python
 async with service.run_session() as (core_session, db):
