@@ -1,17 +1,30 @@
 import asyncio
 
-from basejump.demo import service, settings
-from basejump.core.models import enums
 from basejump.core.common.config.logconfig import set_logging
+from basejump.core.models import enums
 from basejump.core.models import schemas as sch
-from basejump.core.database.vector_utils import get_index_name
+from basejump.demo import service, settings
+from basejump.demo.settings import client_conn_params
 
 logger = set_logging(handler_option="stream", name=__name__)
 
 
 async def run_main():
+    async with service.run_session() as (core_session, db):
+        service_context = service.create_service_context(core_session)
+        user_info = await service.create_internal_user_info(db, service_context)
+        connection = await service.setup_database(db, service_context, user_info, client_conn_params)
+        await service.chat(
+            db,
+            "Provide a report of all clients.",
+            service_context,
+            user_info,
+            connection,
+        )
 
-    # ==== Create a client ====
+
+async def run_main_full():
+    # Create a client
     client_result = await service.create_client(
         sql_engine=settings.sql_engine,
         client_name="ABC Company",
@@ -20,10 +33,14 @@ async def run_main():
     )
     logger.info(client_result)
 
-    # ==== Create a session ====
-    async with service.run_session(client_id=client_result.client_id) as db:
+    # Create a session
+    async with service.run_session(client_id=client_result.client_id) as (
+        core_session,
+        db,
+    ):
+        service_context = service.create_service_context(core_session)
 
-        #  ==== Create a team ====
+        # Create a team
         team_result = await service.create_team(
             db=db,
             team_name="AI power users",
@@ -32,7 +49,7 @@ async def run_main():
         )
         logger.info(team_result)
 
-        # ==== Create a user ====
+        # Create a user
         user_result = await service.create_user(
             db=db,
             client_id=client_result.client_id,
@@ -41,7 +58,7 @@ async def run_main():
         )
         logger.info(user_result)
 
-        # ==== Associate a user with a team ====
+        # Associate a user with a team
         user_team_result = await service.add_user_to_team(
             db=db,
             username=user_result.username,
@@ -51,34 +68,27 @@ async def run_main():
         )
         logger.info(user_team_result)
 
-        # ==== Add a client database ====
-
-        # Setup variables
-        client_user = sch.ClientUserInfo(
+        # Add a client database
+        # Variable setup
+        user_info = sch.UserInfo(
             client_id=client_result.client_id,
             client_uuid=client_result.client_uuid,
             user_id=user_result.user_id,
             user_uuid=user_result.user_uuid,
             user_role="MEMBER",
+            team_id=team_result.team_id,
+            team_uuid=team_result.team_uuid,
         )
 
-        # Update the client database to a synchronous connection since not all DBs support asynch connections
-        client_conn_params = sch.SQLDBSchema(**settings.conn_params.dict())
-        client_conn_params.drivername = enums.DBDriverName.POSTGRES
-        redis_client_async = settings.get_redis_client_async_instance()
-        db_result = await service.add_client_database(
+        # Set up the database
+        db_result = await service.setup_database(
             db=db,
-            client_id=client_result.client_id,
-            conn_params=client_conn_params,  # Using the same database here for simplicity, but feel free to update
-            redis_client_async=redis_client_async,
-            client_user=client_user,
-            embedding_model_info=settings.embedding_model_info,
-            small_model_info=settings.small_model_info,
-            sql_engine=settings.sql_engine,
+            service_context=service_context,
+            user_info=user_info,
+            conn_params=client_conn_params,
         )
-        await redis_client_async.aclose()
 
-        # ==== Add a connection to a team ====
+        # Add a connection to a team
         await service.add_connection_to_team(
             db=db,
             client_id=client_result.client_id,
@@ -86,42 +96,19 @@ async def run_main():
             conn_id=db_result.conn_id,
         )
 
-        # ==== Create a chat ====
-        create_chat_result = await service.create_chat(
-            db=db,
-            client_id=client_result.client_id,
-            team_id=team_result.team_id,
-            user_id=user_result.user_id,
-        )
-
-        # ==== Ask the AI a question ====
-        redis_client_async = settings.get_redis_client_async_instance()
+        # Ask the AI a question
         chat_result = await service.chat(
             db=db,
-            index_name=get_index_name(client_id=client_result.client_id),
-            prompt="Give me a report of all clients.",
-            chat_id=create_chat_result.chat_id,
-            team_id=team_result.team_id,
-            team_info=sch.TeamFields.model_validate(team_result),
-            client_user=client_user,
-            embedding_model_info=settings.embedding_model_info,
-            sql_engine=settings.sql_engine,
-            redis_client_async=redis_client_async,
-            conn_params=client_conn_params,
-            vector_id=create_chat_result.vector_id,
-            chat_uuid=create_chat_result.chat_uuid,
-            team_uuid=team_result.team_uuid,
-            large_model_info=settings.large_model_info,
-            small_model_info=settings.small_model_info,
-            client_llm=settings.LLM,
+            prompt="Provide a report of all clients.",
+            service_context=service_context,
+            user_info=user_info,
         )
-        await redis_client_async.aclose()
         # Here is the LLM response
-        logger.info(chat_result.content)
+        logger.info("LLM response: %s", chat_result.content)
         # Here is the SQL query that was ran
-        logger.info(chat_result.query_result.sql_query)
+        logger.debug("SQL query: %s", chat_result.query_result.sql_query)  # type: ignore
         # Use this to get the result in AWS S3
-        logger.info(chat_result.query_result.result_uuid)
+        logger.debug("Result UUID: %s", chat_result.query_result.result_uuid)  # type: ignore
 
 
 if __name__ == "__main__":

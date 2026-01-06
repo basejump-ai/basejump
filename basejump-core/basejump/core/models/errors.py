@@ -13,8 +13,6 @@ class InvalidSchemas(Exception):
 class SSLError(Exception):
     """Base exception for SSL-related errors"""
 
-    pass
-
 
 SSL_CONFIG_ERROR = "Missing SSL root certificate. Need ssl root cert if ssl mode is greater than require."
 
@@ -28,8 +26,7 @@ class LowConfidenceResponse(Exception):
     pass
 
 
-MERMAID_REFRESH_ERROR = """The Mermaid diagram is unable to be refreshed due to issues with processing. \
-If this persists, please reach out to Basejump support."""
+MERMAID_REFRESH_ERROR = """The Mermaid diagram is unable to be refreshed due to issues with processing."""
 
 
 class MermaidRefreshError(Exception):
@@ -137,9 +134,7 @@ class GetChatHistoryError(Exception):
         super().__init__(GET_CHAT_HISTORY_ERROR)
 
 
-PROMPTING_AI_ERROR = (
-    "Error prompting the AI. Please try again and reach out to Basejump support if the problem persists."
-)
+PROMPTING_AI_ERROR = "Error prompting the AI. Please try again."
 
 
 class PromptingAIError(Exception):
@@ -204,3 +199,19 @@ class SQLIndexError(Exception):
 
 class MissingJinjaKey(Exception):
     pass
+
+
+class FileSizeError(Exception):
+    """Raised when a file is too large"""
+
+
+class AlreadyExists(Exception):
+    """Raised when an object already exists in the database."""
+
+
+class NotFoundError(ValueError):
+    """Raised when a requested resource does not exist."""
+
+
+class MissingEnvironmentVariable(KeyError):
+    """Raiseed when missing an environment variable"""

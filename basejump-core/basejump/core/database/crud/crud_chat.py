@@ -7,14 +7,6 @@ from datetime import datetime, timedelta
 from typing import Optional, Sequence
 from zoneinfo import ZoneInfo
 
-from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database.aicatalog import AICatalog
-from basejump.core.database.crud import crud_utils
-from basejump.core.database.db_utils import add_message_context
-from basejump.core.database.token_price import get_token_count_obj
-from basejump.core.database.vector_utils import delete_nodes
-from basejump.core.models import constants, enums, models
-from basejump.core.models import schemas as sch
 from llama_index.core.base.llms.types import ChatMessage
 from llama_index.core.callbacks import CallbackManager
 from llama_index.core.memory import VectorMemory
@@ -22,6 +14,15 @@ from llama_index.core.vector_stores.types import BasePydanticVectorStore
 from redis.asyncio import Redis as RedisAsync
 from sqlalchemy import Row, case, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from basejump.core.common.config.logconfig import set_logging
+from basejump.core.database.crud import crud_utils
+from basejump.core.database.db_utils import add_message_context
+from basejump.core.database.vector_utils import delete_nodes
+from basejump.core.models import constants, enums, models
+from basejump.core.models import schemas as sch
+from basejump.core.models.ai.catalog import AICatalog
+from basejump.core.models.ai.token_price import get_token_count_obj
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -288,6 +289,7 @@ async def index_chat_history(
     callback_manager: CallbackManager,
     vector_store: BasePydanticVectorStore,
     embedding_model_info: sch.AzureModelInfo,
+    verbose: bool = False,
 ) -> None:
     chat = await get_chat_from_id(db=db, chat_id=chat_id)
     assert chat
@@ -311,8 +313,9 @@ async def index_chat_history(
         vector_store=vector_store,
         embed_model=ai_catalog.get_embedding_model(model_info=embedding_model_info),
     )
-    logger.debug("Using the following chat_uuid %s", chat_uuid)
-    logger.debug("Indexing the following chat history: %s", chat_history)
+    if verbose:
+        logger.debug("Using the following chat_uuid %s", chat_uuid)
+        logger.debug("Indexing the following chat history: %s", chat_history)
     for chat_msg in chat_history:
         idx_msg = copy.deepcopy(chat_msg)
         idx_msg.content = add_message_context(

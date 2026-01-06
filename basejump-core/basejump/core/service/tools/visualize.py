@@ -1,21 +1,8 @@
-import io
 import json
-import os
 import uuid
 from typing import Optional
 
-import aioboto3
 import pandas as pd
-from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database import upload
-from basejump.core.database.aicatalog import AICatalog
-from basejump.core.database.crud import crud_result
-from basejump.core.database.format_response import DateFormatter
-from basejump.core.models import constants, enums, errors, models
-from basejump.core.models import pydantic_ai_formats as fmt
-from basejump.core.models import schemas as sch
-from basejump.core.service import service_utils
-from basejump.core.service.base import BaseAgent, BaseChatAgent
 from chat2plot import chat2plot as cp
 from llama_index.core import Document, VectorStoreIndex
 from llama_index.core.llms import LLM
@@ -23,6 +10,17 @@ from llama_index.core.retrievers import VectorIndexRetriever
 from llama_index.core.tools import FunctionTool
 from llama_index.core.tools.function_tool import create_tool_metadata
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from basejump.core.common.config.logconfig import set_logging
+from basejump.core.database.crud import crud_result
+from basejump.core.database.result import store
+from basejump.core.models import constants, enums, errors, models
+from basejump.core.models import schemas as sch
+from basejump.core.models.ai import formats as fmt
+from basejump.core.models.ai import formatter
+from basejump.core.models.ai.catalog import AICatalog
+from basejump.core.service.base import BaseAgent, BaseChatAgent
+from basejump.core.service.tools import tool_utils
 
 bucket_name = "datasetsfromchat"
 
@@ -38,12 +36,14 @@ class VisTool:
         agent,
         small_model_info: sch.ModelInfo,
         embedding_model_info: sch.AzureModelInfo,
+        result_store: store.ResultStore,
         llm: Optional[LLM] = None,
     ):
         self.db = db
         self.agent: BaseAgent = agent
         self.small_model_info = small_model_info
         self.embedding_model_info = embedding_model_info
+        self.result_store = result_store
 
     def get_plot_tool(self) -> FunctionTool:
         func = self.get_plot
@@ -83,7 +83,7 @@ shown to the user to provide more insight into their data.""",
             nodes = await retriever.aretrieve(col)
             # Get similarity score
             similarity_score = nodes[0].score
-            logger.info(f"Cosine similarity: {similarity_score}")
+            logger.debug(f"Cosine similarity: {similarity_score}")
             if similarity_score > 0.6:  # type: ignore
                 date_cols.append(col)
         return date_cols
@@ -91,7 +91,7 @@ shown to the user to provide more insight into their data.""",
     async def format_date(self, cols) -> pd.DataFrame:
         date_prompt = f"""
         dates:{cols}\n"""
-        f = DateFormatter(
+        f = formatter.DateFormatter(
             response=date_prompt,
             pydantic_format=fmt.DateData,
             small_model_info=self.small_model_info,
@@ -99,7 +99,7 @@ shown to the user to provide more insight into their data.""",
         return await f.format()
 
     async def get_plot(self, result_uuid: uuid.UUID, prompt: str):
-        await service_utils.update_agent_tokens(agent=self.agent)
+        await tool_utils.update_agent_tokens(agent=self.agent)
         # Get the result
         result = await crud_result.get_result_filtered(
             db=self.db, result_uuid=result_uuid, user_uuid=self.agent.prompt_metadata.user_uuid
@@ -108,24 +108,14 @@ shown to the user to provide more insight into their data.""",
             logger.error(errors.RESULT_UUID_NOT_FOUND)
             return f"""result_uuid {result_uuid} was not found. Unable to create a visualization since either the \
 result_uuid is incorrect or the originally created data has been deleted."""
-        # Retrieve the result from S3
-        buffer = io.BytesIO()
-        session = aioboto3.Session(
-            aws_access_key_id=os.environ["AWS_USER_ACCESS_KEY_ID"],
-            aws_secret_access_key=os.environ["AWS_USER_SECRET_ACCESS_KEY"],
-            region_name=os.environ["AWS_REGION"],
-        )
-        async with session.client("s3") as s3_client:
-            key, bucket = upload.get_s3_info_from_filepath(filepath=result.result_file_path)
-            response = await s3_client.head_object(Bucket=bucket, Key=key)
-            file_size = response["ContentLength"]
-            if file_size > 5 * 1024 * 1024:
-                return """File size is larger than 5 MB. Make sure to aggregate the data using SQL before attempting \
-to visualize."""
-            await s3_client.download_fileobj(bucket, key, buffer)
-        buffer.seek(0)
-        # Create the visual
-        df = pd.read_csv(buffer)
+
+        # Retrieve the result
+        try:
+            result_manager = self.result_store.get_result_manager(result_file_path=result.result_file_path)
+            df = await result_manager.aget_result(max_file_size=5)
+        except errors.FileSizeError:
+            return """File size is larger than 5 MB. Make sure to aggregate the data using SQL \
+before attempting to visualize."""
         dates = await self.select_date_cols(df.columns.to_list())
         if dates:
             formatted = await self.format_date(cols=df[dates])

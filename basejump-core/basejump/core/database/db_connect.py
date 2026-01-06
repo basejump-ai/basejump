@@ -66,13 +66,16 @@ def get_table_names() -> list[tuple]:
 
 
 class TableManager:
-    def __init__(self, conn_params: sch.SQLDBSchema, schemas: Optional[list[sch.DBSchema]] = None):
+    def __init__(
+        self, conn_params: sch.SQLDBSchema, schemas: Optional[list[sch.DBSchema]] = None, verbose: bool = False
+    ):
         self.conn_params = conn_params
         self.db_type = conn_params.database_type
         self.schemas = schemas or conn_params.schemas
         self.include_default_schema = conn_params.include_default_schema
         self.conn_db = ConnectDB(conn_params=conn_params)
         self.engine = self.conn_db.connect_db(echo=False)
+        self.verbose = verbose
 
     @staticmethod
     def sanitize_jinja_schema_input(jinja_values: dict) -> None:
@@ -256,7 +259,9 @@ selection is not supported."""
             if not table_dict["primary_keys"]:
                 del table_dict["primary_keys"]
         except Exception:
-            logger.debug("No primary keys defined for table")
+            # TODO: Make this an instance function and then use verbose so this debug statement isn't used
+            # logger.debug("No primary keys defined for table")
+            pass
         # Have columns go last
         table_dict["columns"] = table_dict.pop("columns", None)
         # Create a YAML instance
@@ -306,15 +311,17 @@ selection is not supported."""
         Originally taken from llama index sql_wrapper.py
         """
         # Create a dictionary from the current column information
-        logger.debug("Getting info for table: %s", table)
-        logger.debug("Rendered schema: %s", table.table_schema_rendered)
+        if self.verbose:
+            logger.debug("Getting info for table: %s", table)
+            logger.debug("Rendered schema: %s", table.table_schema_rendered)
         table_columns = {}
         for tbl_column in table.columns:
             table_columns[tbl_column.column_name] = tbl_column.dict()
         try:
             # try to retrieve table comment
-            logger.debug("Here is the table name: %s", table.table_name)
-            logger.debug("Here is the schema name: %s", table.table_schema_rendered)
+            if self.verbose:
+                logger.debug("Here is the table name: %s", table.table_name)
+                logger.debug("Here is the schema name: %s", table.table_schema_rendered)
             try:
                 table_comment = inspector.get_table_comment(
                     table_name=table.table_name, schema=table.table_schema_rendered
@@ -333,12 +340,13 @@ selection is not supported."""
             raise Exception("There must be a rendered schema defined to avoid matching on only table name.")
         for column in inspector.get_columns(table_name=table.table_name, schema=table.table_schema_rendered):
             # if quoted then preserve casing
-            logger.debug("Column: %s", column)
-            logger.debug(
-                "Here is the case sensitivity: %s",
-                (self.is_column_case_sensitive(column["name"]) or isinstance(column["name"], quoted_name)),
-            )
-            logger.debug("Here is the name: %s", column["name"])
+            if self.verbose:
+                logger.debug("Column: %s", column)
+                logger.debug(
+                    "Here is the case sensitivity: %s",
+                    (self.is_column_case_sensitive(column["name"]) or isinstance(column["name"], quoted_name)),
+                )
+                logger.debug("Here is the name: %s", column["name"])
             if self.is_column_case_sensitive(column["name"]) or isinstance(column["name"], quoted_name):
                 column_name = str(column["name"])
             # SQLAlchemy returns lower case by default must uppercase for dbs that use default uppercase
@@ -346,7 +354,8 @@ selection is not supported."""
                 column_name = str(column["name"]).upper()
             else:
                 column_name = str(column["name"])
-            logger.debug("Column name: %s", column_name)
+            if self.verbose:
+                logger.debug("Column name: %s", column_name)
             columns[column["name"]] = sch.SQLTableColumn(
                 column_name=column["name"],
                 column_type=str(column["type"]),
@@ -370,8 +379,9 @@ selection is not supported."""
                 # If there is schema templated, the schema needs to be updated to use the template
                 foreign_tbl_schema = foreign_tbl_nm.split(".")[0] if len(foreign_tbl_nm.split(".")) > 1 else None
                 if foreign_tbl_schema:
-                    logger.debug("Here is the foreign_tbl_schema: %s", foreign_tbl_schema)
-                    logger.debug("Here is the schema mapping: %s", self.schema_mapping)
+                    if self.verbose:
+                        logger.debug("Here is the foreign_tbl_schema: %s", foreign_tbl_schema)
+                        logger.debug("Here is the schema mapping: %s", self.schema_mapping)
                     foreign_tbl_schema = self.schema_mapping.get(foreign_tbl_schema)
                     if foreign_tbl_schema:
                         tbl_nm = foreign_tbl_nm.split(".")[1]
@@ -404,7 +414,8 @@ selection is not supported."""
             for future in asyncio.as_completed(futures, timeout=TABLE_PROFILING_TIME_LIMIT):
                 try:
                     result = await future
-                    logger.debug("Table profiling result: %s", result)
+                    if self.verbose:
+                        logger.debug("Table profiling result: %s", result)
                 except Exception as exc:
                     logger.error("Error when running table profiling in threads: %s", str(exc))
                     raise exc
@@ -416,9 +427,12 @@ selection is not supported."""
     async def get_db_tables(self) -> list[sch.SQLTable]:
         """Helper function to retrieve client database information"""
         # Get the tables from the client database
+        logger.info("Retrieving database tables")
         tables_base = await asyncio.to_thread(self.ingest_table_names)
-        logger.debug("Here is tables base: %s", tables_base)
+        if self.verbose:
+            logger.debug("Here are the tables: %s", tables_base)
         tables = await self.get_tables_info(tables=tables_base)
+        logger.info("Finishing retrieving database tables")
         return tables
 
 
@@ -642,8 +656,10 @@ class ConnectDB:
     @staticmethod
     def decrypt_db(dict_to_decrypt: dict) -> dict:
         # Decrypt the sensitive information
-
-        f = Fernet(os.environ["ENCRYPTION_KEY"])
+        try:
+            f = Fernet(os.environ["ENCRYPTION_KEY"])
+        except KeyError:
+            raise errors.MissingEnvironmentVariable("Missing the ENCRYPTION_KEY environment variable.")
         conn_params = {}
         for key, value in dict_to_decrypt.items():
             if key in [
@@ -680,7 +696,10 @@ class ConnectDB:
     @staticmethod
     def encrypt_db(dict_to_encrypt: dict) -> dict:
         # Encrypt the sensitive information
-        f = Fernet(os.environ["ENCRYPTION_KEY"])
+        try:
+            f = Fernet(os.environ["ENCRYPTION_KEY"])
+        except KeyError:
+            raise errors.MissingEnvironmentVariable("Missing the ENCRYPTION_KEY environment variable.")
         conn_params_byte = {}
         for key, value in dict_to_encrypt.items():
             # Convert to binary
@@ -792,7 +811,7 @@ class ConnectDB:
         """Create a database URI"""
         query = self.conn_params.query or {}
         if self.conn_params.database_type == enums.DatabaseType.SQL_SERVER:
-            query["driver"] = os.environ["SQL_SERVER_ODBC_DRIVER"]
+            query["driver"] = os.getenv("SQL_SERVER_ODBC_DRIVER") or "ODBC Driver 18 for SQL Server"
         elif self.conn_params.database_type == enums.DatabaseType.ATHENA:
             try:
                 assert query[constants.ATHENA_STAGING_DIR_NAME]
@@ -870,7 +889,7 @@ class ConnectDB:
                     invalid_schemas = errors.InvalidSchemas(non_perm_schemas=non_perm_schemas)
                     logger.error("Invalid schemas %s", str(invalid_schemas))
                     raise invalid_schemas
-                logger.info("The following schemas successfully verified: %s", schemas)
+                logger.info("The following schemas were successfully verified: %s", schemas)
         finally:
             mng_tables.dispose_engine()
 

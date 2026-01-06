@@ -16,7 +16,7 @@ Basejump indexes a database and connects it with an AI data agent to chat with y
 ## Why Basejump?
 **Reliability, Reproducibility, and Robustness** (yes, we forced the alliteration).
 
-We don't just provide a data agent - we make it production-ready:
+We provide a data agent with features designed for robustness:
 - **Deterministic validation** using SQLglot to parse and verify every query
 - **Multi-level access control** supporting RBAC through clients, teams, and users
 - **Complete audit trail** with queries and results saved in a pre-configured database schema
@@ -30,7 +30,7 @@ pip install basejump
 This installs the core basejump library and common packages.
 
 ## Getting Started
-A demo starter project has been created under basejump-demo to help you get started quickly. 
+A demo starter project has been created under basejump-demo to help you get started quickly.
 
 ### Dependencies
 To run the demo, you will need the following:
@@ -45,25 +45,19 @@ To run the demo, you will need the following:
 ### Steps
 Follow the following steps to get the demo set up:
 1. Clone this repo
-2. Copy `demo/.env.example` to `demo/.env` and fill in your credentials
-3. Create and activate the virtual environment:
-```bash
-python3 -m venv .venv
-source .venv/bin/activate  # On Mac/Linux
-# On Windows use: .venv\Scripts\activate
-```
-4. Run the demo:
+2. Copy `basejump-demo/.env.example` to `basejump-demo/.env` and fill in your credentials
+3. Run the demo:
 ```bash
 cd basejump-demo
 docker compose up -d
 docker compose exec app python main.py
 ```
-5. That's it! You should also be able to run code outside the container using localhost to refer to the postgres and redis instances running in docker.
 
+That's it! You should also be able to run code outside the container using localhost to refer to the postgres and redis instances running in docker.
 After completing these steps, you should see the AI respond to your question based on the basejump database schema.
 
 ### Example usage
-A complete working example can be found in `demo/main.py`. Here's the core functionality in just 10 lines:
+A complete working example can be found in `basejump-demo/main.py`. Here's the core functionality in just 10 lines:
 
 ```python
 async with service.run_session() as (core_session, db):
@@ -106,13 +100,9 @@ The following databases are currently supported. If you don't see one, submit a 
 - SQL Server
 
 ## Supported AI Models
-Basejump is built on Llama Index and can theoretically support any AI models Llama Index supports. 
+Basejump is built on Llama Index and can theoretically support any AI models Llama Index supports.
 Adding support for a new model is relatively straightforward, so please request one if you don't see it.
 
 Most of the LLMS from OpenAI and Anthropic are available via Azure and AWS respectively. Supported Claude models can be found [here](https://github.com/basejump-ai/basejump-llama-index/blob/main/llama-index-integrations/llms/llama-index-llms-bedrock-converse/llama_index/llms/bedrock_converse/utils.py). Supported OpenAI models can be found [here](https://github.com/basejump-ai/basejump-llama-index/blob/main/llama-index-integrations/llms/llama-index-llms-openai/llama_index/llms/openai/utils.py).
 
 To add a new model to Basejump, just update the `AIModelSchema` in `basejump.core.models.schemas` and submit a PR.
-
-
-
-

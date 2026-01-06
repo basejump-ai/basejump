@@ -1,19 +1,24 @@
-from typing import Optional
 import uuid
+from typing import Optional
 
-
-from basejump.core.models import schemas as sch
-from basejump.core.models import enums
-from pydantic import ConfigDict, BaseModel
-from sqlalchemy.ext.asyncio import AsyncSession, AsyncEngine
+from pydantic import BaseModel, ConfigDict
 from redis.asyncio import Redis as RedisAsync
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+
+from basejump.core.models import enums
+from basejump.core.models import schemas as sch
 
 
-class GetClient(sch.CreateClient):
+class GetClientBase(BaseModel):
     client_id: int
     client_uuid: uuid.UUID
+    model_config = ConfigDict(from_attributes=True)
+
+
+class GetClient(sch.CreateClient, GetClientBase):
     client_secret: str
     role: enums.AllUserRoles
+    model_config = ConfigDict(from_attributes=True)
 
 
 class GetTeam(sch.TeamFields):
@@ -28,7 +33,7 @@ class GetUser(BaseModel):
     user_uuid: uuid.UUID
     username: str
     role: enums.UserRoles
-    email_address: str
+    email_address: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -78,4 +83,6 @@ class PyTestEnv(sch.BaseModel):
     db: Optional[AsyncSession] = None
     redis_client_async: Optional[RedisAsync] = None
     sql_engine: Optional[AsyncEngine] = None
+    service_context: Optional[sch.ServiceContext] = None
+    user_info: Optional[sch.UserInfo] = None
     model_config = ConfigDict(arbitrary_types_allowed=True)

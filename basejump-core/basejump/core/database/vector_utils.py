@@ -2,9 +2,6 @@ import json
 import uuid
 from typing import Any, Dict, List, Optional
 
-from basejump.core.common.config.logconfig import set_logging
-from basejump.core.models import constants, enums, models
-from basejump.core.models import schemas as sch
 from llama_index.core import Settings, VectorStoreIndex
 from llama_index.core.indices.base import BaseIndex
 from llama_index.vector_stores.redis import RedisVectorStore, TokenEscaper
@@ -27,6 +24,10 @@ from redisvl.schema import IndexSchema
 from redisvl.utils.utils import validate_vector_dims
 from redisvl.utils.vectorize import BaseVectorizer, HFTextVectorizer
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from basejump.core.common.config.logconfig import set_logging
+from basejump.core.models import constants, enums, models
+from basejump.core.models import schemas as sch
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -117,7 +118,7 @@ async def delete_nodes(client_id: int, node_uuids: list[uuid.UUID], redis_client
     vector_store = RedisVectorStore(redis_client_async=redis_client_async, schema=schema, legacy_filters=True)
     try:
         await vector_store.adelete_nodes(node_ids=[str(node_uuid) for node_uuid in node_uuids])
-        logger.info("Deleting excess vector docs")
+        logger.debug("Deleting excess vector docs")
     except Exception as e:
         logger.warning("Error deleting vector docs. Here is the error: %s", str(e))
 

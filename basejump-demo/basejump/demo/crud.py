@@ -1,6 +1,7 @@
-from basejump.core.models import models
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from basejump.core.common.config.logconfig import set_logging
+from basejump.core.models import models
 
 logger = set_logging(handler_option="stream", name=__name__)
 

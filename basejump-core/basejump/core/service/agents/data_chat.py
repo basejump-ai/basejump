@@ -6,23 +6,23 @@ from datetime import datetime, timedelta
 from random import choice
 from typing import Optional, Sequence
 
-from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database import db_auth
-from basejump.core.database.crud import crud_chat, crud_result
-from basejump.core.database.db_connect import ConnectDB
-from basejump.core.database.vector_utils import init_semcache
-from basejump.core.models import constants, enums, models
-from basejump.core.models import schemas as sch
-from basejump.core.models.prompts import NO_DB_ACCESS_PROMPT, sql_result_prompt_basic
-from basejump.core.service import service_utils
-from basejump.core.service.base import BaseChatAgent, ChatAgentSetup, ChatMessageHandler
-from basejump.core.service.tools import sql, visualize
 from llama_index.core.llms import ChatMessage, MessageRole
 from llama_index.core.llms.function_calling import FunctionCallingLLM
 from llama_index.core.tools.types import AsyncBaseTool
-from redis.asyncio import Redis as RedisAsync
 from redisvl.query.filter import Tag
-from sqlalchemy.ext.asyncio import AsyncEngine
+
+from basejump.core.common.config.logconfig import set_logging
+from basejump.core.database import db_auth
+from basejump.core.database.crud import crud_chat, crud_connection, crud_result
+from basejump.core.database.db_connect import ConnectDB
+from basejump.core.database.result import store
+from basejump.core.database.vector_utils import init_semcache
+from basejump.core.models import constants, enums, errors, models
+from basejump.core.models import schemas as sch
+from basejump.core.models.prompts import NO_DB_ACCESS_PROMPT, sql_result_prompt_basic
+from basejump.core.service.agents import agent_utils
+from basejump.core.service.base import BaseChatAgent, ChatAgentSetup, ChatMessageHandler
+from basejump.core.service.tools import sql, visualize
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -42,32 +42,34 @@ class DataChatAgent(BaseChatAgent):
         db_conn_params: sch.SQLDBSchema,
         prompt_metadata: sch.PromptMetadata,
         chat_metadata: sch.ChatMetadata,
-        redis_client_async: RedisAsync,
-        large_model_info: sch.ModelInfo,
-        small_model_info: sch.ModelInfo,
-        embedding_model_info: sch.AzureModelInfo,
-        sql_engine: AsyncEngine,
+        service_context: sch.ServiceContext,
         chat_history: Optional[list[ChatMessage]] = None,
         max_iterations: int = constants.MAX_ITERATIONS,
         agent_llm: Optional[FunctionCallingLLM] = None,
+        select_sample_values: bool = False,
+        check_if_prompt_is_cached: bool = False,
+        result_store: Optional[store.ResultStore] = None,
+        conn_id: Optional[int] = None,
+        verbose: bool = False,
     ):
-        self.redis_client_async = redis_client_async
-        self.large_model_info = large_model_info
-        self.small_model_info = small_model_info
-        self.embedding_model_info = embedding_model_info
-        self.sql_engine = sql_engine
-        self.db_conn_params = db_conn_params
-        logger.debug("Here is the chat history %s", chat_history)
         super().__init__(
             prompt_metadata=prompt_metadata,
             chat_metadata=chat_metadata,
             chat_history=chat_history,
             max_iterations=max_iterations,
             agent_llm=agent_llm,
-            sql_engine=sql_engine,
-            redis_client_async=redis_client_async,
-            large_model_info=large_model_info,
+            sql_engine=service_context.sql_engine,
+            redis_client_async=service_context.redis_client_async,
+            large_model_info=service_context.large_model_info,
+            verbose=verbose,
         )
+        self.service_context = service_context
+        self.db_conn_params = db_conn_params
+        self.select_sample_values = select_sample_values
+        self.check_if_prompt_is_cached = check_if_prompt_is_cached
+        self.result_store = result_store or store.LocalResultStore(client_id=self.prompt_metadata.client_id)
+        self.conn_id = conn_id
+        logger.debug("Chat history: %s", chat_history)
 
     @staticmethod
     def get_llm_type() -> enums.LLMType:
@@ -77,9 +79,21 @@ class DataChatAgent(BaseChatAgent):
         """Setup tools for the AI Agent to use"""
         tools = []
         # Loop over the available connections and setup the various tools
-        connections = await ChatAgentSetup.get_connections(
-            db=self.db, team_id=self.chat_metadata.team_id, user_id=self.prompt_metadata.user_id
-        )
+        if self.conn_id:
+            db_connection = await crud_connection.get_db_conn_from_id(db=self.db, conn_id=self.conn_id)
+            if not db_connection:
+                msg = "The connection does not exist based on the provided connection ID."
+                logger.error(msg)
+                raise errors.NotFoundError(msg)
+            connections: list[models.Connection] = [db_connection]
+        else:
+            connections = await ChatAgentSetup.get_connections(
+                db=self.db,
+                team_id=self.chat_metadata.team_id,
+                user_id=self.prompt_metadata.user_id,
+            )
+        if not connections:
+            raise errors.NotFoundError("No connections found")
         self.connections = []
         for conn in connections:
             assert isinstance(conn, models.DBConn)
@@ -106,11 +120,10 @@ class DataChatAgent(BaseChatAgent):
                 db_uuid=connection.db_uuid,
                 vector_id=connection.vector_id,
                 prompt_metadata=self.prompt_metadata,
-                redis_client_async=self.redis_client_async,
-                large_model_info=self.large_model_info,
-                small_model_info=self.small_model_info,
-                embedding_model_info=self.embedding_model_info,
-                sql_engine=self.sql_engine,
+                service_context=self.service_context,
+                select_sample_values=self.select_sample_values,
+                verbose=self.verbose,
+                result_store=self.result_store,
             )
             await self.sql_tool.post_init()
             tools += self.sql_tool.tools
@@ -118,8 +131,9 @@ class DataChatAgent(BaseChatAgent):
             db=self.db,
             agent=self,
             llm=self.agent_llm,
-            small_model_info=self.small_model_info,
-            embedding_model_info=self.embedding_model_info,
+            small_model_info=self.service_context.small_model_info,
+            embedding_model_info=self.service_context.embedding_model_info,
+            result_store=self.result_store,
         )
         tools.append(vis_tool.get_plot_tool())
         return tools
@@ -186,16 +200,18 @@ class DataChatAgent(BaseChatAgent):
                     return await self._get_message(response=semcache_response_obj.response)
                 else:
                     # Refresh the results
-                    await service_utils.refresh_result(
+                    await agent_utils.refresh_result(
                         db=self.db,
                         result=result,
                         commit=False,
                         client_id=self.prompt_metadata.client_id,
-                        small_model_info=self.small_model_info,
+                        small_model_info=self.service_context.small_model_info,
                         db_conn_params=self.db_conn_params,
+                        result_store=self.result_store,
                     )
-                    file_gen_func = service_utils.get_file_generator_func(result.result_file_path)
-                    stream_gen = file_gen_func(result.result_file_path)
+                    result_manager = self.result_store.get_result_manager(result.result_file_path)
+                    file_gen_func = result_manager.get_stream_result_generator()
+                    stream_gen = file_gen_func()
                     rows_base = next(stream_gen)
                     rows = [tuple(row.split(",")) for row in rows_base.decode("utf-8").splitlines()]
                     query_res = sch.QueryResult(
@@ -214,15 +230,16 @@ class DataChatAgent(BaseChatAgent):
                     self.query_result = sch.MessageQueryResult.from_orm(result)
                     if visual_result:
                         client_user = sch.ClientUserInfo.parse_obj(self.prompt_metadata)
-                        visual_result = await service_utils.refresh_visual_result(
+                        visual_result = await agent_utils.refresh_visual_result(
                             db=self.db,
                             visual_result=visual_result,
                             client_user=client_user,
                             sql_engine=self.sql_engine,
-                            small_model_info=self.small_model_info,
-                            large_model_info=self.large_model_info,
-                            embedding_model_info=self.embedding_model_info,
+                            small_model_info=self.service_context.small_model_info,
+                            large_model_info=self.service_context.large_model_info,
+                            embedding_model_info=self.service_context.embedding_model_info,
                             redis_client_async=self.redis_client_async,
+                            result_store=self.result_store,
                         )
                         self.query_result.visual_result_uuid = visual_result.visual_result_uuid
                         self.query_result.visual_json = visual_result.visual_json
@@ -252,6 +269,7 @@ class DataChatAgent(BaseChatAgent):
             prompt_metadata=self.prompt_metadata,
             chat_metadata=self.chat_metadata,
             redis_client_async=self.redis_client_async,
+            verbose=self.verbose,
         )
         if self.chat_history:
             await handler.create_message(
@@ -271,6 +289,7 @@ class DataChatAgent(BaseChatAgent):
         # Modify the prompt if needed
         if not self.connections:
             prompt = NO_DB_ACCESS_PROMPT.format(prompt=prompt)
-        if semcache_response := await self.check_semcache(prompt=prompt):
-            return semcache_response
+        if self.check_if_prompt_is_cached:
+            if semcache_response := await self.check_semcache(prompt=prompt):
+                return semcache_response
         return await self._chat_base(prompt=prompt)

@@ -155,24 +155,37 @@ class LLMType(StrEnum):
 
 class AIModelSchema(StrEnum):
     GROQ = "llama3-70b-8192"
+    # Azure OpenAI
+    GPT52_CODEX_MAX = "gpt-5.2-codex-max"
+    GPT52 = "gpt-5.2"
+    GPT51_CODEX = "gpt-5.1-codex"
+    GPT51 = "gpt-5.1"
+    GPT5 = "gpt-5"
     GPT4o = "gpt-4o"
-    GPT41 = "gpt-41"
+    GPT41 = "gpt-4.1"
     GPT4 = "gpt-4"
     GPT4oMINI = "gpt-4o-mini"
     GPT35_TURBO_AZURE = "gpt-3.5-turbo"
     GPT35_TURBO_OPENAI = "gpt-3.5-turbo-0613"
+    # AWS Anthropic
+    SONNET35 = "us.anthropic.claude-3-5-sonnet-20241022-v2:0"
+    SONNET37 = "us.anthropic.claude-3-7-sonnet-20250219-v1:0"
+    # Azure OpenAI Embedding Models
     ADA = "text-embedding-ada-002"
     ADA3_LARGE = "text-embedding-3-large"
     ADA3_SMALL = "text-embedding-3-small"
-    SONNET35 = "us.anthropic.claude-3-5-sonnet-20241022-v2:0"
-    SONNET37 = "us.anthropic.claude-3-7-sonnet-20250219-v1:0"
 
 
 class AIModelSchemaClientOptions(StrEnum):
-    GPT4o = AIModelSchema.GPT4o.value
+    GPT52_CODEX_MAX = AIModelSchema.GPT52_CODEX_MAX.value
+    GPT52 = AIModelSchema.GPT52.value
+    GPT51_CODEX = AIModelSchema.GPT51_CODEX.value
+    GPT51 = AIModelSchema.GPT51.value
+    GPT5 = AIModelSchema.GPT5.value
     GPT41 = AIModelSchema.GPT41.value
-    SONNET35 = AIModelSchema.SONNET35.value
+    GPT4o = AIModelSchema.GPT4o.value
     SONNET37 = AIModelSchema.SONNET37.value
+    SONNET35 = AIModelSchema.SONNET35.value
 
 
 class AIModelProvider(StrEnum):
@@ -192,14 +205,28 @@ class AzurePricingQueries(StrEnum):
 
 
 # TODO: Use an API to automatically get the prices
-# Prices here: https://wow.groq.com/
+# Prices here:
+#     - Azure OpenAI: https://azure.microsoft.com/en-us/pricing/details/cognitive-services/openai-service/#pricing # noqa
 class DefaultTokenPrices(Enum):
-    GROQ_70B_llama_input = Decimal(0.59 / 1000)
-    GROQ_70B_llama_output = Decimal(0.79 / 1000)
-    GPT4o_input = Decimal(0.005)
-    GPT4o_output = Decimal(0.015)
+    # Azure OpenAI LLM
+    GPT52_CODEX_MAX_input = Decimal(0.00125)  # Using GPT51 since no GPT52 prices are provided
+    GPT52_CODEX_MAX_output = Decimal(0.01)  # Using GPT51 since no GPT52 prices are provided
+    GPT52_input = Decimal(0.00125)  # Using GPT51 since no GPT52 prices are provided
+    GPT52_output = Decimal(0.01)  # Using GPT51 since no GPT52 prices are provided
+    GPT51_CODEX_input = Decimal(0.00125)
+    GPT51_CODEX_output = Decimal(0.01)
+    GPT51_input = Decimal(0.00125)
+    GPT51_output = Decimal(0.01)
+    GPT5_input = Decimal(0.00125)
+    GPT5_output = Decimal(0.01)
     GPT41_input = Decimal(0.002)
     GPT41_output = Decimal(0.008)
+    GPT4o_input = Decimal(0.005)
+    GPT4o_output = Decimal(0.015)
+    # Groq LLM
+    GROQ_70B_llama_input = Decimal(0.59 / 1000)
+    GROQ_70B_llama_output = Decimal(0.79 / 1000)
+    # Azure OpenAI Embedding models
     ADA = Decimal(0.0001)
     ADA3_SMALL = Decimal(0.000022)
 
@@ -234,11 +261,6 @@ class SubPlanType(StrEnum):
     DEMO = "demo"
     FREE = "free"
     DEVELOPER = "developer"
-
-
-class TransactionType(StrEnum):
-    CREDITS_PURCHASE = "credits_purchase"
-    SUBSCRIPTION = "subscription_renewal"
 
 
 class SQLSimilarityLabel(StrEnum):

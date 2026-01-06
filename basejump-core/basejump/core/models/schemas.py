@@ -7,8 +7,6 @@ from typing import Any, Callable, Dict, Literal, Optional, Union
 
 import pandas as pd
 import sqlalchemy as sa
-from basejump.core.common.config.logconfig import set_logging
-from basejump.core.models import constants, enums
 from llama_index.core.callbacks import (
     CallbackManager,
     LlamaDebugHandler,
@@ -18,7 +16,11 @@ from llama_index.core.llms import MessageRole
 from llama_index.core.objects import SQLTableSchema
 from llama_index.core.vector_stores.types import BasePydanticVectorStore
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-from sqlalchemy.ext.asyncio import AsyncSession
+from redis.asyncio import Redis as RedisAsync
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+
+from basejump.core.common.config.logconfig import set_logging
+from basejump.core.models import constants, enums
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -123,8 +125,8 @@ This is not partitioned tables, but rather the parent table that is being partit
 
 
 class DBParamsSchema(DBParamsSchemaBase):
-    drivername: Union[enums.DBDriverName, enums.DBAsyncDriverName] = Field(
-        examples=["postgresql"], description="The SQLAlchemy drivername."
+    drivername: Union[enums.DBDriverName, enums.DBAsyncDriverName] = (  # type: ignore
+        Field(examples=["postgresql"], description="The SQLAlchemy drivername."),
     )
 
 
@@ -302,7 +304,7 @@ class BaseUser(BaseModel):
 
 class TeamFields(BaseModel):
     team_name: str = Field(examples=[constants.TEAM_NM_DESC])
-    team_desc: str = Field(examples=[constants.TEAM_NM_DESC])
+    team_desc: str = Field(examples=[constants.TEAM_DESC])
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -459,6 +461,13 @@ class ClientUserInfo(BaseModel):
     user_role: str  # UserRoles StrEnum
 
 
+class UserInfo(ClientUserInfo):
+    team_id: int
+    team_uuid: uuid.UUID
+    team_name: Optional[str] = Field(default=None, examples=[constants.TEAM_NM_DESC])
+    team_desc: Optional[str] = Field(default=None, examples=[constants.TEAM_DESC])
+
+
 class PromptMetadataBase(ClientUserInfo):
     """This is to be used when there is no user chatting back and forth with the agent.
     This is purely for an agent iterating by itself and no human in the loop.
@@ -467,6 +476,7 @@ class PromptMetadataBase(ClientUserInfo):
     initial_prompt: str
     prompt_uuid: uuid.UUID
     prompt_id: int
+    model_name: enums.AIModelSchema
     llm_type: enums.LLMType
     prompt_time: datetime
     return_visual_json: bool = False
@@ -684,3 +694,52 @@ class IndexedTables(BaseModel):
 class UploadResult(BaseModel):
     result_uuid: uuid.UUID
     s3_file_key: str
+
+
+class CoreSession(BaseModel):
+    sql_engine: AsyncEngine
+    redis_client_async: RedisAsync
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+
+class ServiceContext(CoreSession):
+    large_model_info: ModelInfo
+    small_model_info: ModelInfo
+    embedding_model_info: AzureModelInfo  # TODO: Support other models besides Azure for embedding
+
+
+class AWSS3Config(BaseModel):
+    prefix: str
+    bucket_name: str
+    region: str
+    access_key: str
+    secret_access_key: str
+
+
+class ClientStorageConn(BaseModel):
+    client_id: int
+    alias: str
+    storage_provider: str
+    region: str
+    bucket_name: str
+    access_key: str
+    secret_access_key: str
+    active: bool
+    prefix: str
+    internal: bool
+    storage_uuid: uuid.UUID
+
+
+class ClientStorageConnEncrypted(BaseModel):
+    client_id: int
+    alias: str
+    storage_provider: str
+    region: str
+    bucket_name: str
+    access_key: bytes
+    secret_access_key: bytes
+    active: bool
+    prefix: str
+    internal: bool
+    storage_uuid: uuid.UUID
+    model_config = ConfigDict(from_attributes=True)

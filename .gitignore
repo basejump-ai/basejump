@@ -2,7 +2,7 @@
 .DS_Store
 .vscode/
 *.env
-!.env_example.txt
+!.env.example
 credentials/
 *.pem
 
@@ -13,6 +13,7 @@ credentials/
 logging/*
 
 # Data files
+data/
 files/
 *.json
 *.jsonl
@@ -26,11 +27,16 @@ files/
 *__pycache__*
 .mypy_cache/
 .pytest_cache/
+.ruff_cache/
 
-# Testmon
+# Testing/Testmon
 .testmondata
 .testmondata-shm
 .testmondata-wal
+coverage.sh
 
 # Packaging
 dist/
+
+# Migration
+versions/
