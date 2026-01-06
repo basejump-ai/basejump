@@ -4,19 +4,20 @@ import asyncio
 import uuid
 from typing import Optional
 
-from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database import db_utils
-from basejump.core.database.aicatalog import AICatalog
-from basejump.core.database.crud import crud_connection, crud_table
-from basejump.core.database.db_connect import LocalSession, TableManager
-from basejump.core.database.vector_utils import get_index_name
-from basejump.core.models import constants, enums
-from basejump.core.models import schemas as sch
 from llama_index.core.schema import MetadataMode, TextNode
 from llama_index.vector_stores.redis import RedisVectorStore
 from redis.asyncio import Redis as RedisAsync
 from redisvl.schema import IndexSchema
 from sqlalchemy.ext.asyncio import AsyncEngine
+
+from basejump.core.common.config.logconfig import set_logging
+from basejump.core.database import db_utils
+from basejump.core.database.crud import crud_connection, crud_table
+from basejump.core.database.db_connect import LocalSession, TableManager
+from basejump.core.database.vector_utils import get_index_name
+from basejump.core.models import constants, enums
+from basejump.core.models import schemas as sch
+from basejump.core.models.ai.catalog import AICatalog
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -153,6 +154,7 @@ async def index_db(
     schemas: Optional[list[sch.DBSchema]] = None,
     tables: Optional[list[sch.SQLTable]] = None,
     update_only: bool = False,
+    verbose: bool = False,
 ) -> sch.IndexedTables:
     try:
         if update_only:
@@ -161,12 +163,14 @@ async def index_db(
             except AssertionError:
                 raise Exception("Need tables provided if update_only = True")
         # Upload tables
-        mng_tbls = TableManager(conn_params=conn_params, schemas=schemas)
+        logger.info("Starting database index")
+        mng_tbls = TableManager(conn_params=conn_params, schemas=schemas, verbose=verbose)
         if not tables:
             tables = await mng_tbls.get_db_tables()
         # logger.debug("All tables found: %s", tables)
         permitted_tables = await asyncio.to_thread(mng_tbls.ingest_table_names, permitted_only=True)
-        logger.debug("Permitted tables found: %s", permitted_tables)
+        if verbose:
+            logger.debug("Permitted tables found: %s", permitted_tables)
         await asyncio.to_thread(mng_tbls.dispose_engine)
         # NOTE: This is called in a task, so it needs its own AsyncSession
         session = LocalSession(client_id=client_user.client_id, engine=sql_engine)
@@ -180,6 +184,7 @@ async def index_db(
                 tables=tables,
                 permitted_tables=permitted_tables,
                 update_only=update_only,
+                verbose=verbose,
             )
             # Create index
             await index_db_tables.create_index(tables=tables, redis_client_async=redis_client_async)

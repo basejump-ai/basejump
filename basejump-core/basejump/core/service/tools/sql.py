@@ -7,19 +7,6 @@ import uuid
 from typing import Optional
 
 import redis
-from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database import db_utils, query
-from basejump.core.database.aicatalog import AICatalog
-from basejump.core.database.crud import crud_connection, crud_table
-from basejump.core.database.db_connect import POOL_TIMEOUT, TableManager
-from basejump.core.database.format_response import JSONResponseFormatter
-from basejump.core.database.vector_utils import get_vector_idx
-from basejump.core.models import constants, enums, errors
-from basejump.core.models import pydantic_ai_formats as fmt
-from basejump.core.models import schemas as sch
-from basejump.core.models.prompts import DB_METADATA_PROMPT, ZERO_ROW_PROMPT
-from basejump.core.service import service_utils
-from basejump.core.service.base import BaseChatAgent, ChatMessageHandler
 from llama_index.core import VectorStoreIndex
 from llama_index.core.chat_engine import SimpleChatEngine
 from llama_index.core.indices.struct_store.sql_retriever import SQLTableRetriever
@@ -33,11 +20,26 @@ from llama_index.core.vector_stores import (
     MetadataFilters,
 )
 from llama_index.vector_stores.redis.base import NO_DOCS
-from redis.asyncio import Redis as RedisAsync
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlglot import errors as sqlglot_errors
 from sqlglot import exp, parse_one
 from sqlglot.dialects.dialect import Dialects
+
+from basejump.core.common.config.logconfig import set_logging
+from basejump.core.database import db_utils
+from basejump.core.database.client import query
+from basejump.core.database.crud import crud_connection, crud_table
+from basejump.core.database.db_connect import POOL_TIMEOUT, TableManager
+from basejump.core.database.result import store
+from basejump.core.database.vector_utils import get_vector_idx
+from basejump.core.models import constants, enums, errors
+from basejump.core.models import schemas as sch
+from basejump.core.models.ai import formats as fmt
+from basejump.core.models.ai import formatter
+from basejump.core.models.ai.catalog import AICatalog
+from basejump.core.models.prompts import DB_METADATA_PROMPT, ZERO_ROW_PROMPT
+from basejump.core.service.base import BaseChatAgent, ChatMessageHandler
+from basejump.core.service.tools import tool_utils
 
 logger = set_logging(handler_option="stream", name=__name__)
 TIMEOUT = 60 * 15
@@ -61,11 +63,10 @@ class SQLTool:
         prompt_metadata: sch.PromptMetadata,
         client_conn_params: sch.SQLDBSchema,
         db_conn_params: sch.SQLDBSchema,
-        redis_client_async: RedisAsync,
-        sql_engine: AsyncEngine,
-        large_model_info: sch.ModelInfo,
-        small_model_info: sch.ModelInfo,
-        embedding_model_info: sch.AzureModelInfo,
+        service_context: sch.ServiceContext,
+        result_store: store.ResultStore,
+        select_sample_values: bool = False,
+        verbose: bool = False,
     ):
         self.agent = agent
         self.db = db
@@ -87,12 +88,15 @@ class SQLTool:
         self.col_check_ct = 0
         self.provided_sample_vals = False
         self.db_cols: list = []
-        self.large_model_info = large_model_info
-        self.small_model_info = small_model_info
-        self.embedding_model_info = embedding_model_info
-        self.sql_engine = sql_engine
-        self.redis_client_async = redis_client_async
+        self.large_model_info = service_context.large_model_info
+        self.small_model_info = service_context.small_model_info
+        self.embedding_model_info = service_context.embedding_model_info
+        self.sql_engine = service_context.sql_engine
+        self.redis_client_async = service_context.redis_client_async
         self.stuck_in_loop_ct = 0
+        self.select_sample_values = select_sample_values
+        self.result_store = result_store
+        self.verbose = verbose
 
     async def post_init(self):
         loaded_sql_tool = await self._get_sql_tables_tool()
@@ -208,6 +212,7 @@ Here is a description of the SQL database connection: """
 
     async def check_all_tables(self, sql_query: str) -> Optional[str]:
         try:
+            logger.info("Dialect: %s", self.sqlglot_dialect)
             parsed_query = parse_one(sql_query, dialect=self.sqlglot_dialect)
             parsed_query_tbls = parsed_query.find_all(exp.Table)
             cte_tbls = parsed_query.find_all(exp.CTE)
@@ -293,18 +298,20 @@ table. Do not use these column(s): {", ".join(query_cols_lowered-valid_cols_lowe
         # logger.info("here are the columns to quote: %s", columns)
         table_aliases = {}
         table_dbs = {}
-        logger.info("Qualifying names in quote_case_sensitive_cols")
         try:
             qualified_ast = db_utils.qualify_names(sql_query, dialect=self.sqlglot_dialect)
-            logger.info("Unquoting identifiers")
+            if self.verbose:
+                logger.info("Unquoting identifiers")
             sql_query_unquoted = db_utils.unquote_identifiers(
                 qualified_ast.sql(dialect=self.sqlglot_dialect), dialect=self.sqlglot_dialect
             )
-            logger.info("Completed unquote")
+            if self.verbose:
+                logger.info("Completed unquote")
         except Exception as e:
             logger.warning("Here is the error: %s", str(e))
             raise e
-        logger.info("Here is the SQL query unquoted: %s", sql_query_unquoted)
+        if self.verbose:
+            logger.info("Here is the SQL query unquoted: %s", sql_query_unquoted)
 
         for node in parse_one(sql_query_unquoted).find_all(exp.Table):
             # If the table has an alias, store it
@@ -359,7 +366,8 @@ table. Do not use these column(s): {", ".join(query_cols_lowered-valid_cols_lowe
             except Exception as e:
                 logger.warning(str(e))
                 logger.traceback()
-            logger.info("Here is the SQL query after quoting: %s", sql_query)
+            if self.verbose:
+                logger.info("Here is the SQL query after quoting: %s", sql_query)
             return sql_query
         except (errors.StarQueryError, errors.ColumnCapitalizationError, errors.HallucinatedColumnError) as e:
             logger.warning("Error in validating columns: %s", str(e))
@@ -609,6 +617,7 @@ database, please update your filter value to one or multiple of these instead: {
             prompt_metadata=self.prompt_metadata,
             chat_metadata=self.agent.chat_metadata,
             redis_client_async=self.redis_client_async,
+            verbose=self.verbose,
         )
         await handler.create_message(
             db=self.db,
@@ -716,7 +725,6 @@ Values: {values}\n\n"""
         logger.info("Here is the initial SQL query: %s", initial_sql_query)
         self.sql_query_created = True
         # Explain plan
-        columns, sample_values = await self.get_select_sample_values(sql_query=initial_sql_query)
         initial_instructions = f"""
 Before executing a SQL query, you need to make a plan. Do the following:
 - Identify the filters for the query based on the initial user prompt: {self.prompt_metadata.initial_prompt}. \
@@ -727,9 +735,11 @@ every filter the user has given enough context and defined it clearly. If you ar
 may be referring to, ask the user a clarifying question before proceeding. Do not ask the user for the column name.
 - The plan should be formatted as == Plan ==, followed by plan bullet points."""
         intermediate_instructions = ""
-        if sample_values and columns:
-            intermediate_instructions = f"""\n- Here are some sample values for the columns selected \
-in your query: {sample_values}\n"""
+        if self.select_sample_values:
+            columns, sample_values = await self.get_select_sample_values(sql_query=initial_sql_query)
+            if sample_values and columns:
+                intermediate_instructions = f"""\n- Here are some sample values for the columns selected \
+    in your query: {sample_values}\n"""
         final_instructions = """\n
 After stating your plan, do one of the following:
 - Option 1: Ask the user a clarifying question.
@@ -741,7 +751,7 @@ After stating your plan, do one of the following:
     async def run_sql(self, sql_query: str) -> str:
         logger.info("Here is the SQL query trying to be ran: %s", sql_query)
         # Clean the SQL query format
-        format_json_response = JSONResponseFormatter(
+        format_json_response = formatter.JSONResponseFormatter(
             response=sql_query,
             pydantic_format=fmt.CleanSQLFormat,
             max_tokens=1000,
@@ -757,7 +767,6 @@ After stating your plan, do one of the following:
         logger.info("No hallucinated tables")
         # Check for any hallucinated columns
         try:
-            logger.info("Validating all cols for run_sql")
             sql_query = await self.validate_all_columns(sql_query=sql_query)
             logger.info("Validated sql query: %s", sql_query)
         except (
@@ -769,7 +778,7 @@ After stating your plan, do one of the following:
             logger.error("Here is the error from validate_all_columns: %s", str(e))
             return str(e)
         logger.info("No hallucinated columns")
-        await service_utils.update_agent_tokens(agent=self.agent, max_tokens=1000)
+        await tool_utils.update_agent_tokens(agent=self.agent, max_tokens=1000)
         if self.prior_sql_query:
             if self.prior_sql_query == sql_query:
                 self.stuck_in_loop_ct += 1
@@ -790,9 +799,10 @@ After stating your plan, do one of the following:
         if not self.sql_query_created:
             logger.info("Planning SQL query")
             llm_prompt = await self.create_sql_query(initial_sql_query=sql_query)
-            logger.info(
-                "Causing the AI to self-reflect on the SQL query with the following prompt: \n\n %s", llm_prompt
-            )
+            if self.verbose:
+                logger.info(
+                    "Causing the AI to self-reflect on the SQL query with the following prompt: \n\n %s", llm_prompt
+                )
             return llm_prompt
         logger.info("SQL query plan made and SQL query created")
         logger.info("Verifying column values")
@@ -834,7 +844,7 @@ After reviewing, run this tool again to run your original or updated SQL query."
         try:
             async with asyncio.timeout(TIMEOUT):
                 logger.info("Running AI SQL query: %s", sql_query)
-                query_result_str = await service_utils.run_ai_sql_query(
+                query_result_str = await tool_utils.run_ai_sql_query(
                     db=self.db,
                     conn_id=self.conn_id,
                     sql_query=sql_query,
@@ -846,6 +856,8 @@ After reviewing, run this tool again to run your original or updated SQL query."
                     client_id=self.prompt_metadata.client_id,
                     small_model_info=self.small_model_info,
                     redis_client_async=self.redis_client_async,
+                    result_store=self.result_store,
+                    verbose=self.verbose,
                 )
         except TimeoutError:
             error_msg = f"SQL query took longer to execute than the max {TIMEOUT/60} minute time out limit."
@@ -866,7 +878,8 @@ Connection timed out. Please try again."""
             self.sql_query_created = False  # Reset so it checks it again
             return msg
         self.prior_sql_query = sql_query
-        logger.info("Message sent to LLM from run_sql: %s", query_result_str)
+        if self.verbose:
+            logger.info("Message sent to LLM: %s", query_result_str)
         return query_result_str
 
     async def get_table_metadata_filters(
@@ -938,7 +951,7 @@ is in general considered to be complex, return True. Otherwise return False. Her
 {prompt}"""
         agent_output = await agent.achat(message=agent_prompt)
         # Extract the answer
-        format_json_response = JSONResponseFormatter(
+        format_json_response = formatter.JSONResponseFormatter(
             response=agent_output.response,
             pydantic_format=fmt.TrueFalseBool,
             llm=agent_llm,  # NOTE: GPT 4o-mini selects sub-questions too often
@@ -965,7 +978,7 @@ Here is the prompt that needs to be broken out: \n\n\
 """
         agent_output = await agent.achat(message=agent_prompt)
         # Extract the sub prompts
-        format_json_response = JSONResponseFormatter(
+        format_json_response = formatter.JSONResponseFormatter(
             response=agent_output.response,
             pydantic_format=fmt.SubPrompts,
             llm=agent_llm,  # NOTE: GPT 4o-mini selects sub-questions too often
@@ -985,7 +998,7 @@ Here is the prompt that needs to be broken out: \n\n\
     async def get_sql_tables(self, inquiry):
         """Retrieve SQL tables to use in the SQL query"""
         # Need more tokens for large SQL queries
-        await service_utils.update_agent_tokens(agent=self.agent, max_tokens=1000)
+        await tool_utils.update_agent_tokens(agent=self.agent, max_tokens=1000)
         try:
             tables = await self.use_sub_questions(prompt=inquiry)
             if not tables:
@@ -994,7 +1007,8 @@ Here is the prompt that needs to be broken out: \n\n\
         except errors.NoRelevantTables as e:
             logger.warning("The AI was unable to find any relevant tables")
             return str(e)
-        logger.debug("Here are the retrieved tables: %s", tables_str)
+        if self.verbose:
+            logger.debug("Here are the retrieved tables: %s", tables_str)
         # Resolve jinja
         tables_str = await TableManager.arender_query_jinja(jinja_str=tables_str, schemas=self.schemas)
         # If there is unresolved Jinja, then throw an error
@@ -1058,11 +1072,11 @@ or check the underlying SQL database connection for misconfiguration."""
         logger.info("Running client query... %s", sql_query)
         try:
             async with asyncio.timeout(TIMEOUT):
-                mng_query = query.ClientQueryManager(
-                    db_conn_params=self.db_conn_params, client_conn_params=self.client_conn_params, sql_query=sql_query
-                )
-                query_result = await mng_query.run_client_query()
-                logger.info("Completed running client query")
+                async with query.ClientQueryRunner(
+                    client_conn_params=self.client_conn_params, sql_query=sql_query
+                ) as query_runner:
+                    query_result = await query_runner.arun_client_query()
+                    logger.info("Completed running client query")
         except TimeoutError:
             error_msg = f"SQL query took longer to execute than the max {TIMEOUT/60} minute time out limit."
             logger.error(error_msg)

@@ -6,19 +6,11 @@ import re
 import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
-from typing import Optional, Union, Sequence
+from typing import Optional, Sequence, Union
 from zoneinfo import ZoneInfo
 
 import aiohttp
 import redis
-from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database import db_utils
-from basejump.core.database.aicatalog import AICatalog
-from basejump.core.database.crud import crud_chat, crud_connection
-from basejump.core.database.crud.crud_utils import create_callback_mgrs
-from basejump.core.database.db_connect import LocalSession
-from basejump.core.models import constants, enums, errors, models
-from basejump.core.models import schemas as sch
 from llama_index.core.agent import FunctionCallingAgent
 from llama_index.core.agent.react.output_parser import (
     COULD_NOT_PARSE_TXT,
@@ -42,6 +34,15 @@ from llama_index.vector_stores.redis.base import NO_DOCS
 from redis.asyncio import Redis as RedisAsync
 from redisvl.schema import IndexSchema
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+
+from basejump.core.common.config.logconfig import set_logging
+from basejump.core.database import db_utils
+from basejump.core.database.crud import crud_chat, crud_connection
+from basejump.core.database.crud.crud_utils import create_callback_mgrs
+from basejump.core.database.db_connect import LocalSession
+from basejump.core.models import constants, enums, errors, models
+from basejump.core.models import schemas as sch
+from basejump.core.models.ai.catalog import AICatalog
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -81,10 +82,12 @@ class ChatMessageHandler(MessageHandler):
         chat_metadata: sch.ChatMetadata,
         redis_client_async: RedisAsync,
         query_result: Optional[sch.MessageQueryResult] = None,
+        verbose: bool = False,
     ):
         super().__init__(prompt_metadata=prompt_metadata, query_result=query_result)
         self.chat_metadata = chat_metadata
         self.redis_client_async = redis_client_async
+        self.verbose = verbose
 
     @property
     def api_message(self):
@@ -133,8 +136,8 @@ class ChatMessageHandler(MessageHandler):
         if self.chat_metadata.reset_parent_msg_uuid:
             # Sending an extra message if a new parent msg UUID needs to be reset
             # TODO: Create message here with blanks
-
-            logger.debug("Webhook message: %s", "Sending solution status to indicate AI has finalized reply")
+            if self.verbose:
+                logger.debug("Webhook message: %s", "Sending solution status to indicate AI has finalized reply")
             await self._send_solution_message(db=db)
             self.chat_metadata.parent_msg_uuid = self.message.msg_uuid
             self.chat_metadata.reset_parent_msg_uuid = False
@@ -174,7 +177,8 @@ class ChatMessageHandler(MessageHandler):
         if not self.chat_metadata:
             # Need a webhook url for anything to be sent
             return
-        logger.debug("Webhook message: %s", self.message.content)
+        if self.verbose:
+            logger.debug("Webhook message: %s", self.message.content)
         api_message = self.format_message()
         await self._send_api_message(api_message=api_message)
         # Make sure to send a solution message after the error message
@@ -187,7 +191,8 @@ class ChatMessageHandler(MessageHandler):
                 await self._send_solution_message(db=send_solution.db)
 
     async def _send_api_message(self, api_message: str):
-        logger.debug("Webhook API message: %s", api_message)
+        if self.verbose:
+            logger.debug("Webhook API message: %s", api_message)
         try:
             assert self.chat_metadata.webhook_url
             webhook_url = self.chat_metadata.webhook_url
@@ -278,6 +283,7 @@ class ChatMessageHandler(MessageHandler):
             callback_manager=self.prompt_metadata.callback_manager,
             vector_store=self.chat_metadata.vector_store,
             embedding_model_info=self.chat_metadata.embedding_model_info,
+            verbose=self.verbose,
         )
         for api_message in self.chat_metadata.curr_chat_history:
             await crud_chat.save_message(
@@ -329,7 +335,7 @@ class AgentSetup:
 
     @staticmethod
     def _load_from_prompt_metadata(prompt_metadata_base: sch.PromptMetadataBase):
-        callback_managers = create_callback_mgrs()
+        callback_managers = create_callback_mgrs(prompt_metadata_base.model_name)
 
         # NOTE: Re-instantiating prompt metadata here since this is background submitted
         prompt_metadata = sch.PromptMetadata(
@@ -419,7 +425,7 @@ Don't structure your output with the keywords and keyphrases since they're only 
     async def get_connections(db: AsyncSession, team_id: int, user_id: int) -> list[models.Connection]:
         # Get the connections available for the AI
         try:
-            connections = await crud_connection.get_connections(db=db, team_id=team_id, user_id=user_id)
+            connections = await crud_connection.get_team_connections(db=db, team_id=team_id, user_id=user_id)
         except Exception as e:
             logger.error(e)
             raise errors.GetTeamConnError
@@ -540,6 +546,7 @@ class BaseAgent(ABC):
         large_model_info: sch.ModelInfo,
         agent_llm: Optional[FunctionCallingLLM] = None,
         max_iterations: int = constants.MAX_ITERATIONS,
+        verbose: bool = False,
     ):
         self.prompt_metadata = prompt_metadata
         self.query_result: Optional[sch.MessageQueryResult] = None
@@ -549,6 +556,7 @@ class BaseAgent(ABC):
         self.chat_history = chat_history or []
         self.max_iterations = max_iterations  # NOTE: This only works with streaming off
         self.sql_engine = sql_engine
+        self.verbose = verbose
 
     @abstractmethod
     def get_llm_type() -> enums.LLMType:  # type: ignore
@@ -607,7 +615,7 @@ instructions for the expected output format: \n{EXPECTED_OUTPUT_INSTRUCTIONS}\
             agent = FunctionCallingAgent.from_tools(  # type: ignore
                 tools,  # type: ignore
                 llm=self.agent_llm,
-                verbose=True,
+                verbose=self.verbose,
                 memory=self.memory,
                 max_function_calls=self.max_iterations,
                 callback_manager=self.agent_llm.callback_manager,
@@ -717,6 +725,7 @@ class BaseChatAgent(BaseAgent):
         large_model_info: sch.ModelInfo,
         agent_llm: Optional[FunctionCallingLLM] = None,
         max_iterations: int = constants.MAX_ITERATIONS,
+        verbose: bool = False,
     ):
         super().__init__(
             prompt_metadata=prompt_metadata,
@@ -726,6 +735,7 @@ class BaseChatAgent(BaseAgent):
             redis_client_async=redis_client_async,
             sql_engine=sql_engine,
             large_model_info=large_model_info,
+            verbose=verbose,
         )
         self.chat_metadata = chat_metadata
         self.redis_client_async = redis_client_async
@@ -733,7 +743,6 @@ class BaseChatAgent(BaseAgent):
     async def _prompt_agent(self) -> sch.Message:
         try:
             message = await super()._prompt_agent()
-            await self.redis_client_async.publish(str(self.chat_metadata.parent_msg_uuid), constants.PUBSUB_DONEWORD)
             if message.content == "Reached max iterations.":
                 raise Exception("Reached max iterations.")
             return message
@@ -771,6 +780,7 @@ https://go.microsoft.com/fwlink/?linkid=2198766"""
                 prompt_metadata=self.prompt_metadata,
                 chat_metadata=self.chat_metadata,
                 redis_client_async=self.redis_client_async,
+                verbose=self.verbose,
             )
             if self.chat_metadata.semcache_response:
                 self.chat_metadata.semcache_response.verified = False
@@ -791,6 +801,7 @@ https://go.microsoft.com/fwlink/?linkid=2198766"""
             chat_metadata=self.chat_metadata,
             query_result=self.query_result,
             redis_client_async=self.redis_client_async,
+            verbose=self.verbose,
         )
         await handler.create_message(
             db=self.db,
@@ -823,7 +834,7 @@ https://go.microsoft.com/fwlink/?linkid=2198766"""
             else:
                 sentence_ls.append(sentence)
         for sentence in sentence_ls:
-            logger.info("Here is a pre-filtered thought: %s", sentence)
+            logger.info("LLM thought: %s", sentence)
             # TODO: Make this more robust
             # TODO: Fix the hard reference to structured_sql_generation_tool
             if not sentence:
@@ -856,11 +867,13 @@ https://go.microsoft.com/fwlink/?linkid=2198766"""
         for thought in thoughts:
             if not thought:
                 continue
-            logger.debug("Webhook message: %s", thought)
+            if self.verbose:
+                logger.debug("Webhook message: %s", thought)
             handler = ChatMessageHandler(
                 prompt_metadata=self.prompt_metadata,
                 chat_metadata=self.chat_metadata,
                 redis_client_async=self.redis_client_async,
+                verbose=self.verbose,
             )
             await handler.create_message(
                 db=self.db, role=MessageRole.ASSISTANT, content=thought, msg_type=enums.MessageType.THOUGHT
@@ -883,6 +896,7 @@ class SimpleAgent(BaseAgent):
         chat_history: Optional[list[ChatMessage]] = None,
         agent_llm: Optional[FunctionCallingLLM] = None,
         max_iterations: int = 10,
+        verbose: bool = False,
     ):
         super().__init__(
             prompt_metadata=prompt_metadata,
@@ -892,6 +906,7 @@ class SimpleAgent(BaseAgent):
             sql_engine=sql_engine,
             large_model_info=large_model_info,
             redis_client_async=redis_client_async,
+            verbose=verbose,
         )
 
     @staticmethod

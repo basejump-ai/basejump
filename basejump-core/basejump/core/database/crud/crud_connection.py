@@ -6,12 +6,14 @@ and connection-related tables
 import asyncio
 import copy
 import json
+import os
 import uuid
 from typing import Optional, Sequence
 
+from cryptography.fernet import Fernet
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
-from sqlalchemy.orm import Session, joinedload, selectinload
+from sqlalchemy.orm import joinedload, selectinload
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.crud import crud_table, crud_utils
@@ -73,7 +75,9 @@ async def get_db_conns(db: AsyncSession, db_id: int) -> Sequence[models.DBConn]:
 
 
 async def get_db_conn_from_id(db: AsyncSession, conn_id: int) -> Optional[models.DBConn]:
-    database = await db.execute(select(models.DBConn).filter_by(conn_id=conn_id))
+    database = await db.execute(
+        select(models.DBConn).filter_by(conn_id=conn_id).options(joinedload(models.DBConn.database_params))
+    )
     return database.scalar_one_or_none()
 
 
@@ -217,7 +221,12 @@ async def get_vector_connection_from_id(db: AsyncSession, vector_id: int) -> mod
     return conn.scalar_one()
 
 
-async def get_connections(db: AsyncSession, team_id: int, user_id: int) -> list[models.Connection]:
+async def get_connections(db: AsyncSession) -> Sequence[models.Connection]:
+    conn = await db.execute(select(models.DBConn).options(joinedload(models.DBConn.database_params)))
+    return conn.scalars().all()
+
+
+async def get_team_connections(db: AsyncSession, team_id: int, user_id: int) -> list[models.Connection]:
     """Returns a list of db models comprised of various connection types"""
     # NOTE: Do not remove UserTeamAssociation - it is what prevents unauthorized access to team information and limits
     # access to only those teams a user should have access to
@@ -353,13 +362,20 @@ async def get_client_active_storage_conn(db: AsyncSession, client_id: int) -> Op
     return result.scalar_one_or_none()
 
 
-def get_client_active_storage_conn_sync(db: Session, client_id: int) -> Optional[models.ClientStorageConnection]:
-    stmt = get_client_active_storage_conn_stmt(client_id=client_id)
-    result = db.execute(stmt)
-    return result.scalar_one_or_none()
-
-
 async def get_vector_from_connection(db: AsyncSession, db_uuid: uuid.UUID) -> Optional[models.DBVector]:
     stmt = select(models.DBVector).join(models.DBParams).filter(models.DBParams.db_uuid == db_uuid)
     result = await db.execute(stmt)
     return result.scalar_one_or_none()
+
+
+async def create_client_storage_conn(db: AsyncSession, client_storage_conn: sch.ClientStorageConn) -> None:
+    client_storage_conn_dict = client_storage_conn.model_dump(exclude={"access_key", "secret_access_key"})
+    try:
+        f = Fernet(os.environ["ENCRYPTION_KEY"])
+    except KeyError:
+        raise errors.MissingEnvironmentVariable("Missing the ENCRYPTION_KEY environment variable.")
+    client_storage_conn_dict["access_key"] = f.encrypt(client_storage_conn.access_key.encode("utf-8"))
+    client_storage_conn_dict["secret_access_key"] = f.encrypt(client_storage_conn.secret_access_key.encode("utf-8"))
+    storage_conn = models.ClientStorageConnection(**client_storage_conn_dict)
+    db.add(storage_conn)
+    await db.commit()

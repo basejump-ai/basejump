@@ -2,8 +2,6 @@
 
 from typing import Optional
 
-from basejump.core.common.config.logconfig import set_logging
-from basejump.core.models import schemas as sch
 from llama_index.core import Settings
 from llama_index.core.base.embeddings.base import BaseEmbedding
 from llama_index.core.callbacks import CallbackManager
@@ -11,6 +9,9 @@ from llama_index.core.llms.function_calling import FunctionCallingLLM
 from llama_index.embeddings.azure_openai import AzureOpenAIEmbedding
 from llama_index.llms.azure_openai import AzureOpenAI
 from llama_index.llms.bedrock_converse import BedrockConverse
+
+from basejump.core.common.config.logconfig import set_logging
+from basejump.core.models import schemas as sch
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -76,7 +77,7 @@ class AICatalog:
     def get_azure_llm(self, model_info: sch.AzureModelInfo) -> FunctionCallingLLM:
         assert model_info.endpoint_info, "Missing endpoint info - the pydantic schema should be validating this"
         return AzureOpenAI(
-            model=model_info.model_name.value,  # AIModelSchema.GPT4o.value
+            model=model_info.model_name.value,
             temperature=0,
             max_tokens=model_info.max_tokens,
             deployment_name=model_info.endpoint_info.deployment_name,

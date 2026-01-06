@@ -6,9 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database import db_utils
+from basejump.core.database.client.index import DBTableIndexer
 from basejump.core.database.crud import crud_connection, crud_table, crud_utils
 from basejump.core.database.db_connect import ConnectDB, TableManager
-from basejump.core.database.index import DBTableIndexer
 from basejump.core.models import errors, models
 from basejump.core.models import schemas as sch
 
@@ -111,7 +111,7 @@ class DBManager:
             database = await crud_connection.get_database_params(db=self.db, db_uuid=self.db_uuid, get_tables=True)
         else:
             database = self.database
-        tables = [sch.GetSQLTable.from_orm(table) for table in database.tables]
+        tables = [sch.GetSQLTable.from_orm(table) for table in database.tables]  # type: ignore
         tables_formatted = await db_utils.process_db_tables(tables=tables)
         schemas = {table.table_schema for table in tables_formatted}
         logger.debug("Here are the schemas: %s", schemas)
@@ -242,7 +242,7 @@ class DBManager:
         else:
             database = self.database
         # Identify new tables
-        prior_tables_base = [sch.GetSQLTable.from_orm(table) for table in database.tables]
+        prior_tables_base = [sch.GetSQLTable.from_orm(table) for table in database.tables]  # type: ignore
         logger.debug("Here are the prior_tables_base: %s", prior_tables_base)
         prior_tables = await db_utils.process_db_tables(tables=prior_tables_base)
         distinct_prior_table_names = {table.full_table_name.lower() for table in prior_tables}

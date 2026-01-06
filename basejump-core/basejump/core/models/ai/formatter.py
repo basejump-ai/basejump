@@ -1,15 +1,16 @@
 import copy
 from typing import Optional, Type
 
-from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database.aicatalog import AICatalog
-from basejump.core.models import pydantic_ai_formats as fmt
-from basejump.core.models import schemas as sch
 from llama_index.core import ChatPromptTemplate
 from llama_index.core.llms import LLM, ChatMessage
-from llama_index.program.openai import OpenAIPydanticProgram
+from llama_index.core.program import FunctionCallingProgram
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from basejump.core.common.config.logconfig import set_logging
+from basejump.core.models import schemas as sch
+from basejump.core.models.ai import formats as fmt
+from basejump.core.models.ai.catalog import AICatalog
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -50,7 +51,7 @@ class JSONResponseFormatter:
             my_small_model_info.max_tokens = self.max_tokens
             ai_catalog = AICatalog()
             self.llm = ai_catalog.get_llm(model_info=my_small_model_info)
-        program = OpenAIPydanticProgram.from_defaults(
+        program = FunctionCallingProgram.from_defaults(
             output_cls=self.pydantic_format,
             llm=self.llm,
             prompt=self.feedback_template,

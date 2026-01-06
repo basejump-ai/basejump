@@ -1,16 +1,11 @@
 """Models defining the structure of the database"""
 
-import os
 import uuid
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
 import sqlalchemy as sa
-from basejump.core.common.config.logconfig import set_logging
-from basejump.core.models import enums
-from basejump.core.models import schemas as sch
-from cryptography.fernet import Fernet
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import TIMESTAMP, UUID, ForeignKey, String, text
 from sqlalchemy.dialects import postgresql
@@ -22,30 +17,11 @@ from sqlalchemy.sql import func
 from sqlalchemy.types import BIGINT, Integer
 from typing_extensions import Annotated
 
+from basejump.core.common.config.logconfig import set_logging
+from basejump.core.models import enums
+from basejump.core.models import schemas as sch
+
 logger = set_logging(handler_option="stream", name=__name__)
-
-
-# =======================================================
-# Encryption for any models requiring an encrypted column
-# =======================================================
-class Encrypted(sa.TypeDecorator):
-    impl = sa.LargeBinary
-    cache_ok = True
-
-    def __init__(self, encryption_key: str, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.encryption_key = encryption_key
-        self.fernet = Fernet(encryption_key)
-
-    def process_bind_param(self, value, dialect):
-        if value is not None:
-            value = self.fernet.encrypt(value.encode("utf-8"))
-        return value
-
-    def process_result_value(self, value, dialect):
-        if value is not None:
-            value = self.fernet.decrypt(value).decode("utf-8")
-        return value
 
 
 # TODO: Update more tables to use StrEnums
@@ -138,7 +114,7 @@ class User(Base):
     user_uuid: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), server_default=text("gen_random_uuid()"))
     service_user_uuid: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True))
     username: Mapped[str]
-    email_address: Mapped[Optional[str]]  # Optional since it was added later and not all users are mapped over
+    email_address: Mapped[Optional[str]]
     hashed_refresh_token: Mapped[Optional[str]]
     role: Mapped[enums.UserRoles]
     timestamp: Mapped[datetime] = mapped_column(server_default=func.now())
@@ -581,8 +557,8 @@ class ClientStorageConnection(Base):
     region: Mapped[str]
     bucket_name: Mapped[str]
     prefix: Mapped[str]
-    access_key: Mapped[Encrypted] = sa.orm.mapped_column(Encrypted(os.environ["ENCRYPTION_KEY"]))
-    secret_access_key: Mapped[Encrypted] = sa.orm.mapped_column(Encrypted(os.environ["ENCRYPTION_KEY"]))
+    access_key: Mapped[bytes]
+    secret_access_key: Mapped[bytes]
     active: Mapped[bool] = mapped_column(server_default=text("false"))
     internal: Mapped[bool]
 

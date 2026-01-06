@@ -6,12 +6,13 @@ and account level tables
 import uuid
 from typing import Optional
 
-from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database.db_connect import LocalSession
-from basejump.core.models import enums, models
-from basejump.core.models import schemas as sch
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+
+from basejump.core.common.config.logconfig import set_logging
+from basejump.core.database.db_connect import LocalSession
+from basejump.core.models import enums, errors, models
+from basejump.core.models import schemas as sch
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -23,14 +24,25 @@ async def get_user(db: AsyncSession, user_uuid: uuid.UUID):
     return user.scalar_one_or_none()
 
 
-async def create_user(db: AsyncSession, user: sch.BaseUser):
-    db_user = models.User(
-        client_id=user.client_id,
-        username=user.username,
-        role=user.role,
-        email_address=user.email_address,
-        service_user_uuid=user.service_user_uuid,
-    )
+async def get_user_from_id(db: AsyncSession, user_id: int):
+    """Get a user object"""
+    # Use scalar here since a user can be associated with multiple teams
+    user = await db.execute(select(models.User).filter_by(user_id=user_id))
+    return user.scalar_one_or_none()
+
+
+async def create_user(db: AsyncSession, user: sch.BaseUser, user_id: Optional[int] = None):
+    # Create dictionary for user arguments
+    user_dict = user.model_dump()
+    if user_id is not None:
+        user_dict["user_id"] = user_id
+        # Confirm user is already not in the database
+        user_exists = await get_user_from_id(db=db, user_id=user_id)
+        if user_exists:
+            raise errors.AlreadyExists("The user already exists")
+
+    # Add to database
+    db_user = models.User(**user_dict)
     db.add(db_user)
     await db.commit()
     await db.refresh(db_user)
@@ -45,8 +57,24 @@ async def get_team(db: AsyncSession, team_uuid: uuid.UUID):
     return team.scalar_one_or_none()
 
 
-async def create_team(db: AsyncSession, team: sch.BaseTeam) -> models.Team:
-    db_team = models.Team(team_name=team.team_name, client_id=team.client_id, team_desc=team.team_desc)
+async def get_team_from_id(db: AsyncSession, team_id: int):
+    """Get a team"""
+    team = await db.execute(select(models.Team).filter_by(team_id=team_id))
+    return team.scalar_one_or_none()
+
+
+async def create_team(db: AsyncSession, team: sch.BaseTeam, team_id: Optional[int] = None) -> models.Team:
+    # Create dictionary for team arguments
+    team_dict = team.model_dump()
+    if team_id is not None:
+        team_dict["team_id"] = team_id
+        # Confirm team is already not in the database
+        team_exists = await get_team_from_id(db=db, team_id=team_id)
+        if team_exists:
+            raise errors.AlreadyExists("The team already exists")
+
+    # Add to database
+    db_team = models.Team(**team_dict)
     db.add(db_team)
     await db.commit()
     await db.refresh(db_team)
@@ -59,15 +87,29 @@ async def get_client(db: AsyncSession, client_uuid: uuid.UUID) -> Optional[model
     return client.scalar_one_or_none()
 
 
-async def create_client(
-    db: AsyncSession, client: sch.CreateClient, sql_engine: AsyncEngine, description: Optional[str] = None
-) -> sch.NewClient:
-    # Add client to the database
-    db_client = models.Client(
-        client_name=client.client_name,
-        client_type=client.client_type.value,
-    )
+async def get_client_from_id(db: AsyncSession, client_id: int) -> Optional[models.Client]:
+    client = await db.execute(select(models.Client).filter_by(client_id=client_id))
+    return client.scalar_one_or_none()
 
+
+async def create_client(
+    db: AsyncSession,
+    client: sch.CreateClient,
+    sql_engine: AsyncEngine,
+    description: Optional[str] = None,
+    client_id: Optional[int] = None,
+) -> sch.NewClient:
+    # Create dictionary for client arguments
+    client_dict = client.model_dump(exclude={"description", "hashed_client_secret"})
+    if client_id is not None:
+        client_dict["client_id"] = client_id
+        # Confirm client is already not in the database
+        client_exists = await get_client_from_id(db=db, client_id=client_id)
+        if client_exists:
+            raise errors.AlreadyExists("The client already exists")
+
+    # Add client to the database
+    db_client = models.Client(**client_dict)
     db.add(db_client)
     await db.commit()
     await db.refresh(db_client)

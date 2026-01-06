@@ -51,7 +51,37 @@ def get_model_cost(model: Optional[str], type_: enums.AIModelType) -> tuple[Deci
         logger.warning(f"Missing model needed for token count. Defaulting to {DEFAULT_MODEL}")
         return get_model_cost(model=DEFAULT_MODEL, type_=type_)
     # HACK: Replacing periods in GPT4.1 with nothing to match model from llama index
-    elif enums.AIModelSchema.GPT41.value in model.replace(".", ""):
+    elif enums.AIModelSchema.GPT52_CODEX_MAX.value in model:
+        # TODO: Implement the azure pricing queries instead of the manually input default token prices
+        cost_per_1k_tokens_input = enums.DefaultTokenPrices.GPT52_CODEX_MAX_input.value
+        cost_per_1k_tokens_output = enums.DefaultTokenPrices.GPT52_CODEX_MAX_output.value
+        model = enums.AIModelSchema.GPT52_CODEX_MAX.value
+        ai_model_provider = enums.AIModelProvider.AZURE_OPENAI.value
+    elif enums.AIModelSchema.GPT52.value in model:
+        # TODO: Implement the azure pricing queries instead of the manually input default token prices
+        cost_per_1k_tokens_input = enums.DefaultTokenPrices.GPT52_input.value
+        cost_per_1k_tokens_output = enums.DefaultTokenPrices.GPT52_output.value
+        model = enums.AIModelSchema.GPT52.value
+        ai_model_provider = enums.AIModelProvider.AZURE_OPENAI.value
+    elif enums.AIModelSchema.GPT51_CODEX.value in model:
+        # TODO: Implement the azure pricing queries instead of the manually input default token prices
+        cost_per_1k_tokens_input = enums.DefaultTokenPrices.GPT51_CODEX_input.value
+        cost_per_1k_tokens_output = enums.DefaultTokenPrices.GPT51_CODEX_output.value
+        model = enums.AIModelSchema.GPT51_CODEX.value
+        ai_model_provider = enums.AIModelProvider.AZURE_OPENAI.value
+    elif enums.AIModelSchema.GPT51.value in model:
+        # TODO: Implement the azure pricing queries instead of the manually input default token prices
+        cost_per_1k_tokens_input = enums.DefaultTokenPrices.GPT51_input.value
+        cost_per_1k_tokens_output = enums.DefaultTokenPrices.GPT51_output.value
+        model = enums.AIModelSchema.GPT51.value
+        ai_model_provider = enums.AIModelProvider.AZURE_OPENAI.value
+    elif enums.AIModelSchema.GPT5.value in model:
+        # TODO: Implement the azure pricing queries instead of the manually input default token prices
+        cost_per_1k_tokens_input = enums.DefaultTokenPrices.GPT5_input.value
+        cost_per_1k_tokens_output = enums.DefaultTokenPrices.GPT5_output.value
+        model = enums.AIModelSchema.GPT5.value
+        ai_model_provider = enums.AIModelProvider.AZURE_OPENAI.value
+    elif enums.AIModelSchema.GPT41.value in model:
         # TODO: Implement the azure pricing queries for GPT 4.1 instead of the manually input default token prices
         cost_per_1k_tokens_input = enums.DefaultTokenPrices.GPT41_input.value
         cost_per_1k_tokens_output = enums.DefaultTokenPrices.GPT41_output.value

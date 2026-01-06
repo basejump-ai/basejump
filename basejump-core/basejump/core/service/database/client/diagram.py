@@ -5,17 +5,18 @@ import uuid
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database.crud import crud_chat, crud_connection
-from basejump.core.database.format_response import JSONResponseFormatter
-from basejump.core.database.vector_utils import get_table_info_from_vector_db
-from basejump.core.models import enums, prompts
-from basejump.core.models import pydantic_ai_formats as fmt
-from basejump.core.models import schemas as sch
-from basejump.core.service.agents.mermaid import MermaidAgent
-from basejump.core.service.base import AgentSetup
 from redis.asyncio import Redis as RedisAsync
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+
+from basejump.core.common.config.logconfig import set_logging
+from basejump.core.database.crud import crud_chat, crud_connection
+from basejump.core.database.vector_utils import get_table_info_from_vector_db
+from basejump.core.models import enums, prompts
+from basejump.core.models import schemas as sch
+from basejump.core.models.ai import formats as fmt
+from basejump.core.models.ai import formatter
+from basejump.core.service.agents.mermaid import MermaidAgent
+from basejump.core.service.base import AgentSetup
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -63,6 +64,7 @@ class MermaidAgentManager:
             user_role=self.client_user.user_role,
             prompt_uuid=prompt_uuid,
             prompt_id=prompt_id,
+            model_name=self.large_model_info.model_name,
             llm_type=enums.LLMType.MERMAID_AGENT,
             prompt_time=datetime.now(),
         )
@@ -107,8 +109,8 @@ the AI to process them in chunks"""
                 if "erDiagram" in chunk:
                     start_idx = idx
                 if "--o{" in chunk:
-                    if not start_idx:
-                        raise Exception("Needs to have erDiagram")
+                    if start_idx is None:
+                        raise Exception("Missing keyword 'erDiagram' in mermaid diagram code text")
                     # Start at 2 since the first 2 include mermaid + erDiagram
                     mermaid_body += code_chunks[start_idx:idx]
                     mermaid_appendix += code_chunks[idx:]
@@ -124,7 +126,7 @@ the AI to process them in chunks"""
             # what we have currently without extracting
             return final_diagram
         else:
-            format_json_response = JSONResponseFormatter(
+            format_json_response = formatter.JSONResponseFormatter(
                 response=final_diagram,
                 pydantic_format=fmt.MermaidJSFormat,
                 llm=self.mermaid_agent.agent_llm,

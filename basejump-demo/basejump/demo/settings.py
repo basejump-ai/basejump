@@ -3,10 +3,9 @@ import os
 import redis.asyncio as redis_async
 from redis.asyncio import Redis as RedisAsync
 
-from basejump.core.models import schemas as sch
-from basejump.core.models import enums
 from basejump.core.database.db_connect import ConnectDB
-from llama_index.llms.azure_openai import AzureOpenAI
+from basejump.core.models import enums
+from basejump.core.models import schemas as sch
 
 # Setup database
 description = "Useful for finding information about clients, teams, and users."
@@ -28,17 +27,20 @@ conn_params = sch.SQLDBSchema(
 conn_db = ConnectDB(conn_params=conn_params)
 sql_engine = conn_db.connect_async_db()
 
+client_conn_params = sch.SQLDBSchema(**conn_params.dict())
+client_conn_params.drivername = enums.DBDriverName.POSTGRES
+
 
 def get_redis_client_async_instance() -> RedisAsync:
     return redis_async.Redis(
-        host=os.getenv("LOCAL_REDIS_HOST"),
-        port=os.getenv("LOCAL_REDIS_PORT"),
+        host=os.getenv("LOCAL_REDIS_HOST"),  # type: ignore
+        port=os.getenv("LOCAL_REDIS_PORT"),  # type: ignore
         decode_responses=False,
         ssl=False,
     )
 
 
-# Setup embedding model
+# Set up embedding model
 embedding_endpoint_info = sch.AzureEndpointInfo(
     endpoint=os.environ["AZURE_EMBEDDING_MODEL_ENDPOINT"],
     api_key=os.environ["AZURE_EMBEDDING_MODEL_KEY"],
@@ -50,7 +52,7 @@ embedding_model_info = sch.AzureModelInfo(
     api_version="2024-06-01",
 )
 
-# Setup small model
+# Set up small model
 small_model_endpoint_info = sch.AzureEndpointInfo(
     endpoint=os.environ["AZURE_SMALL_MODEL_ENDPOINT"],
     api_key=os.environ["AZURE_SMALL_MODEL_KEY"],
@@ -62,25 +64,24 @@ small_model_info = sch.AzureModelInfo(
     api_version="2024-06-01",
 )
 
-# Setup large model
+# Set up large model
 large_model_endpoint_info = sch.AzureEndpointInfo(
     endpoint=os.environ["AZURE_LARGE_MODEL_ENDPOINT"],
     api_key=os.environ["AZURE_LARGE_MODEL_KEY"],
     deployment_name=os.environ["AZURE_LARGE_MODEL_DEPLOY_NAME"],
 )
 large_model_info = sch.AzureModelInfo(
-    model_name=enums.AIModelSchema.GPT4o,
+    model_name=enums.AIModelSchema.GPT41,
     endpoint_info=large_model_endpoint_info,
-    api_version="2024-06-01",
+    api_version="2024-12-01-preview",
 )
 
-# Setup LLM
-LLM = AzureOpenAI(
-    model=large_model_info.model_name.value,
-    temperature=0,
-    max_tokens=large_model_info.max_tokens,
-    deployment_name=large_model_info.endpoint_info.deployment_name,
-    api_key=large_model_info.endpoint_info.api_key,
-    azure_endpoint=large_model_info.endpoint_info.endpoint,
-    api_version=large_model_info.api_version,
-)
+# NOTE: Also supports Claude served via AWS. Uncomment this section and remove the
+# large model info for Azure to test.
+# large_model_endpoint_info = sch.AWSEndpointInfo(
+#     endpoint=os.environ["AWS_LARGE_MODEL_ENDPOINT"],
+#     access_key=os.environ["AWS_USER_ACCESS_KEY_ID"],
+#     secret_access_key=os.environ["AWS_USER_SECRET_ACCESS_KEY"],
+#     deployment_region=os.environ["AWS_LARGE_MODEL_DEPLOYMENT_REGION"],
+# )
+# large_model_info = sch.AWSModelInfo(model_name=enums.AIModelSchema.SONNET37, endpoint_info=large_model_endpoint_info)
