@@ -16,7 +16,7 @@ Basejump indexes a database and connects it with an AI data agent to chat with y
 ## Why Basejump?
 **Reliability, Reproducibility, and Robustness** (yes, we forced the alliteration).
 
-We don't just provide a data agent - we make it production-ready:
+We provide a data agent with features designed for robustness:
 - **Deterministic validation** using SQLglot to parse and verify every query
 - **Multi-level access control** supporting RBAC through clients, teams, and users
 - **Complete audit trail** with queries and results saved in a pre-configured database schema
