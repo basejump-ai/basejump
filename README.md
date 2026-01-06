@@ -1,22 +1,24 @@
 <img src="docs/images/basejump-light.svg" alt="Basejump logo" width="400">
 
 
-Basejump enables you to not only chat with your database using AI, but automates the process of setting up the process of building an AI-powered web app.
+Basejump enables you to not only chat with your data using AI, but automates the process of setting up the process of building an AI-powered web app.
 
 The following is built-in to Basejump to help you get started quickly:
+- ✅ Accuracy: Basejump uses SQLglot to parse your database and ensure there are no hallucinated tables, columns, or where clause filters
 - 🔒 Security: Ensures users and AI agents can only access the information they are provisioned
 - ⚡ Indexing: Supports Redis as a vector database for fast database indexing
 - 🗄️ Database: Sets up a schema to track chat history, clients, teams, users, and result history
 - 💾 Caching: Support semantic caching for retrieval of datasets based on similar questions
-- 📦 Saving: Saves data results in AWS S3 for later reference
-- ✅ Accuracy: Basejump uses SQLglot to parse your database and ensure there are no hallucinated tables, columns, or where clause filters
+- 📦 Saving: Saves data results for later reference
 
 # Installation
 
 Create a virtual environment and then install from PYPI:
 ```
-pip install basejump-core
+pip install basejump
 ```
+
+
 
 Use the getting started section to index your database and prompt the AI with your first question.
 
@@ -76,7 +78,7 @@ The following databases are currently supported. If you don't see one, submit a 
 - SQL Server
 
 # Supported AI Models
-Basejump is built on Llama Index and can support any AI models Llama Index supports. However, since there is a delay in our latest version and Llama Index, there are less models supported here. 
+Basejump is built on Llama Index and can support any AI models Llama Index supports. However, since there is a delay in our latest version and Llama Index, there are less models supported here.
 Adding support for a new model is relatively straightforward though, so please request one if you don't see it. Basejump AI currently only supports non-reasoning models, but reasoning models will be added soon!
 - GPT4o
 - GPT4.1

@@ -4,6 +4,6 @@
 from basejump import core
 
 # Re-export core's submodules at the basejump level
-from basejump.core import common, database, models, service
+from .core import common, database, models, service
 
 __all__ = ["core", "common", "database", "models", "service"]
