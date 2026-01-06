@@ -34,3 +34,6 @@ files/
 
 # Packaging
 dist/
+
+# Migration
+versions/
