@@ -727,6 +727,7 @@ class ClientStorageConn(BaseModel):
     active: bool
     prefix: str
     internal: bool
+    storage_uuid: uuid.UUID
 
 
 class ClientStorageConnEncrypted(BaseModel):
@@ -740,4 +741,5 @@ class ClientStorageConnEncrypted(BaseModel):
     active: bool
     prefix: str
     internal: bool
+    storage_uuid: uuid.UUID
     model_config = ConfigDict(from_attributes=True)

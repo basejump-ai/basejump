@@ -95,6 +95,7 @@ async def create_client(
                 active=True,
                 prefix=store.S3ResultStore.get_default_prefix(client_uuid=new_client.client_uuid),
                 internal=True,
+                storage_uuid=uuid.uuid4(),
             )
             await crud_connection.create_client_storage_conn(db=db, client_storage_conn=default_storage_conn)
     except errors.AlreadyExists as e:
