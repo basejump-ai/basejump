@@ -4,11 +4,11 @@ services:
     image: postgres:latest
     restart: always
     environment:
-      POSTGRES_USER: ${LOCAL_DB_USER}
-      POSTGRES_PASSWORD: ${LOCAL_DB_PASSWORD}
-      POSTGRES_DB: ${LOCAL_DB_NAME}
+      POSTGRES_USER: localuser
+      POSTGRES_PASSWORD: localuser123
+      POSTGRES_DB: localdb
     ports:
-      - "${LOCAL_DB_PORT}:5432"
+      - "5432:5432"
   app:
     container_name: python_app
     build: .

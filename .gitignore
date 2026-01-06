@@ -2,7 +2,7 @@
 .DS_Store
 .vscode/
 *.env
-!.env_example.txt
+!.env.example
 credentials/
 *.pem
 
