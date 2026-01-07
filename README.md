@@ -73,6 +73,12 @@ async with service.run_session() as (core_session, db):
     )
 ```
 
+## Contributing
+Interested in contributing? See our [Contribution Guide](https://github.com/basejump-ai/basejump/blob/main/CONTRIBUTING.md) for more details.
+
+## Documentation
+Full documentation can be found [here](https://docs.basejump.ai/product/). Please check it out for the most up-to-date information!
+
 ## Next steps
 
 ### Index your own database
