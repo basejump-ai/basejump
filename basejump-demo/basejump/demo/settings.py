@@ -71,7 +71,7 @@ large_model_endpoint_info = sch.AzureEndpointInfo(
     deployment_name=os.environ["AZURE_LARGE_MODEL_DEPLOY_NAME"],
 )
 large_model_info = sch.AzureModelInfo(
-    model_name=enums.AIModelSchema.GPT41,
+    model_name=enums.AIModelSchema.GPT4o,
     endpoint_info=large_model_endpoint_info,
     api_version="2024-12-01-preview",
 )
