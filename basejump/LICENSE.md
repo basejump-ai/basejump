@@ -186,8 +186,9 @@ If you develop a new program, and you want it to be of the greatest possible use
 
 To do so, attach the following notices to the program. It is safest to attach them to the start of each source file to most effectively state the exclusion of warranty; and each file should have at least the "copyright" line and a pointer to where the full notice is found.
 
-    <one line to give the program's name and a brief idea of what it does.>
     Copyright (C) 2026 Basejump AI
+    Basejump AI provides AI data agents to chat with your data reliable.
+    It does this by indexing a database and connecting it with an AI data agent to chat with your data using text-to-SQL.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU Affero General Public License as
