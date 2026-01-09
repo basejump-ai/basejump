@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     db_name: str = "localdb"
     db_port: int = 5432
     encryption_key: Optional[SecretStr] = None
+    ssl: bool = False  # should always be True in production
     # Vector database
     redis_host: str = "localhost"
     redis_port: int = 6379
