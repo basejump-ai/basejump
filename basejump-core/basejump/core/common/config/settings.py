@@ -31,6 +31,6 @@ settings = Settings()
 
 def get_encryption_key() -> str:
     encryption_key = settings.encryption_key
-    if encryption_key is None or not encryption_key.get_secret_value():
+    if encryption_key is None or not (raw_key := encryption_key.get_secret_value()):
         raise KeyError("Encryption key is missing or empty")
-    return encryption_key
+    return raw_key

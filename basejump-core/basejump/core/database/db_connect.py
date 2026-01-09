@@ -24,7 +24,7 @@ from sqlalchemy.pool import NullPool
 from sqlalchemy.sql.elements import quoted_name
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.common.config.settings import settings
+from basejump.core.common.config.settings import get_encryption_key
 from basejump.core.database.inspector import (
     athena,
     base,
@@ -658,7 +658,7 @@ class ConnectDB:
     def decrypt_db(dict_to_decrypt: dict) -> dict:
         # Decrypt the sensitive information
         try:
-            encryption_key = settings.get_encryption_key()
+            encryption_key = get_encryption_key()
             f = Fernet(encryption_key)
         except KeyError:
             raise errors.MissingEnvironmentVariable("Missing the ENCRYPTION_KEY environment variable.")
@@ -699,7 +699,7 @@ class ConnectDB:
     def encrypt_db(dict_to_encrypt: dict) -> dict:
         # Encrypt the sensitive information
         try:
-            encryption_key = settings.get_encryption_key()
+            encryption_key = get_encryption_key()
             f = Fernet(encryption_key)
         except KeyError:
             raise errors.MissingEnvironmentVariable("Missing the ENCRYPTION_KEY environment variable.")
@@ -718,7 +718,7 @@ class ConnectDB:
                 "schema_maps",
             ]:
                 continue
-            if key in ["query", "schemas"]:
+            if key in ["query", "schemas", "database_metadata"]:
                 json_value = json.dumps(value)
                 value = json_value.encode("UTF-8")
             elif key == "port":

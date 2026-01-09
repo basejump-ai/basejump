@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.common.config.settings import settings
+from basejump.core.common.config.settings import get_encryption_key
 from basejump.core.database.crud import crud_table, crud_utils
 from basejump.core.database.db_connect import ConnectDB, LocalSession, TableManager
 from basejump.core.models import errors, models
@@ -371,7 +371,7 @@ async def get_vector_from_connection(db: AsyncSession, db_uuid: uuid.UUID) -> Op
 async def create_client_storage_conn(db: AsyncSession, client_storage_conn: sch.ClientStorageConn) -> None:
     client_storage_conn_dict = client_storage_conn.model_dump(exclude={"access_key", "secret_access_key"})
     try:
-        encryption_key = settings.get_encryption_key()
+        encryption_key = get_encryption_key()
         f = Fernet(encryption_key)
     except KeyError:
         raise errors.MissingEnvironmentVariable("Missing the ENCRYPTION_KEY environment variable.")

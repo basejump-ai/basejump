@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.exc import NoResultFound
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.common.config.settings import settings
+from basejump.core.common.config.settings import get_encryption_key
 from basejump.core.database.crud import crud_chat, crud_connection
 from basejump.core.models import errors
 from basejump.core.models import schemas as sch
@@ -39,7 +39,7 @@ async def get_client_active_storage_conn(db: AsyncSession, client_id: int) -> sc
     storage_conn_schema = sch.ClientStorageConnEncrypted.model_validate(storage_conn)
     storage_conn_dict = storage_conn_schema.model_dump(exclude={"access_key", "secret_access_key"})
     try:
-        encryption_key = settings.get_encryption_key()
+        encryption_key = get_encryption_key()
         f = Fernet(encryption_key)
     except KeyError:
         raise errors.MissingEnvironmentVariable("Missing the ENCRYPTION_KEY environment variable.")
