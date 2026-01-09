@@ -45,7 +45,7 @@ To run the demo, you will need the following:
 ### Steps
 Follow the following steps to get the demo set up:
 1. Clone this repo
-2. Copy `basejump-demo/.env.example` to `basejump-demo/.env` and fill in your credentials
+2. Copy `.env.example` to `.env` and fill in your credentials
 3. Run the demo:
 ```bash
 cd basejump-demo

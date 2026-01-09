@@ -44,9 +44,9 @@ def get_redis_client_async_instance() -> RedisAsync:
 
 # Set up embedding model
 embedding_endpoint_info = sch.AzureEndpointInfo(
-    endpoint=os.environ["AZURE_EMBEDDING_MODEL_ENDPOINT"],
-    api_key=os.environ["AZURE_EMBEDDING_MODEL_KEY"],
-    deployment_name=os.environ["AZURE_EMBEDDING_MODEL_DEPLOY_NAME"],
+    endpoint=os.environ["BASEJUMP_AZURE_EMBEDDING_MODEL_ENDPOINT"],
+    api_key=os.environ["BASEJUMP_AZURE_EMBEDDING_MODEL_KEY"],
+    deployment_name=os.environ["BASEJUMP_AZURE_EMBEDDING_MODEL_DEPLOY_NAME"],
 )
 embedding_model_info = sch.AzureModelInfo(
     model_name=enums.AIModelSchema.ADA3_SMALL,
@@ -56,9 +56,9 @@ embedding_model_info = sch.AzureModelInfo(
 
 # Set up small model
 small_model_endpoint_info = sch.AzureEndpointInfo(
-    endpoint=os.environ["AZURE_SMALL_MODEL_ENDPOINT"],
-    api_key=os.environ["AZURE_SMALL_MODEL_KEY"],
-    deployment_name=os.environ["AZURE_SMALL_MODEL_DEPLOY_NAME"],
+    endpoint=os.environ["BASEJUMP_AZURE_SMALL_MODEL_ENDPOINT"],
+    api_key=os.environ["BASEJUMP_AZURE_SMALL_MODEL_KEY"],
+    deployment_name=os.environ["BASEJUMP_AZURE_SMALL_MODEL_DEPLOY_NAME"],
 )
 small_model_info = sch.AzureModelInfo(
     model_name=enums.AIModelSchema.GPT4oMINI,
@@ -68,9 +68,9 @@ small_model_info = sch.AzureModelInfo(
 
 # Set up large model
 large_model_endpoint_info = sch.AzureEndpointInfo(
-    endpoint=os.environ["AZURE_LARGE_MODEL_ENDPOINT"],
-    api_key=os.environ["AZURE_LARGE_MODEL_KEY"],
-    deployment_name=os.environ["AZURE_LARGE_MODEL_DEPLOY_NAME"],
+    endpoint=os.environ["BASEJUMP_AZURE_LARGE_MODEL_ENDPOINT"],
+    api_key=os.environ["BASEJUMP_AZURE_LARGE_MODEL_KEY"],
+    deployment_name=os.environ["BASEJUMP_AZURE_LARGE_MODEL_DEPLOY_NAME"],
 )
 large_model_info = sch.AzureModelInfo(
     model_name=enums.AIModelSchema.GPT4o,
@@ -81,9 +81,9 @@ large_model_info = sch.AzureModelInfo(
 # NOTE: Also supports Claude served via AWS. Uncomment this section and remove the
 # large model info for Azure to test.
 # large_model_endpoint_info = sch.AWSEndpointInfo(
-#     endpoint=os.environ["AWS_LARGE_MODEL_ENDPOINT"],
-#     access_key=os.environ["AWS_USER_ACCESS_KEY_ID"],
-#     secret_access_key=os.environ["AWS_USER_SECRET_ACCESS_KEY"],
-#     deployment_region=os.environ["AWS_LARGE_MODEL_DEPLOYMENT_REGION"],
+#     endpoint=os.environ["BASEJUMP_AWS_LARGE_MODEL_ENDPOINT"],
+#     access_key=os.environ["BASEJUMP_AWS_USER_ACCESS_KEY_ID"],
+#     secret_access_key=os.environ["BASEJUMP_AWS_USER_SECRET_ACCESS_KEY"],
+#     deployment_region=os.environ["BASEJUMP_AWS_LARGE_MODEL_DEPLOYMENT_REGION"],
 # )
 # large_model_info = sch.AWSModelInfo(model_name=enums.AIModelSchema.SONNET37, endpoint_info=large_model_endpoint_info)
