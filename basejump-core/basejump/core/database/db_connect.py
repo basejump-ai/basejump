@@ -8,10 +8,12 @@ import os
 import re
 import ssl
 import tempfile
+import uuid
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, Optional, Type, Union
 
+import boto3
 import psycopg2
 import ruamel.yaml
 import sqlalchemy as sa
@@ -681,7 +683,7 @@ class ConnectDB:
             bytes_value = f.decrypt(value) if value else None
             # Convert from bytes to string
             # TODO: Use an StrEnum or something more robust than this
-            if key in ["query", "schemas"]:
+            if key in ["query", "schemas", "database_metadata"]:
                 assert bytes_value, "Value needs to not be None"
                 json_value = bytes_value.decode("UTF-8")
                 new_value = json.loads(json_value)
@@ -820,7 +822,17 @@ class ConnectDB:
                 assert query[constants.ATHENA_STAGING_DIR_NAME]
             except (KeyError, AssertionError):
                 # TODO: Add a specific error here instead of general exception
-                raise Exception("To connect to Athena, the s3_staging_dir query parameter must be provided.")
+                raise Exception("To connect to Athena, the s3_staging_dir query argument must be provided.")
+            try:
+                aws_role_arn = query[constants.AWS_ROLE_ARN_NAME]
+                session = self.get_aws_session(aws_role_arn)
+                creds = session.get_credentials().get_frozen_credentials()
+                self.conn_params.username = creds.access_key
+                self.conn_params.password = creds.secret_key
+                self.conn_params.query = {**self.conn_params.query, "aws_session_token": creds.token}
+            except KeyError:
+                logger.debug("Not using AWS role ARN to create AWS session for Athena connection.")
+
         elif self.conn_params.database_type == enums.DatabaseType.SNOWFLAKE:
             password = "*****" if hide_password else self.conn_params.password
             uri = "{driver}://{user}:{password}@{account}/{database}".format(
@@ -960,6 +972,36 @@ class ConnectDB:
             schemas=set([schema.schema_nm_rendered for schema in self.conn_params.schemas]),  # type: ignore
         )
         return self.conn_params.schemas
+
+    def get_aws_session(self, aws_role_arn: str, uuid: Optional[uuid.UUID] = None) -> boto3.Session:
+        """Get an AWS client session
+
+        Parameters
+        ----------
+        uuid
+            A unique UUID for the session.
+        role_arn
+            The AWS role ARN
+        """
+        if not uuid:
+            uuid = uuid.uuid4()
+        session_name = f"session_{uuid}"
+        logger.debug("Created AWS session: %s", session_name)
+
+        sts = boto3.client("sts")
+
+        # Assume the client-specific role
+        assumed_role = sts.assume_role(
+            RoleArn=aws_role_arn,
+            RoleSessionName=session_name,
+        )
+
+        credentials = assumed_role["Credentials"]
+        return boto3.Session(
+            aws_access_key_id=credentials["AccessKeyId"],
+            aws_secret_access_key=credentials["SecretAccessKey"],
+            aws_session_token=credentials["SessionToken"],
+        )
 
 
 class LocalSession:

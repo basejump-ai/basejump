@@ -2,6 +2,7 @@ import asyncio
 import copy
 import uuid
 from asyncio import Task
+from typing import Optional
 
 from redis.asyncio import Redis as RedisAsync
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
@@ -88,6 +89,7 @@ async def setup_db(
     conn_params: sch.SQLDBSchema,
     redis_client_async: RedisAsync,  # TODO: Looks like this can be removed
     embedding_model_info: sch.AzureModelInfo,
+    db_uuid: Optional[uuid.UUID] = None,
 ) -> tuple[sch.SQLConn, DBTableIndexer]:
     # Verify the connection
     conn_db = ConnectDB(conn_params=conn_params)
@@ -98,7 +100,8 @@ async def setup_db(
     await create_alias_name(db=db, conn_params=conn_params)
     assert conn_params.database_name_alias
     # Save the vector db connection
-    db_uuid = uuid.uuid4()
+    if not db_uuid:
+        db_uuid = uuid.uuid4()
     # TODO: See if index_db_tables schema is necessary, seems like it isn't needed
     index_db_tables = DBTableIndexer(
         client_id=client_user.client_id,
