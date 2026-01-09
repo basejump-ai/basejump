@@ -500,7 +500,7 @@ class S3ResultStore(ResultStore):
         schema = {col: self.get_athena_type(headers[col].dtype) for col in headers.columns.tolist()}
         table_suffix = str(copy.copy(self.result_uuid)).replace("-", "_")
         table_location = self.get_s3_folder_path(bucket_name=self.bucket_name, prefix=self.prefix)
-        table_name = f"default.uploaded_table_{table_suffix}"
+        table_name = f"my_database_name.uploaded_table_{table_suffix}"
         # TODO: Doesn't handle headers that are integers. Will get botocore.errorfactory.InvalidRequestException error.
         # Surround cols in backticks.
         create_table = f"""\

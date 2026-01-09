@@ -3,6 +3,7 @@ import os
 import redis.asyncio as redis_async
 from redis.asyncio import Redis as RedisAsync
 
+from basejump.core.common.config.settings import settings
 from basejump.core.database.db_connect import ConnectDB
 from basejump.core.models import enums
 from basejump.core.models import schemas as sch
@@ -12,11 +13,12 @@ description = "Useful for finding information about clients, teams, and users."
 conn_params = sch.SQLDBSchema(
     database_type=enums.DatabaseType.POSTGRES,
     drivername=enums.DBAsyncDriverName.POSTGRES,
-    username=os.environ["LOCAL_DB_USER"],
-    password=os.environ["LOCAL_DB_PASSWORD"],
-    host=os.environ["LOCAL_DB_HOST"],
-    port=int(os.environ["LOCAL_DB_PORT"]),
-    database_name=os.environ["LOCAL_DB_NAME"],
+    # NOTE: These settings should be defined in an .env file with the BASEJUMP_ prefix
+    username=settings.db_user,
+    password=settings.db_password.get_secret_value(),
+    host=settings.db_host,
+    port=settings.db_port,
+    database_name=settings.db_name,
     query={},
     schemas=[sch.DBSchema(schema_nm="account")],
     database_desc=description,
@@ -33,8 +35,8 @@ client_conn_params.drivername = enums.DBDriverName.POSTGRES
 
 def get_redis_client_async_instance() -> RedisAsync:
     return redis_async.Redis(
-        host=os.getenv("LOCAL_REDIS_HOST"),  # type: ignore
-        port=os.getenv("LOCAL_REDIS_PORT"),  # type: ignore
+        host=settings.redis_host,  # type: ignore
+        port=settings.redis_port,  # type: ignore
         decode_responses=False,
         ssl=False,
     )

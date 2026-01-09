@@ -24,6 +24,7 @@ from sqlalchemy.pool import NullPool
 from sqlalchemy.sql.elements import quoted_name
 
 from basejump.core.common.config.logconfig import set_logging
+from basejump.core.common.config.settings import settings
 from basejump.core.database.inspector import (
     athena,
     base,
@@ -657,7 +658,8 @@ class ConnectDB:
     def decrypt_db(dict_to_decrypt: dict) -> dict:
         # Decrypt the sensitive information
         try:
-            f = Fernet(os.environ["ENCRYPTION_KEY"])
+            encryption_key = settings.get_encryption_key()
+            f = Fernet(encryption_key)
         except KeyError:
             raise errors.MissingEnvironmentVariable("Missing the ENCRYPTION_KEY environment variable.")
         conn_params = {}
@@ -697,7 +699,8 @@ class ConnectDB:
     def encrypt_db(dict_to_encrypt: dict) -> dict:
         # Encrypt the sensitive information
         try:
-            f = Fernet(os.environ["ENCRYPTION_KEY"])
+            encryption_key = settings.get_encryption_key()
+            f = Fernet(encryption_key)
         except KeyError:
             raise errors.MissingEnvironmentVariable("Missing the ENCRYPTION_KEY environment variable.")
         conn_params_byte = {}
