@@ -14,7 +14,7 @@ settings_config = SettingsConfigDict(
 class Settings(BaseSettings):
     # Relational database
     db_user: str = "localuser"
-    db_password: SecretStr = "localuser123"
+    db_password: SecretStr = SecretStr("localuser123")
     db_host: str = "localhost"
     db_name: str = "localdb"
     db_port: int = 5432

@@ -826,10 +826,15 @@ class ConnectDB:
             try:
                 aws_role_arn = query[constants.AWS_ROLE_ARN_NAME]
                 session = self.get_aws_session(aws_role_arn)
-                creds = session.get_credentials().get_frozen_credentials()
+                credentials = session.get_credentials()
+                if not credentials:
+                    raise ValueError("Unable to retrieve credentials")
+                creds = credentials.get_frozen_credentials()
+                assert creds.access_key, "Unable to retrieve AWS access key"
+                assert creds.secret_key, "Unable to retrieve AWS secret key"
                 self.conn_params.username = creds.access_key
                 self.conn_params.password = creds.secret_key
-                self.conn_params.query = {**self.conn_params.query, "aws_session_token": creds.token}
+                self.conn_params.query = {**self.conn_params.query, "aws_session_token": creds.token}  # type: ignore
             except KeyError:
                 logger.debug("Not using AWS role ARN to create AWS session for Athena connection.")
 
@@ -984,7 +989,7 @@ class ConnectDB:
             The AWS role ARN
         """
         if not uuid:
-            uuid = uuid.uuid4()
+            uuid = uuid.uuid4()  # type: ignore
         session_name = f"session_{uuid}"
         logger.debug("Created AWS session: %s", session_name)
 

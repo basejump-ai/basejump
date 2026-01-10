@@ -8,7 +8,7 @@ from typing import Literal, Optional
 
 import pandas as pd
 from fastapi import UploadFile
-from sqlalchemy.orm import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.result.store import ResultStore, S3ResultStore
@@ -46,6 +46,8 @@ class TableUploader(ABC):
 
 
 class S3TableUploader(TableUploader):
+    result_store: S3ResultStore
+
     def __init__(self, result_store: S3ResultStore, upload_uuid: Optional[uuid.UUID] = None):
         super().__init__(result_store=result_store, upload_uuid=upload_uuid)
 
@@ -84,7 +86,7 @@ class S3TableUploader(TableUploader):
     async def upload_file(
         self,
         file: UploadFile,
-    ) -> pd.DataFrame:
+    ) -> tuple[pd.DataFrame, str]:
         # Upload file
         t1 = time.time()
 
@@ -107,7 +109,7 @@ class S3TableUploader(TableUploader):
         # Process rest of file
         while chunk:
             if buffer.tell() >= self.result_store.upload_size:
-                self.upload_chunk(buffer=buffer, text_wrapper=text_wrapper)
+                self.result_store.upload_chunk(buffer=buffer, text_wrapper=text_wrapper)
                 buffer.seek(0)
                 buffer.truncate()
                 text_wrapper = io.TextIOWrapper(buffer, newline="", encoding="utf-8")
@@ -125,7 +127,7 @@ class S3TableUploader(TableUploader):
         self.result_store.complete_multipart_upload(buffer=buffer, text_wrapper=text_wrapper)
         t2 = time.time()
         logger.debug(f"Time to upload file: {t2-t1}s")
-        table_location = self.get_s3_folder_path(
+        table_location = self.result_store.get_s3_folder_path(
             bucket_name=self.result_store.bucket_name, prefix=self.result_store.prefix
         )
         return pd.DataFrame(data=headers[1:], columns=headers[0]), table_location
@@ -169,12 +171,14 @@ STORED AS INPUTFORMAT 'org.apache.hadoop.mapred.TextInputFormat' OUTPUTFORMAT \
 LOCATION '{table_location}'
 TBLPROPERTIES ('classification' = '{storage_type}','skip.header.line.count'='1');"""
         query_execution = await asyncio.to_thread(
-            self.athena_client.start_query_execution,
+            self.result_store.athena_client.start_query_execution,
             QueryString=create_table_query,
-            ResultConfiguration={"OutputLocation": f"s3://{self.bucket_name}/query_outputs"},
+            ResultConfiguration={"OutputLocation": f"s3://{self.result_store.bucket_name}/query_outputs"},
         )
         execution_id = query_execution["QueryExecutionId"]
-        query_details = await asyncio.to_thread(self.athena_client.get_query_execution, QueryExecutionId=execution_id)
+        query_details = await asyncio.to_thread(
+            self.result_store.athena_client.get_query_execution, QueryExecutionId=execution_id
+        )
 
         count = 0
         query_state = query_details["QueryExecution"]["Status"]["State"]
@@ -186,7 +190,7 @@ TBLPROPERTIES ('classification' = '{storage_type}','skip.header.line.count'='1')
                 logger.warning("Athena table creation failed after %s seconds", count)
                 break
             query_details = await asyncio.to_thread(
-                self.athena_client.get_query_execution, QueryExecutionId=execution_id
+                self.result_store.athena_client.get_query_execution, QueryExecutionId=execution_id
             )
             query_state = query_details["QueryExecution"]["Status"]["State"]
             count += 1
