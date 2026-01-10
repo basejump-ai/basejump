@@ -5,16 +5,13 @@ import csv
 import io
 import os
 import pathlib
-import time
 import uuid
 from abc import ABC, abstractmethod
 from typing import Optional
 
 import boto3
-import pandas as pd
 import sqlalchemy as sa
 from botocore.exceptions import ClientError
-from fastapi import UploadFile
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.result import manage, result_utils
@@ -449,135 +446,8 @@ class S3ResultStore(ResultStore):
         )
         self.saved_preview = True
 
-    async def upload_file(
-        self,
-        file: UploadFile,
-    ) -> pd.DataFrame:
-        # Upload file
-        t1 = time.time()
-
-        # Update the prefix since all files for Athena need to be in a single directory
-        self.prefix = self.get_s3_upload_prefix()
-
-        # Create buffer
-        buffer = io.BytesIO()
-        text_wrapper = io.TextIOWrapper(buffer, newline="", encoding="utf-8")
-        writer = csv.writer(text_wrapper)
-
-        # Stream and write headers
-        chunk = await file.read(self.chunk_size)  # Small chunk to get headers
-        text = chunk.decode("utf-8")
-
-        # Initialize multipart upload
-        self.create_multipart_upload()
-        headers: list = []
-
-        # Process rest of file
-        while chunk:
-            if buffer.tell() >= self.upload_size:
-                self.upload_chunk(buffer=buffer, text_wrapper=text_wrapper)
-                buffer.seek(0)
-                buffer.truncate()
-                text_wrapper = io.TextIOWrapper(buffer, newline="", encoding="utf-8")
-                writer = csv.writer(text_wrapper)
-
-            for row in csv.reader(text.splitlines()):
-                if len(headers) <= 5:
-                    headers.append(row)
-                writer.writerow(row)
-
-            chunk = await file.read(self.chunk_size)
-            text = chunk.decode("utf-8") if chunk else ""
-
-        # Upload final chunk
-        self.complete_multipart_upload(buffer=buffer, text_wrapper=text_wrapper)
-        t2 = time.time()
-        logger.debug(f"Time to upload file: {t2-t1}s")
-        return pd.DataFrame(data=headers[1:], columns=headers[0])
-
-    def create_table_from_csv(self, headers: pd.DataFrame):
-        t1 = time.time()
-        schema = {col: self.get_athena_type(headers[col].dtype) for col in headers.columns.tolist()}
-        table_suffix = str(copy.copy(self.result_uuid)).replace("-", "_")
-        table_location = self.get_s3_folder_path(bucket_name=self.bucket_name, prefix=self.prefix)
-        table_name = f"my_database_name.uploaded_table_{table_suffix}"
-        # TODO: Doesn't handle headers that are integers. Will get botocore.errorfactory.InvalidRequestException error.
-        # Surround cols in backticks.
-        create_table = f"""\
-CREATE EXTERNAL TABLE IF NOT EXISTS {table_name} (
-{", ".join(f"{str(column)} {dtype}" for column, dtype in schema.items())}
-)
-ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe'
-WITH SERDEPROPERTIES ('field.delim' = ',')
-STORED AS INPUTFORMAT 'org.apache.hadoop.mapred.TextInputFormat' OUTPUTFORMAT \
-'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat'
-LOCATION '{table_location}'
-TBLPROPERTIES ('classification' = 'csv','skip.header.line.count'='1');"""
-        query_execution = self.athena_client.start_query_execution(
-            QueryString=create_table, ResultConfiguration={"OutputLocation": f"s3://{self.bucket_name}/query_outputs"}
-        )
-        execution_id = query_execution["QueryExecutionId"]
-        query_details = self.athena_client.get_query_execution(QueryExecutionId=execution_id)
-
-        count = 0
-        query_state = query_details["QueryExecution"]["Status"]["State"]
-        while query_state not in ["SUCCEEDED", "FAILED", "CANCELED"]:
-            # wait n seconds
-            time.sleep(1)
-            max_time = 30
-            if count >= max_time:
-                logger.warning("Athena table creation failed after %s seconds", count)
-                break
-            query_details = self.athena_client.get_query_execution(QueryExecutionId=execution_id)
-            query_state = query_details["QueryExecution"]["Status"]["State"]
-            count += 1
-        logger_msg = f"Athena table creation {query_state} after {count} seconds"
-        logger.info("Athena table location: %s", table_location)
-        logger.info("Athena table name: %s", table_name)
-        if query_state != "SUCCEEDED":
-            logger.warning(logger_msg)
-        else:
-            logger.info(logger_msg)
-        t2 = time.time()
-        logger.debug(f"Time to create table: {t2-t1}s")
-
-    @staticmethod
-    def get_athena_type(pd_type) -> str:
-        type_map = {
-            # Numeric
-            "int8": "tinyint",
-            "int16": "smallint",
-            "int32": "int",
-            "int64": "bigint",
-            "uint8": "smallint",
-            "uint16": "int",
-            "uint32": "bigint",
-            "uint64": "decimal",
-            "float16": "float",
-            "float32": "float",
-            "float64": "double",
-            "decimal": "decimal",
-            # String/Text
-            "object": "string",
-            "string": "string",
-            "category": "string",
-            # Boolean
-            "bool": "boolean",
-            # Date/Time
-            "datetime64[ns]": "timestamp",
-            "datetime64[ms]": "timestamp",
-            "datetime64[us]": "timestamp",
-            "timedelta64[ns]": "string",
-            "date": "date",
-            "time": "string",
-        }
-        return type_map.get(pd_type, "string")
-
     def get_s3_key(self):
         if self.prefix:
             # NOTE: Prefixes end with a slash
             return f"{self.prefix}{self.result_file_name}"
         return self.result_file_name
-
-    def get_s3_upload_prefix(self):
-        return f"{self.prefix}{str(self.result_uuid)}/"

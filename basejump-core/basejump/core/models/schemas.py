@@ -694,9 +694,10 @@ class IndexedTables(BaseModel):
     number_of_days: Optional[int] = None
 
 
-class UploadResult(BaseModel):
-    result_uuid: uuid.UUID
-    s3_file_key: str
+class UploadTable(BaseModel):
+    upload_uuid: uuid.UUID
+    database_name: str
+    table_name: str
 
 
 class CoreSession(BaseModel):

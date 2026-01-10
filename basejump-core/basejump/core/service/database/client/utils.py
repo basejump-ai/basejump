@@ -90,15 +90,17 @@ async def setup_db(
     redis_client_async: RedisAsync,  # TODO: Looks like this can be removed
     embedding_model_info: sch.AzureModelInfo,
     db_uuid: Optional[uuid.UUID] = None,
+    verify_conn: bool = True,
 ) -> tuple[sch.SQLConn, DBTableIndexer]:
-    # Verify the connection
-    conn_db = ConnectDB(conn_params=conn_params)
-    await asyncio.to_thread(conn_db.verify_client_connection)
-    if conn_params.schemas:
-        conn_params.schemas = await conn_db.validate_schemas()
-    # Create the alias name if it doesn't exist
-    await create_alias_name(db=db, conn_params=conn_params)
-    assert conn_params.database_name_alias
+    if verify_conn:
+        # Verify the connection
+        conn_db = ConnectDB(conn_params=conn_params)
+        await asyncio.to_thread(conn_db.verify_client_connection)
+        if conn_params.schemas:
+            conn_params.schemas = await conn_db.validate_schemas()
+        # Create the alias name if it doesn't exist
+        await create_alias_name(db=db, conn_params=conn_params)
+        assert conn_params.database_name_alias
     # Save the vector db connection
     if not db_uuid:
         db_uuid = uuid.uuid4()
