@@ -97,6 +97,10 @@ class SQLTool:
         self.select_sample_values = select_sample_values
         self.result_store = result_store
         self.verbose = verbose
+        self.all_tables: list = []
+        self.ignored_tables: list = []
+        self.ignored_cols: list = []
+        self.retrieved_sql_tables = False
 
     async def post_init(self):
         loaded_sql_tool = await self._get_sql_tables_tool()
@@ -132,31 +136,6 @@ vector_db_uuid: {str(vector_db_uuid)}
             vector_id=self.vector_id, client_id=int(vector_client_id)
         )
         self.schemas = self.client_conn_params.schemas or []
-        all_tables = await crud_table.get_all_tables(db=self.db)
-        self.all_tables: list = []
-        self.ignored_tables = []
-        for tbl in all_tables:
-            self.all_tables.append(
-                await TableManager.arender_query_jinja(jinja_str=tbl.table_name, schemas=self.schemas)
-            )
-            if tbl.ignore:
-                self.ignored_tables.append(
-                    await TableManager.arender_query_jinja(jinja_str=tbl.table_name, schemas=self.schemas)
-                )
-
-        db_cols = await crud_table.get_all_columns(db=self.db, conn_id=self.conn_id)
-        for col in db_cols:
-            table_name = await TableManager.arender_query_jinja(jinja_str=col.table_name, schemas=self.schemas)
-            col_obj = sch.DBColumn(
-                column_name=col.column_name,
-                table_name=db_utils.get_table_name(table_name=table_name),
-                schema_name=db_utils.get_table_schema(table_name=table_name),
-                quoted=col.quoted,
-            )
-            self.ignored_cols = []
-            if col.ignore:
-                self.ignored_cols.append(col_obj)
-            self.db_cols.append(col_obj)
         self.filters = await self.get_table_metadata_filters(
             conn_id=self.conn_id, db_uuid=vector_db_uuid, client_uuid=vector_client_uuid
         )
@@ -176,6 +155,7 @@ Here is a description of the SQL database connection: """
             + self.client_conn_params.data_source_desc,
         )
         sql_tool = FunctionTool.from_defaults(fn=func, async_fn=func, tool_metadata=tool_metadata)
+        self.retrieved_sql_tables = True
         await self.db.commit()  # NOTE: Closing transaction to avoid idle in transaction
         return sql_tool
 
@@ -225,12 +205,16 @@ Here is a description of the SQL database connection: """
                     cleaned_tbl_names.append(tbl.name)
             query_tbls_no_cte = set(cleaned_tbl_names) - {tbl.alias for tbl in cte_tbls}
             query_tbls_lowered = {table.lower() for table in query_tbls_no_cte}
-            all_tables_lowered = {table.lower() for table in self.all_tables}
+            all_full_tables_lowered = {table.lower() for table in self.all_tables}
+            all_tables_lowered = {table.lower().split(".")[-1] for table in self.all_tables}
             # Find the ignored tables
             ignored_tables_lowered = {table.lower() for table in self.ignored_tables}
             tbl_overlap = ignored_tables_lowered & query_tbls_lowered
             # Check for hallucinated tables
-            if not query_tbls_lowered.issubset(all_tables_lowered) or tbl_overlap:
+            if (
+                not query_tbls_lowered.issubset(all_full_tables_lowered)
+                and not query_tbls_lowered.issubset(all_tables_lowered)
+            ) or tbl_overlap:
                 ai_msg = f'The following tables do not exist: {", ".join(query_tbls_lowered-all_tables_lowered)}'
                 logger.info(ai_msg)
                 return ai_msg
@@ -750,6 +734,10 @@ After stating your plan, do one of the following:
     # TODO: Refactor this query to be shorter
     async def run_sql(self, sql_query: str) -> str:
         logger.info("Here is the SQL query trying to be ran: %s", sql_query)
+
+        # Get required info for SQL validation
+        await self.get_db_table_info()
+
         # Clean the SQL query format
         format_json_response = formatter.JSONResponseFormatter(
             response=sql_query,
@@ -1093,3 +1081,32 @@ Connection timed out. Please try again."""
             await self.db.rollback()
             raise errors.SQLRunError("Error running SQL query") from e
         return query_result
+
+    async def get_db_table_info(self):
+        all_tables = await crud_table.get_all_tables(db=self.db)
+        for tbl in all_tables:
+            self.all_tables.append(
+                await TableManager.arender_query_jinja(jinja_str=tbl.table_name, schemas=self.schemas)
+            )
+            if tbl.ignore:
+                self.ignored_tables.append(
+                    await TableManager.arender_query_jinja(jinja_str=tbl.table_name, schemas=self.schemas)
+                )
+
+        db_cols = await crud_table.get_all_columns(db=self.db, conn_id=self.conn_id)
+        for col in db_cols:
+            table_name = await TableManager.arender_query_jinja(jinja_str=col.table_name, schemas=self.schemas)
+            col_obj = sch.DBColumn(
+                column_name=col.column_name,
+                table_name=db_utils.get_table_name(table_name=table_name),
+                schema_name=db_utils.get_table_schema(table_name=table_name),
+                quoted=col.quoted,
+            )
+            self.ignored_cols = []
+            if col.ignore:
+                self.ignored_cols.append(col_obj)
+            self.db_cols.append(col_obj)
+        if not self.all_tables:
+            raise ValueError("Missing table information in the database.")
+        if not self.db_cols:
+            raise ValueError("Missing column information in the database.")

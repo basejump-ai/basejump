@@ -166,7 +166,7 @@ selection is not supported."""
     def get_tables_names(self, inspector_callable: Callable, schema: sch.DBSchema) -> list[sch.SQLTable]:
         schema_nm_rendered = self.get_rendered_schema(schema=schema)
         schema_nm = schema.schema_nm
-        logger.debug("Using the following rendered schema for inspector: %s", schema_nm_rendered)
+        logger.debug("Using the following rendered schema for inspector: %s", str(schema_nm_rendered))
         tables = inspector_callable(
             schema=schema_nm_rendered,
             include_views=self.conn_params.include_views,
@@ -210,11 +210,21 @@ selection is not supported."""
                 # Remove the default schema from schemas to avoid dups
                 # HACK: Setting as public
                 try:
-                    default_schema = inspector.inspector.default_schema_name  # type:ignore
+                    default_schema_name = inspector.inspector.default_schema_name  # type:ignore
+                    if default_schema_name is None:
+                        raise Exception("default schema name returned None")
+                    else:
+                        default_schema = sch.DBSchema(
+                            schema_nm=default_schema_name, schema_nm_rendered=default_schema_name
+                        )
                 except Exception as e:
                     logger.warning("Default schema property not implemented. Here is the error: %s", str(e))
-                    default_schema = "public"
-                self.schemas = [schema for schema in self.schemas if schema.schema_nm_rendered != default_schema]
+                    default_schema_name = "public"
+                    logger.info(f"Defaulting to {default_schema_name} as the schema name.")
+                    default_schema = sch.DBSchema(
+                        schema_nm=default_schema_name, schema_nm_rendered=default_schema_name
+                    )
+                self.schemas = [schema for schema in self.schemas if schema.schema_nm_rendered != default_schema_name]
                 # Get default schema table names
                 tbl_names += self.get_tables_names(inspector_callable=inspector_callable, schema=default_schema)
             if self.schemas:

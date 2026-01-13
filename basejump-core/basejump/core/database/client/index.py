@@ -153,15 +153,10 @@ async def index_db(
     sql_engine: AsyncEngine,
     schemas: Optional[list[sch.DBSchema]] = None,
     tables: Optional[list[sch.SQLTable]] = None,
-    update_only: bool = False,
+    check_if_exists: bool = False,
     verbose: bool = False,
 ) -> sch.IndexedTables:
     try:
-        if update_only:
-            try:
-                assert tables
-            except AssertionError:
-                raise Exception("Need tables provided if update_only = True")
         # Upload tables
         logger.info("Starting database index")
         mng_tbls = TableManager(conn_params=conn_params, schemas=schemas, verbose=verbose)
@@ -183,7 +178,7 @@ async def index_db(
                 conn_id=conn_id,
                 tables=tables,
                 permitted_tables=permitted_tables,
-                update_only=update_only,
+                check_if_exists=check_if_exists,
                 verbose=verbose,
             )
             # Create index
@@ -296,14 +291,14 @@ class IndexUpdater:
         redis_client_async: RedisAsync,
         sql_engine: AsyncEngine,
         new_tables: list[sch.SQLTable],
-        update_only: bool = False,
+        check_if_exists: bool = False,
     ):
         logger.info("New tables detected: %s", new_tables)
         await self._update_index(
             redis_client_async=redis_client_async,
             sql_engine=sql_engine,
             new_tables=new_tables,
-            update_only=update_only,
+            check_if_exists=check_if_exists,
         )
 
     async def _update_index(
@@ -312,7 +307,7 @@ class IndexUpdater:
         sql_engine: AsyncEngine,
         new_schemas: Optional[list[sch.DBSchema]] = None,
         new_tables: Optional[list[sch.SQLTable]] = None,
-        update_only: bool = False,
+        check_if_exists: bool = False,
     ):
         """Update an existing index"""
         if not new_schemas and not new_tables:
@@ -333,9 +328,9 @@ class IndexUpdater:
                     sql_engine=sql_engine,
                     schemas=new_schemas,
                     tables=new_tables,
-                    update_only=update_only,
+                    check_if_exists=check_if_exists,
                 )
-            elif not update_only:
+            elif not check_if_exists:
                 # Otherwise just update the connection relationships to the tables
                 await crud_connection.setup_connection_assoc_table(
                     client_id=self.client_user.client_id,

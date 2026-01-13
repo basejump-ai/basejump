@@ -122,7 +122,7 @@ async def upload_table_names(
     conn_id: int,
     tables: list[sch.SQLTable],
     permitted_tables: list[sch.SQLTable],
-    update_only: bool = False,
+    check_if_exists: bool = False,
     verbose: bool = False,
 ) -> list[sch.SQLTable]:
     """Uploads the names of the tables in the client database
@@ -138,14 +138,20 @@ async def upload_table_names(
         raise AssertionError(constants.NO_TABLES)
 
     found_permitted_table = False
+    new_table = False
     for table in tables:
         if verbose:
             logger.debug("Table name: %s", table.full_table_name)
-        if update_only:
+        tbl_id = None
+        if check_if_exists:
             retrieved_tables = await get_tables_from_nms(db=db, table_names=[table.full_table_name], db_id=db_id)
-            retrieved_table = retrieved_tables[0]
-            tbl_id = retrieved_table.tbl_id
-        else:
+            try:
+                retrieved_table = retrieved_tables[0]
+                tbl_id = retrieved_table.tbl_id
+            except IndexError:
+                logger.debug("The %s table does not exist in the database already", table.full_table_name)
+        if tbl_id is None:
+            new_table = True
             tbl_id = await crud_utils.get_next_val(db=db, full_table_nm=str(DBTables.__table__), column_nm="tbl_id")
             sql_table = DBTables(
                 tbl_id=tbl_id,
@@ -162,9 +168,8 @@ async def upload_table_names(
                 conn_table = ConnTableAssociation(client_id=client_id, conn_id=conn_id, tbl_id=tbl_id)
                 db.add(conn_table)
         for column in table.columns:
-            if update_only and not column.new:
+            if check_if_exists and not column.new and not new_table:
                 continue
-        for column in table.columns:
             table_cols = DBTableColumns(
                 client_id=client_id,
                 tbl_id=tbl_id,

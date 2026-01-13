@@ -24,12 +24,6 @@ logger = set_logging(handler_option="stream", name=__name__)
 
 
 class ResultStore(ABC):
-    chunk_size = 8192
-    upload_size_mb = 5
-    upload_size = upload_size_mb * 1024 * 1024
-    upload_chunk_limit = 20
-    max_upload_size = upload_size * upload_chunk_limit  # 100 MB
-
     def __init__(
         self,
         client_id: int,
@@ -69,10 +63,8 @@ class ResultStore(ABC):
         )
         num_rows = self.total_row_counter
         num_cols = len(columns)
+        logger.debug(f"File has {num_rows} rows and {num_cols} columns.")
         result_type = result_utils.get_result_type(num_rows=num_rows, num_cols=num_cols)
-        file_size_est_base = self.upload_size * self.chunk_counter
-        file_size_est = f"<{self.upload_size_mb}MB" if file_size_est_base == 0 else f"{file_size_est_base}MB"
-        logger.debug(f"File has {num_rows} rows and {num_cols} columns. Estimated file size is {file_size_est}")
         logger.info("Here is the result file path: %s", result_file_path)
         logger.info("Here is the result preview file path: %s", preview_file_path)
         return sch.QueryResult(
@@ -224,6 +216,12 @@ class LocalResultStore(ResultStore):
 
 # TODO: Stream uploads for databases that allow streaming (Redshift does not allow streaming)
 class S3ResultStore(ResultStore):
+    chunk_size = 1024 * 100
+    bytes_in_a_mb = 1024 * 1024
+    upload_size = 5 * bytes_in_a_mb  # S3 requires a minimum of a 5MB upload size per part
+    upload_limit_in_mb = 10
+    upload_chunk_limit = upload_limit_in_mb * bytes_in_a_mb / chunk_size
+
     def __init__(
         self,
         client_id: int,
@@ -268,6 +266,10 @@ class S3ResultStore(ResultStore):
     def s3_file_key(self) -> str:
         return self.get_s3_key()
 
+    @property
+    def current_file_size(self):
+        return self.chunk_counter * self.chunk_size / (1024 * 1024)
+
     @staticmethod
     def get_default_prefix(client_uuid: uuid.UUID) -> str:
         default_prefix = os.getenv("AWS_DEFAULT_PREFIX") or ""
@@ -310,11 +312,10 @@ class S3ResultStore(ResultStore):
             if self.counter == 100 and not self.saved_preview:
                 self.save_preview(buffer=buffer, text_wrapper=text_wrapper)
 
-            # Flush the underlying buffer after writing - only flush every 500 rows to improve performance
+            # Flush the underlying buffer after writing
             if self.counter > self.chunk_size:
+                logger.debug("Setting count to 0, reached chunk size of %s", self.chunk_size)
                 self.counter = 0
-                if not self.multipart_upload:
-                    self.create_multipart_upload()
                 self.upload_chunk(buffer=buffer, text_wrapper=text_wrapper)
 
         # Complete the multipart upload
@@ -327,6 +328,11 @@ class S3ResultStore(ResultStore):
             self.get_metric_value(
                 small_model_info=small_model_info, initial_prompt=initial_prompt, sql_query=sql_query, buffer=buffer
             )
+        if self.current_file_size == 0:
+            file_size_est = f"<{self.chunk_size / (1024 * 1024)}"
+        else:
+            file_size_est = self.current_file_size  # type: ignore
+        logger.debug(f"Estimated file size is {file_size_est}MB")
         result_file_path = self.get_s3_file_path(s3_file_key=self.s3_file_key, bucket_name=self.bucket_name)
         preview_file_path = self.get_s3_file_path(s3_file_key=self.preview_file_name, bucket_name=self.bucket_name)
         return self.create_query_result(
@@ -353,11 +359,14 @@ class S3ResultStore(ResultStore):
     def upload_chunk(self, buffer: io.BytesIO, text_wrapper: io.TextIOWrapper):
         if text_wrapper:
             text_wrapper.flush()
-        # If buffer exceeds 5 MB, upload and reset the buffer
-        if buffer.tell() >= self.chunk_size:
+        # Upload and reset the buffer
+        if buffer.tell() >= self.upload_size:
+            if not self.multipart_upload:
+                self.create_multipart_upload()
             self.chunk_counter += 1
-            if self.chunk_counter > self.upload_chunk_limit:
-                # Not allowing uploads past 100 MB currently
+            logger.debug(f"Chunk counter at {self.chunk_counter} and file size of {self.current_file_size}MB.")
+            if self.current_file_size > self.upload_chunk_limit:
+                # Not allowing uploads past 10 MB currently
                 self.abort_multipart_upload()
             else:
                 try:
@@ -377,6 +386,7 @@ class S3ResultStore(ResultStore):
             logger.error("Error in stream query results %s", str(e))
             raise e
         self.upload_id = multipart_upload["UploadId"]
+        self.multipart_upload = True
 
     def complete_multipart_upload(self, buffer: io.BytesIO, text_wrapper: io.TextIOWrapper):
         text_wrapper.flush()

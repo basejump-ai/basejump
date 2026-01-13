@@ -23,10 +23,10 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Upgrade schema."""
     op.add_column("database", sa.Column("database_metadata", sa.LargeBinary(), nullable=True), schema="connect")
-    refresh_views(tables=["database.tables"])
+    refresh_views(tables=["connect.database_tables"])
 
 
 def downgrade() -> None:
     """Downgrade schema."""
     op.drop_column("database", "database_metadata", schema="connect")
-    refresh_views(tables=["database.tables"])
+    refresh_views(tables=["connect.database_tables"])

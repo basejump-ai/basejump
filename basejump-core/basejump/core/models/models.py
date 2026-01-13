@@ -583,9 +583,9 @@ class TableUpload(Base):
         ),
         {"schema": "connect"},
     )
-    client_id: Mapped[int]
-    upload_id: Mapped[int]
-    upload_uuid: Mapped[uuid.UUID]
+    client_id: Mapped[int] = mapped_column(primary_key=True)
+    upload_id: Mapped[int] = mapped_column(autoincrement=True, primary_key=True)
+    upload_uuid: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), server_default=text("gen_random_uuid()"))
     table_name: Mapped[str]
     table_location: Mapped[str]
     db_id: Mapped[int]

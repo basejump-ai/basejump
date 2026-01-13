@@ -27,11 +27,11 @@ class TableUploader(ABC):
             self.upload_uuid = self.result_store.result_uuid
 
     @abstractmethod
-    def upload_file(self, file: UploadFile):
+    async def upload_file(self, file: UploadFile):
         pass
 
     @abstractmethod
-    def create_table(
+    async def create_table(
         self,
         db: AsyncSession,
         headers: pd.DataFrame,
@@ -112,8 +112,6 @@ class S3TableUploader(TableUploader):
                 self.result_store.upload_chunk(buffer=buffer, text_wrapper=text_wrapper)
                 buffer.seek(0)
                 buffer.truncate()
-                text_wrapper = io.TextIOWrapper(buffer, newline="", encoding="utf-8")
-                writer = csv.writer(text_wrapper)
 
             for row in csv.reader(text.splitlines()):
                 if len(headers) <= 5:
@@ -136,7 +134,6 @@ class S3TableUploader(TableUploader):
         table_upload = models.TableUpload(
             client_id=client_id,
             upload_uuid=self.upload_uuid,
-            database_name=database_name,
             table_name=table_name,
             table_location=table_location,
             db_id=db_id,
