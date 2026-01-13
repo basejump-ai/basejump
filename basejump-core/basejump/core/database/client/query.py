@@ -94,7 +94,7 @@ class ClientQueryRecorder(ClientQueryRunner):
 
     def store_query_result(self) -> sch.QueryResult:
         """Run a SQL query against a client database and store the results."""
-        logger.debug("Running client query and storing results for SQL query: %s", self.sql_query)
+        logger.debug("Running client query and storing results for SQL query: \n\n%s", self.sql_query)
         # TODO: Parse and parameterize this SQL query
         # NOTE: This needs to stay as connect so no DDL statements get committed
 

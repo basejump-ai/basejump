@@ -219,7 +219,7 @@ class S3ResultStore(ResultStore):
     chunk_size = 1024 * 100
     bytes_in_a_mb = 1024 * 1024
     upload_size = 5 * bytes_in_a_mb  # S3 requires a minimum of a 5MB upload size per part
-    upload_limit_in_mb = 10
+    upload_limit_in_mb = 0.05
     upload_chunk_limit = upload_limit_in_mb * bytes_in_a_mb / chunk_size
 
     def __init__(
@@ -314,7 +314,7 @@ class S3ResultStore(ResultStore):
 
             # Flush the underlying buffer after writing
             if self.counter > self.chunk_size:
-                logger.debug("Setting count to 0, reached chunk size of %s", self.chunk_size)
+                logger.debug(f"Chunk counter at {self.chunk_counter}, reached chunk size of {self.chunk_size}")
                 self.counter = 0
                 self.upload_chunk(buffer=buffer, text_wrapper=text_wrapper)
 
@@ -329,9 +329,9 @@ class S3ResultStore(ResultStore):
                 small_model_info=small_model_info, initial_prompt=initial_prompt, sql_query=sql_query, buffer=buffer
             )
         if self.current_file_size == 0:
-            file_size_est = f"<{self.chunk_size / (1024 * 1024)}"
+            file_size_est = f"<{round(self.chunk_size / (1024 * 1024), 2)}"
         else:
-            file_size_est = self.current_file_size  # type: ignore
+            file_size_est = round(self.current_file_size, 2)
         logger.debug(f"Estimated file size is {file_size_est}MB")
         result_file_path = self.get_s3_file_path(s3_file_key=self.s3_file_key, bucket_name=self.bucket_name)
         preview_file_path = self.get_s3_file_path(s3_file_key=self.preview_file_name, bucket_name=self.bucket_name)
@@ -407,19 +407,26 @@ class S3ResultStore(ResultStore):
         self.s3_client.abort_multipart_upload(Bucket=self.bucket_name, Key=self.s3_file_key, UploadId=self.upload_id)
         # Confirm all parts are deleted
         try:
-            parts = self.s3_client.list_parts(Bucket=self.bucket_name, Key=self.s3_file_key, UploadId=self.upload_id)
-        except ClientError as e:
-            logger.warning("Error when listing parts %s", str(e))
-            raise e
-        # If parts still exist, then try to abort again
-        if len(parts["Parts"]) > 0:
             try:
-                self.s3_client.abort_multipart_upload(
+                parts = self.s3_client.list_parts(
                     Bucket=self.bucket_name, Key=self.s3_file_key, UploadId=self.upload_id
                 )
-            except Exception as e:
-                logger.warning("Error when in multipart upload %s", str(e))
+            except ClientError as e:
+                logger.warning("Error when listing parts %s", str(e))
                 raise e
+            # If parts still exist, then try to abort again
+            if len(parts["Parts"]) > 0:
+                try:
+                    self.s3_client.abort_multipart_upload(
+                        Bucket=self.bucket_name, Key=self.s3_file_key, UploadId=self.upload_id
+                    )
+                except Exception as e:
+                    logger.warning("Error when in multipart upload %s", str(e))
+                    raise e
+        except Exception as e:
+            logger.warning(f"Error when aborting multipart upload: {str(e)}")
+        finally:
+            raise errors.AbortMultipartUpload(max_file_size=f"{self.upload_limit_in_mb} MB")
 
     def _save_preview(self, buffer, s3_client, s3_bucket_name, file_name):
         buffer.seek(0)

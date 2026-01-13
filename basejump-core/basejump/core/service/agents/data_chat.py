@@ -69,7 +69,8 @@ class DataChatAgent(BaseChatAgent):
         self.check_if_prompt_is_cached = check_if_prompt_is_cached
         self.result_store = result_store or store.LocalResultStore(client_id=self.prompt_metadata.client_id)
         self.conn_id = conn_id
-        logger.debug("Chat history: %s", chat_history)
+        if self.verbose:
+            logger.debug("Chat history: %s", chat_history)
 
     @staticmethod
     def get_llm_type() -> enums.LLMType:

@@ -834,7 +834,7 @@ class ConnectDB:
                 # TODO: Add a specific error here instead of general exception
                 raise Exception("To connect to Athena, the s3_staging_dir query argument must be provided.")
             try:
-                aws_role_arn = query[constants.AWS_ROLE_ARN_NAME]
+                aws_role_arn = query.pop(constants.AWS_ROLE_ARN_NAME)
                 session = self.get_aws_session(aws_role_arn)
                 credentials = session.get_credentials()
                 if not credentials:
@@ -844,7 +844,8 @@ class ConnectDB:
                 assert creds.secret_key, "Unable to retrieve AWS secret key"
                 self.conn_params.username = creds.access_key
                 self.conn_params.password = creds.secret_key
-                self.conn_params.query = {**self.conn_params.query, "aws_session_token": creds.token}  # type: ignore
+                self.conn_params.query = {**query, "aws_session_token": creds.token}  # type: ignore
+                logger.debug("Using AWS role ARN to create AWS session for Athena connection.")
             except KeyError:
                 logger.debug("Not using AWS role ARN to create AWS session for Athena connection.")
 
@@ -865,7 +866,7 @@ class ConnectDB:
             host=self.conn_params.host,
             port=self.conn_params.port,
             database=self.conn_params.database_name,
-            query=query,
+            query=self.conn_params.query,
         )
         return uri_obj.render_as_string(hide_password=hide_password)
 
@@ -988,7 +989,7 @@ class ConnectDB:
         )
         return self.conn_params.schemas
 
-    def get_aws_session(self, aws_role_arn: str, uuid: Optional[uuid.UUID] = None) -> boto3.Session:
+    def get_aws_session(self, aws_role_arn: str, session_uuid: Optional[uuid.UUID] = None) -> boto3.Session:
         """Get an AWS client session
 
         Parameters
@@ -998,13 +999,15 @@ class ConnectDB:
         role_arn
             The AWS role ARN
         """
-        if not uuid:
-            uuid = uuid.uuid4()  # type: ignore
-        session_name = f"session_{uuid}"
+        if not session_uuid:
+            session_uuid = uuid.uuid4()  # type: ignore
+        session_name = f"session_{session_uuid}"
         logger.debug("Created AWS session: %s", session_name)
 
         sts = boto3.client("sts")
+        import time
 
+        time.sleep(5)
         # Assume the client-specific role
         assumed_role = sts.assume_role(
             RoleArn=aws_role_arn,

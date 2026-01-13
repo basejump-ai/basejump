@@ -749,22 +749,23 @@ After stating your plan, do one of the following:
         sql_query = extract.sql_query
         logger.info("Here is the cleaned SQL query: %s", sql_query)
         # Check for any hallucinated tables
-        msg = await self.check_all_tables(sql_query=sql_query)
-        if msg:
-            return msg
+        # TEST (commenting out)
+        # msg = await self.check_all_tables(sql_query=sql_query)
+        # if msg:
+        #     return msg
         logger.info("No hallucinated tables")
         # Check for any hallucinated columns
-        try:
-            sql_query = await self.validate_all_columns(sql_query=sql_query)
-            logger.info("Validated sql query: %s", sql_query)
-        except (
-            Exception,
-            errors.StarQueryError,
-            errors.ColumnCapitalizationError,
-            errors.HallucinatedColumnError,
-        ) as e:
-            logger.error("Here is the error from validate_all_columns: %s", str(e))
-            return str(e)
+        # try:
+        #     sql_query = await self.validate_all_columns(sql_query=sql_query)
+        #     logger.info("Validated sql query: %s", sql_query)
+        # except (
+        #     Exception,
+        #     errors.StarQueryError,
+        #     errors.ColumnCapitalizationError,
+        #     errors.HallucinatedColumnError,
+        # ) as e:
+        #     logger.error("Here is the error from validate_all_columns: %s", str(e))
+        #     return str(e)
         logger.info("No hallucinated columns")
         await tool_utils.update_agent_tokens(agent=self.agent, max_tokens=1000)
         if self.prior_sql_query:
@@ -852,6 +853,8 @@ After reviewing, run this tool again to run your original or updated SQL query."
             logger.error(error_msg)
             await self.db.rollback()
             raise sch.SQLTimeoutError(error_msg)
+        except errors.AbortMultipartUpload as e:
+            return str(e)
         except Exception as e:
             # TODO: Improve the debugging
             # TODO: Use a manual retriever and then pass that to the AI only after filling in with the prompt template
