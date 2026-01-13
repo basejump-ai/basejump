@@ -844,7 +844,7 @@ class ConnectDB:
                 assert creds.secret_key, "Unable to retrieve AWS secret key"
                 self.conn_params.username = creds.access_key
                 self.conn_params.password = creds.secret_key
-                self.conn_params.query = {**query, "aws_session_token": creds.token}  # type: ignore
+                self.conn_params.query = {**query, "aws_session_token": creds.token}
                 logger.debug("Using AWS role ARN to create AWS session for Athena connection.")
             except KeyError:
                 logger.debug("Not using AWS role ARN to create AWS session for Athena connection.")
@@ -866,7 +866,7 @@ class ConnectDB:
             host=self.conn_params.host,
             port=self.conn_params.port,
             database=self.conn_params.database_name,
-            query=self.conn_params.query,
+            query=self.conn_params.query,  # type: ignore
         )
         return uri_obj.render_as_string(hide_password=hide_password)
 
@@ -1000,7 +1000,7 @@ class ConnectDB:
             The AWS role ARN
         """
         if not session_uuid:
-            session_uuid = uuid.uuid4()  # type: ignore
+            session_uuid = uuid.uuid4()
         session_name = f"session_{session_uuid}"
         logger.debug("Created AWS session: %s", session_name)
 
