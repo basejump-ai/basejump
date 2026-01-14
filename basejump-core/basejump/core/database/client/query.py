@@ -11,6 +11,8 @@ from basejump.core.models import schemas as sch
 
 logger = set_logging(handler_option="stream", name=__name__)
 
+TIMEOUT = 60 * 15
+
 
 class ClientQueryRunner:
     def __init__(
@@ -57,16 +59,25 @@ class ClientQueryRunner:
     # since not all drivers support SQLAlchemy 2 or async drivers
     def run_client_query(self) -> sch.QueryResultDF:
         """Run a SQL query against the client database."""
-        logger.debug("Running client query: %s", self.sql_query)
-        # NOTE: This needs to stay as connect so no DDL statements get committed
-        with self.client_engine.connect() as client_db:
-            try:
-                result = client_db.execute(sa.text(self.sql_query))
-            except Exception as e:
-                client_db.rollback()
-                raise e
-            query_result = result.all()
-        query_result_df = result_utils.get_output_df(query_result=list(query_result), sql_query=self.sql_query)
+        try:
+            logger.debug("Running client query: %s", self.sql_query)
+            # NOTE: This needs to stay as connect so no DDL statements get committed
+            async with asyncio.timeout(TIMEOUT):
+                with self.client_engine.connect() as client_db:
+                    try:
+                        result = client_db.execute(sa.text(self.sql_query))
+                    except Exception as e:
+                        client_db.rollback()
+                        raise e
+                    query_result = result.all()
+                query_result_df = result_utils.get_output_df(query_result=list(query_result), sql_query=self.sql_query)
+                return query_result_df
+        except TimeoutError:
+            error_msg = f"SQL query took longer to execute than the max {TIMEOUT/60} minute time out limit."
+            logger.error(error_msg)
+            await self.db.rollback()
+            raise sch.SQLTimeoutError(error_msg)
+        logger.info("Completed running client query")
         return query_result_df
 
     async def arun_client_query(self) -> sch.QueryResultDF:
