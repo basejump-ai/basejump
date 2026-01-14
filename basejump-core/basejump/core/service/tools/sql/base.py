@@ -23,7 +23,6 @@ from llama_index.vector_stores.redis.base import NO_DOCS
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database import db_utils
 from basejump.core.database.client import query
 from basejump.core.database.crud import crud_connection, crud_table
 from basejump.core.database.db_connect import POOL_TIMEOUT, TableManager
@@ -37,7 +36,7 @@ from basejump.core.models.ai.catalog import AICatalog
 from basejump.core.models.prompts import DB_METADATA_PROMPT
 from basejump.core.service.base import BaseChatAgent
 from basejump.core.service.tools import tool_utils
-from basejump.core.service.tools.sql import parse, validate
+from basejump.core.service.tools.sql import parse, sample, validate
 
 logger = set_logging(handler_option="stream", name=__name__)
 RELEVANCE_THRESHOLD = 0.1
@@ -81,10 +80,8 @@ class SQLTool:
         self.sql_query_created = False
         self.sqlglot_dialect = enums.DB_TYPE_TO_SQLGLOT_DIALECT_LKUP.get(self.client_conn_params.database_type)
         self.prior_sql_query: Optional[str] = None
-        self.db_columns: list = []
         self.col_check_ct = 0
         self.provided_sample_vals = False
-        self.db_cols: list = []
         self.large_model_info = service_context.large_model_info
         self.small_model_info = service_context.small_model_info
         self.embedding_model_info = service_context.embedding_model_info
@@ -94,9 +91,6 @@ class SQLTool:
         self.select_sample_values = select_sample_values
         self.result_store = result_store
         self.verbose = verbose
-        self.all_tables: list = []
-        self.ignored_tables: list = []
-        self.ignored_cols: list = []
         self.retrieved_sql_tables = False
 
     async def post_init(self):
@@ -209,8 +203,8 @@ may be referring to, ask the user a clarifying question before proceeding. Do no
 - The plan should be formatted as == Plan ==, followed by plan bullet points."""
         intermediate_instructions = ""
         if self.select_sample_values:
-            validate.SQLSampler(sqlglot_dialect=self.sqlglot_dialect, conn_params=self.client_conn_params)
-            columns, sample_values = await self.get_select_sample_values(sql_query=initial_sql_query)
+            sampler = sample.SQLSampler(sqlglot_dialect=self.sqlglot_dialect, conn_params=self.client_conn_params)
+            columns, sample_values = await sampler.get_select_sample_values(sql_query=initial_sql_query)
             if sample_values and columns:
                 intermediate_instructions = f"""\n- Here are some sample values for the columns selected \
     in your query: {sample_values}\n"""
@@ -224,9 +218,19 @@ After stating your plan, do one of the following:
     # TODO: Refactor this query to be shorter
     async def run_sql(self, sql_query: str) -> str:
         logger.info("Here is the SQL query trying to be ran: %s", sql_query)
+        validator = validate.SQLValidator(
+            db=self.db,
+            sqlglot_dialect=self.sqlglot_dialect,
+            conn_id=self.conn_id,
+            schemas=self.schemas,
+            verbose=self.verbose,
+            conn_params=self.client_conn_params,
+            agent=self.agent,
+            redis_client_async=self.redis_client_async,
+        )
 
         # Get required info for SQL validation
-        await self.get_db_table_info()
+        await validator.get_db_table_info()
 
         # Clean the SQL query format
         format_json_response = formatter.JSONResponseFormatter(
@@ -239,13 +243,13 @@ After stating your plan, do one of the following:
         sql_query = extract.sql_query
         logger.info("Here is the cleaned SQL query: %s", sql_query)
         # Check for any hallucinated tables
-        msg = await self.check_all_tables(sql_query=sql_query)
+        msg = await validator.check_all_tables(sql_query=sql_query)
         if msg:
             return msg
         logger.info("No hallucinated tables")
         # Check for any hallucinated columns
         try:
-            sql_query = await self.validate_all_columns(sql_query=sql_query)
+            sql_query = await validator.validate_all_columns(sql_query=sql_query)
             logger.info("Validated sql query: %s", sql_query)
         except (
             Exception,
@@ -286,7 +290,7 @@ After stating your plan, do one of the following:
         logger.info("SQL query plan made and SQL query created")
         logger.info("Verifying column values")
         try:
-            llm_feedback = await self.verify_where_clause_distinct_values(sql_query=sql_query)
+            llm_feedback = await validator.verify_where_clause_distinct_values(sql_query=sql_query)
             if llm_feedback:
                 logger.info("Here is the llm feedback for the where clause: %s", llm_feedback)
                 self.col_check_ct += 1
@@ -297,7 +301,7 @@ After stating your plan, do one of the following:
             if self.provided_sample_vals:
                 # Get where clause sample values as a backup if column check fails
                 try:
-                    sampler = validate.SQLSampler(
+                    sampler = sample.SQLSampler(
                         sqlglot_dialect=self.sqlglot_dialect, conn_params=self.client_conn_params
                     )
                     where_clause_sample_vals = await sampler.get_where_clause_sample_values(sql_query=sql_query)
@@ -547,57 +551,3 @@ Here is the prompt that needs to be broken out: \n\n\
 or check the underlying SQL database connection for misconfiguration."""
             )
         return tables
-
-    async def run_client_query(self, sql_query: str) -> sch.QueryResultDF:
-        """Run a query against the client database"""
-        try:
-            sql_query = await self.validate_all_columns(sql_query=sql_query)
-        except (errors.StarQueryError, errors.ColumnCapitalizationError, errors.HallucinatedColumnError) as e:
-            logger.error("Error validating SQL query: %s", str(e))
-            raise e
-        logger.info("Running client query... %s", sql_query)
-        try:
-            async with query.ClientQueryRunner(
-                client_conn_params=self.client_conn_params, sql_query=sql_query
-            ) as query_runner:
-                query_result = await query_runner.arun_client_query()
-        except Exception as e:
-            # TODO: Improve the debugging
-            if constants.SQLALCHEMY_TIMEOUT in str(e):
-                error_msg = f"""Failed to connect to the database after {POOL_TIMEOUT/60} minutes. \
-Connection timed out. Please try again."""
-                raise sch.SQLTimeoutError(error_msg)
-            logger.warning("Error running this SQL query: %s", sql_query)
-            logger.warning("Here is the error: %s", str(e))
-            await self.db.rollback()
-            raise errors.SQLRunError("Error running SQL query") from e
-        return query_result
-
-    async def get_db_table_info(self):
-        all_tables = await crud_table.get_all_tables(db=self.db)
-        for tbl in all_tables:
-            self.all_tables.append(
-                await TableManager.arender_query_jinja(jinja_str=tbl.table_name, schemas=self.schemas)
-            )
-            if tbl.ignore:
-                self.ignored_tables.append(
-                    await TableManager.arender_query_jinja(jinja_str=tbl.table_name, schemas=self.schemas)
-                )
-
-        db_cols = await crud_table.get_all_columns(db=self.db, conn_id=self.conn_id)
-        for col in db_cols:
-            table_name = await TableManager.arender_query_jinja(jinja_str=col.table_name, schemas=self.schemas)
-            col_obj = sch.DBColumn(
-                column_name=col.column_name,
-                table_name=db_utils.get_table_name(table_name=table_name),
-                schema_name=db_utils.get_table_schema(table_name=table_name),
-                quoted=col.quoted,
-            )
-            self.ignored_cols = []
-            if col.ignore:
-                self.ignored_cols.append(col_obj)
-            self.db_cols.append(col_obj)
-        if not self.all_tables:
-            raise ValueError("Missing table information in the database.")
-        if not self.db_cols:
-            raise ValueError("Missing column information in the database.")

@@ -9,6 +9,7 @@ from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database import db_utils
 from basejump.core.database.client import query
 from basejump.core.database.crud import crud_table
+from basejump.core.database.db_connect import TableManager
 from basejump.core.models import enums, errors
 from basejump.core.models import schemas as sch
 from basejump.core.models.prompts import ZERO_ROW_PROMPT
@@ -21,17 +22,18 @@ logger = set_logging(handler_option="stream", name=__name__)
 class SQLValidator:
     def __init__(self):
         self.db = None
-        self.db_columns = None
         self.sqlglot_dialect = None
-        self.all_tables = None
-        self.ignored_tables = None
-        self.db_cols = None
         self.conn_id = None
         self.schemas = None
         self.verbose = None
-        self.conn_params = sch.SQLDBSchema
+        self.conn_params: sch.SQLDBSchema
         self.agent = None
         self.redis_client_async = None
+        self.all_tables: list = []
+        self.db_columns: list = []
+        self.db_cols: list = []  # TODO: Why have db_cols and db_columns?
+        self.ignored_tables: list = []
+        self.ignored_cols: list = []
 
     async def check_all_tables(self, sql_query: str) -> Optional[str]:
         try:
@@ -158,7 +160,7 @@ class SQLValidator:
             assert self.agent.chat_metadata.semcache_response
             self.agent.chat_metadata.semcache_response.verified = False
 
-    async def extend_db_columns(self, columns: list[sch.DBColumn]) -> None:
+    async def _extend_db_columns(self, columns: list[sch.DBColumn]) -> None:
         # Check for any columns that already have been retrieved from the DB
         logger.warning("Extending DB Cols")
         columns_to_retrieve = []
@@ -179,7 +181,7 @@ class SQLValidator:
             )
             self.db_columns.extend(new_db_columns)
 
-    async def get_db_column_filters(self, column: sch.DBColumn, db_column: sch.DBColumn):
+    async def _get_db_column_filters(self, column: sch.DBColumn, db_column: sch.DBColumn):
         # Do a fuzzy match to find similar values
         tbl_name = db_utils.get_table_name_from_column(column=column)
         assert column.column_w_func, "This should be populated. Check your code and fix."
@@ -225,7 +227,7 @@ class SQLValidator:
         # Add results to db_column.filters
         db_column.filters = db_utils.get_query_column_values(query_result=query_result)
 
-    def compare_column_filters(self, llm_feedback: str, column: sch.DBColumn, db_column: sch.DBColumn):
+    def _compare_column_filters(self, llm_feedback: str, column: sch.DBColumn, db_column: sch.DBColumn):
         # Compare the filters - verify that it choose one of the columns in the table or used fuzzy match
         db_filters_ct = len(db_column.filters)
         logger.info("Here are the number of filters: %s", db_filters_ct)
@@ -302,7 +304,7 @@ format: {db_col_filters}\n"""
         # Retrieve the columns from the database
         llm_feedback = ""
         if self.db_columns:
-            await self.extend_db_columns(columns=columns)
+            await self._extend_db_columns(columns=columns)
         else:
             self.db_columns = await crud_table.get_columns_by_name(
                 db=self.db, columns=columns, conn_id=self.conn_id, schemas=self.schemas
@@ -337,13 +339,13 @@ format: {db_col_filters}\n"""
                 if column_str.lower() == db_column_str.lower():  # If the columns are the same
                     found_db_match = True
                     if not db_column.filters:
-                        await self.get_db_column_filters(column=column, db_column=db_column)
+                        await self._get_db_column_filters(column=column, db_column=db_column)
                         if not db_column.filters:
                             logger.warning(
                                 "No DB column filters found, skipping column verify: %s", column.column_name
                             )
                             raise errors.UnverifiedColumns("No filters found to very, skipping")
-                    llm_feedback = self.compare_column_filters(
+                    llm_feedback = self._compare_column_filters(
                         llm_feedback=llm_feedback, column=column, db_column=db_column
                     )
                     break  # Found the match, don't need to loop over remaining db column for this particular column
@@ -391,3 +393,32 @@ format: {db_col_filters}\n"""
             logger.error("Here is the exception %s", str(e))
             raise errors.UnverifiedColumns("Column verification failed")
         return llm_feedback
+
+    async def get_db_table_info(self):
+        all_tables = await crud_table.get_all_tables(db=self.db)
+        for tbl in all_tables:
+            self.all_tables.append(
+                await TableManager.arender_query_jinja(jinja_str=tbl.table_name, schemas=self.schemas)
+            )
+            if tbl.ignore:
+                self.ignored_tables.append(
+                    await TableManager.arender_query_jinja(jinja_str=tbl.table_name, schemas=self.schemas)
+                )
+
+        db_cols = await crud_table.get_all_columns(db=self.db, conn_id=self.conn_id)
+        for col in db_cols:
+            table_name = await TableManager.arender_query_jinja(jinja_str=col.table_name, schemas=self.schemas)
+            col_obj = sch.DBColumn(
+                column_name=col.column_name,
+                table_name=db_utils.get_table_name(table_name=table_name),
+                schema_name=db_utils.get_table_schema(table_name=table_name),
+                quoted=col.quoted,
+            )
+            self.ignored_cols = []
+            if col.ignore:
+                self.ignored_cols.append(col_obj)
+            self.db_cols.append(col_obj)
+        if not self.all_tables:
+            raise ValueError("Missing table information in the database.")
+        if not self.db_cols:
+            raise ValueError("Missing column information in the database.")

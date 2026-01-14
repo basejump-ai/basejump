@@ -5,8 +5,14 @@ from typing import Optional
 import sqlalchemy as sa
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database.db_connect import ConnectDB, SSLEngine, TableManager
+from basejump.core.database.db_connect import (
+    POOL_TIMEOUT,
+    ConnectDB,
+    SSLEngine,
+    TableManager,
+)
 from basejump.core.database.result import result_utils, store
+from basejump.core.models import constants, errors
 from basejump.core.models import schemas as sch
 
 logger = set_logging(handler_option="stream", name=__name__)
@@ -77,6 +83,17 @@ class ClientQueryRunner:
             logger.error(error_msg)
             await self.db.rollback()
             raise sch.SQLTimeoutError(error_msg)
+
+        except Exception as e:
+            # TODO: Improve the debugging
+            if constants.SQLALCHEMY_TIMEOUT in str(e):
+                error_msg = f"""Failed to connect to the database after {POOL_TIMEOUT/60} minutes. \
+Connection timed out. Please try again."""
+                raise sch.SQLTimeoutError(error_msg)
+            logger.warning("Error running this SQL query: %s", self.sql_query)
+            logger.warning("Here is the error: %s", str(e))
+            await self.db.rollback()
+            raise errors.SQLRunError("Error running SQL query") from e
         logger.info("Completed running client query")
         return query_result_df
 
