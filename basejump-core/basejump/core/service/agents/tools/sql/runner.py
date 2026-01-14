@@ -7,8 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.client.query import TIMEOUT, ClientQueryRecorder
+from basejump.core.database.connect import POOL_TIMEOUT
 from basejump.core.database.crud import crud_result
-from basejump.core.database.db_connect import POOL_TIMEOUT
 from basejump.core.database.result import store
 from basejump.core.models import constants, enums, errors
 from basejump.core.models import schemas as sch

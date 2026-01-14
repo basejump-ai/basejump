@@ -4,7 +4,7 @@ import redis.asyncio as redis_async
 from redis.asyncio import Redis as RedisAsync
 
 from basejump.core.common.config.settings import settings
-from basejump.core.database.db_connect import ConnectDB
+from basejump.core.database.connect import PostgresDB
 from basejump.core.models import enums
 from basejump.core.models import schemas as sch
 
@@ -26,7 +26,7 @@ conn_params = sch.SQLDBSchema(
     include_default_schema=False,
     ssl=False,  # Turning off SSL for toy demo example, should always be True in production
 )
-conn_db = ConnectDB(conn_params=conn_params)
+conn_db = PostgresDB(conn_params=conn_params)
 sql_engine = conn_db.connect_async_db()
 
 client_conn_params = sch.SQLDBSchema(**conn_params.dict())

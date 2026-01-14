@@ -10,7 +10,7 @@ from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database import db_utils
 from basejump.core.database.client import query
 from basejump.core.database.crud import crud_table
-from basejump.core.database.db_connect import TableManager
+from basejump.core.database.manage import TableManager
 from basejump.core.models import enums, errors
 from basejump.core.models import schemas as sch
 from basejump.core.models.prompts import ZERO_ROW_PROMPT

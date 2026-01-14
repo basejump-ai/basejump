@@ -10,7 +10,7 @@ from basejump.core.service.database.client import utils
 from basejump.core.service.database.client.diagram import MermaidAgentManager
 from basejump.core.database.vector_utils import get_index_name
 from basejump.core.models import enums
-from basejump.core.database.db_connect import ConnectDB
+from basejump.core.database.manage import TableManager
 
 
 @pytest.mark.connection
@@ -182,7 +182,7 @@ async def test_validate_jinja_braces():
     texts.append(Pairs("}}hey there{{", False))
     for text in texts:
         try:
-            ConnectDB.validate_jinja_braces(text.text)
+            TableManager.validate_jinja_braces(text.text)
 
         except (
             errors.InvalidJinjaBraceCount,

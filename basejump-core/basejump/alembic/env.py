@@ -7,7 +7,7 @@ from sqlalchemy import Table
 from sqlalchemy.engine import Connection
 
 from basejump.alembic.utils import conn_params
-from basejump.core.database.db_connect import ConnectDB
+from basejump.core.database.connect import PostgresDB
 from basejump.core.models.models import Base
 
 # this is the Alembic Config object, which provides
@@ -29,7 +29,7 @@ target_metadata = Base.metadata
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
-conn_db = ConnectDB(conn_params=conn_params)
+conn_db = PostgresDB(conn_params=conn_params)
 sql_engine = conn_db.connect_async_db()
 
 

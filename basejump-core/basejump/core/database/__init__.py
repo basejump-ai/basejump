@@ -1,8 +1,11 @@
-from . import db_auth, db_connect, db_utils, vector_utils
+from . import auth, connect, db_utils, manage, session, ssl, vector_utils
 
 __all__ = [
-    "db_auth",
-    "db_connect",
+    "connect",
+    "manage",
+    "ssl",
+    "session",
     "db_utils",
     "vector_utils",
+    "auth",
 ]

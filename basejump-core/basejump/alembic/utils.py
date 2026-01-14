@@ -4,7 +4,8 @@ from sqlalchemy.engine import Engine
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.common.config.settings import settings
-from basejump.core.database.db_connect import ConnectDB, get_table_schemas
+from basejump.core.database.connect import PostgresDB
+from basejump.core.database.db_utils import get_table_schemas
 from basejump.core.models import enums
 from basejump.core.models import schemas as sch
 
@@ -30,6 +31,7 @@ conn_params = sch.SQLDBSchema(
 )
 conn_params_noasync = sch.SQLDBSchema(**conn_params.dict())
 conn_params_noasync.drivername = enums.DBDriverName.POSTGRES
+postgres_db = PostgresDB(conn_params=conn_params_noasync)
 
 
 def gen_client_id_suffixes(engine: Engine, reverse: bool = False, local_env: bool = True) -> list:
@@ -69,8 +71,7 @@ def gen_client_id_suffixes(engine: Engine, reverse: bool = False, local_env: boo
 
 def refresh_views(tables: list, local_env: bool = True):
     """This is needed when adding/deleting columns since views only include columns based on when they were created."""
-    conn_db = ConnectDB(conn_params=conn_params_noasync)
-    basejump_engine_noasync = conn_db.connect_db()
+    basejump_engine_noasync = postgres_db.connect_db()
     suffixes = gen_client_id_suffixes(engine=basejump_engine_noasync, reverse=False, local_env=local_env)
     # HACK: Using print since logconfig propagate is set to False
     # TODO: Refactor the logconfig so user handles the logging instead of the library

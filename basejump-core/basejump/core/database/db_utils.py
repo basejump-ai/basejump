@@ -9,6 +9,7 @@ from typing import Optional, Union
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.models import constants
 from basejump.core.models import schemas as sch
+from basejump.core.models.models import Base
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -161,3 +162,18 @@ async def process_db_tables(
         if not table.ignore and ignore_tables
     ]
     return tables_base
+
+
+def get_table_schemas() -> list:
+    return list(set([table.split(".")[0] for table in Base.metadata.tables.keys() if len(table.split(".")) > 1]))
+
+
+def get_table_names() -> list[tuple]:
+    return list(
+        set(
+            [
+                ((table.split(".")[0], table.split(".")[1]) if len(table.split(".")) > 1 else (None, table))
+                for table in Base.metadata.tables.keys()
+            ]
+        )
+    )

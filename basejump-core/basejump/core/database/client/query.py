@@ -5,13 +5,10 @@ from typing import Optional
 import sqlalchemy as sa
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database.db_connect import (
-    POOL_TIMEOUT,
-    ConnectDB,
-    SSLEngine,
-    TableManager,
-)
+from basejump.core.database.connect import POOL_TIMEOUT, ConnectDB
+from basejump.core.database.manage import TableManager
 from basejump.core.database.result import result_utils, store
+from basejump.core.database.ssl import SSLEngine
 from basejump.core.models import constants, errors
 from basejump.core.models import schemas as sch
 
@@ -26,8 +23,9 @@ class ClientQueryRunner:
         client_conn_params: sch.SQLDBSchema,
         sql_query: str,
     ):
-        self._sql_query = sql_query
+        self.client_db = ConnectDB.get_database_to_connect(conn_params=client_conn_params)
         self.client_conn_params = client_conn_params
+        self._sql_query = sql_query
         self._client_engine: Optional[SSLEngine] = None
 
     def __enter__(self):
@@ -51,8 +49,7 @@ class ClientQueryRunner:
     def client_engine(self) -> SSLEngine:
         """Lazily create and reuse the engine."""
         if self._client_engine is None:
-            conn_db = ConnectDB(conn_params=self.client_conn_params)
-            self._client_engine = conn_db.connect_db()
+            self._client_engine = self.client_db.connect_db()
         return self._client_engine
 
     async def close(self):

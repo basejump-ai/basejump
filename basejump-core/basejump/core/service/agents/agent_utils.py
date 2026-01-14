@@ -9,8 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.client import query
+from basejump.core.database.connect import ConnectDB
 from basejump.core.database.crud import crud_chat, crud_connection, crud_result
-from basejump.core.database.db_connect import ConnectDB
 from basejump.core.database.db_utils import extract_visual_info
 from basejump.core.database.result import store
 from basejump.core.models import enums, models

@@ -8,8 +8,9 @@ from redis.asyncio import Redis as RedisAsync
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from basejump.core.database.client.index import DBTableIndexer
+from basejump.core.database.connect import ConnectDB
 from basejump.core.database.crud import crud_connection
-from basejump.core.database.db_connect import ConnectDB
+from basejump.core.database.manage import TableManager
 from basejump.core.database.vector_utils import get_index_name
 from basejump.core.models import schemas as sch
 
@@ -52,7 +53,7 @@ async def setup_connection(
     sql_engine: AsyncEngine,
 ) -> sch.GetSQLConn:
     # Verify the connection
-    conn_db = ConnectDB(conn_params=conn_params)
+    conn_db = ConnectDB.get_database_to_connect(conn_params=conn_params)
     await asyncio.to_thread(conn_db.verify_client_connection)
     # Create the connection
     db_login = await crud_connection.create_db_conn(
@@ -94,10 +95,11 @@ async def setup_db(
 ) -> tuple[sch.SQLConn, DBTableIndexer]:
     if verify_conn:
         # Verify the connection
-        conn_db = ConnectDB(conn_params=conn_params)
+        conn_db = ConnectDB.get_database_to_connect(conn_params=conn_params)
         await asyncio.to_thread(conn_db.verify_client_connection)
         if conn_params.schemas:
-            conn_params.schemas = await conn_db.validate_schemas()
+            tbl_manager = TableManager(conn_params=conn_db.conn_params)
+            conn_params.schemas = await tbl_manager.validate_schemas()
     # Create the alias name if it doesn't exist
     await create_alias_name(db=db, conn_params=conn_params)
     assert conn_params.database_name_alias

@@ -16,8 +16,10 @@ from sqlalchemy.orm import joinedload, selectinload
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.common.config.settings import get_encryption_key
+from basejump.core.database.connect import ConnectDB
 from basejump.core.database.crud import crud_table, crud_utils
-from basejump.core.database.db_connect import ConnectDB, LocalSession, TableManager
+from basejump.core.database.manage import TableManager
+from basejump.core.database.session import LocalSession
 from basejump.core.models import errors, models
 from basejump.core.models import schemas as sch
 
@@ -112,7 +114,7 @@ async def save_db_connection(
 ) -> models.DBCredentials:
     """Save the connection to the database"""
     # Add the fields to SQLDB
-    conn_db = ConnectDB(conn_params=conn_params)
+    conn_db = ConnectDB.get_database_to_connect(conn_params=conn_params)
     db_params = conn_db.conn_params_bytes.dict()
     database = models.DBParams(
         **db_params,
@@ -156,14 +158,15 @@ async def get_conndb_from_connection(db_params: sch.DBParamsSchema, connection: 
         connection_schemas = connection.schemas
     db_params_dict["schemas"] = connection_schemas  # Use connection schemas and not DB schemas
     conn_params_all = sch.SQLDBSchema(**db_params_dict, data_source_desc="")
-    return ConnectDB(conn_params=conn_params_all)
+    return ConnectDB.get_database_to_connect(conn_params=conn_params_all)
 
 
 async def verify_connection(conn_db: ConnectDB) -> None:
     try:
         await asyncio.to_thread(conn_db.verify_client_connection)
         if conn_db.conn_params.schemas:
-            await conn_db.validate_schemas()
+            tbl_manager = TableManager(conn_params=conn_db.conn_params)
+            await tbl_manager.validate_schemas()
     except (
         errors.InvalidSchemas,
         errors.InvalidJinjaBraceCount,

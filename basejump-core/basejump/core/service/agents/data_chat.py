@@ -12,9 +12,9 @@ from llama_index.core.tools.types import AsyncBaseTool
 from redisvl.query.filter import Tag
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database import db_auth
+from basejump.core.database import auth
+from basejump.core.database.connect import ConnectDB
 from basejump.core.database.crud import crud_chat, crud_connection, crud_result
-from basejump.core.database.db_connect import ConnectDB
 from basejump.core.database.result import store
 from basejump.core.database.vector_utils import init_semcache
 from basejump.core.models import constants, enums, errors, models
@@ -159,7 +159,7 @@ class DataChatAgent(BaseChatAgent):
             # Get variables for the first result
             logger.info("Semantic similarity distance: %s", semcache_response[0]["vector_distance"])
             metadata = semcache_response[0]["metadata"]
-            can_verify = db_auth.check_can_verify(
+            can_verify = auth.check_can_verify(
                 required_role=enums.UserRoles(metadata["verified_user_role"]),
                 user_role=enums.UserRoles(self.prompt_metadata.user_role),
             )

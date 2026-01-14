@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database.db_connect import ConnectDB
+from basejump.core.database.connect import ConnectDB
 from basejump.core.models import enums
 from basejump.core.models import schemas as sch
 from basejump.core.models.models import Base, DBParams
