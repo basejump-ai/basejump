@@ -126,8 +126,7 @@ class DataChatAgent(BaseChatAgent):
                 verbose=self.verbose,
                 result_store=self.result_store,
             )
-            await self.sql_tool.post_init()
-            tools += self.sql_tool.tools
+            tools += await self.sql_tool.get_tools()
         vis_tool = visualize.VisTool(
             db=self.db,
             agent=self,
