@@ -15,8 +15,8 @@ from basejump.core.database.db_utils import extract_visual_info
 from basejump.core.database.result import store
 from basejump.core.models import enums, models
 from basejump.core.models import schemas as sch
+from basejump.core.service.agents.tools.visualize import VisTool
 from basejump.core.service.base import AgentSetup, SimpleAgent
-from basejump.core.service.tools.visualize import VisTool
 
 logger = set_logging(handler_option="stream", name=__name__)
 

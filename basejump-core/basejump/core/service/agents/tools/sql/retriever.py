@@ -28,8 +28,9 @@ from basejump.core.models.ai import formats as fmt
 from basejump.core.models.ai import formatter
 from basejump.core.models.ai.catalog import AICatalog
 from basejump.core.models.prompts import DB_METADATA_PROMPT
+from basejump.core.service.agents.tools import tool_utils
+from basejump.core.service.agents.tools.base import BaseTool
 from basejump.core.service.base import BaseChatAgent
-from basejump.core.service.tools import BaseTool, tool_utils
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -39,22 +40,22 @@ RELEVANCE_THRESHOLD = 0.1
 class TableRetrieverTool(BaseTool):
     TABLES_TO_RETRIEVE: int = 12
 
-    def __int__(
+    def __init__(
         self,
         db: AsyncSession,
-        service_context: sch.ServiceContext,
         agent: BaseChatAgent,
-        conn_id: int,
-        vector_id: int,
-        prompt_metadata: sch.PromptMetadata,
-        db_uuid: uuid.UUID,
+        sql_tool_context: sch.SQLToolContext,
     ):
         self.db = db
         self.agent = agent
-        self.conn_id = conn_id
-        self.vector_id = vector_id
-        self.prompt_metadata = prompt_metadata
-        self.db_uuid = db_uuid
+        self.service_context = sql_tool_context.service_context
+        self.client_conn_params = sql_tool_context.client_conn_params
+        self.conn_id = sql_tool_context.conn_id
+        self.vector_id = sql_tool_context.vector_id
+        self.prompt_metadata = sql_tool_context.prompt_metadata
+        self.db_uuid = sql_tool_context.db_uuid
+        self.schemas = sql_tool_context.client_conn_params.schemas or []
+        self.verbose = sql_tool_context.verbose
         self.is_demo = False
         self.retrieved_sql_tables = False
 

@@ -1,6 +1,7 @@
 import re
 from typing import Optional
 
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlglot import errors as sqlglot_errors
 from sqlglot import exp, parse_one
 from sqlglot.dialects.dialect import Dialects
@@ -13,30 +14,38 @@ from basejump.core.database.db_connect import TableManager
 from basejump.core.models import enums, errors
 from basejump.core.models import schemas as sch
 from basejump.core.models.prompts import ZERO_ROW_PROMPT
-from basejump.core.service.base import ChatMessageHandler
-from basejump.core.service.tools.sql import parse
+from basejump.core.service.agents.tools.sql import parse
+from basejump.core.service.base import BaseChatAgent, ChatMessageHandler
 
 logger = set_logging(handler_option="stream", name=__name__)
 
 
 class SQLValidator:
-    def __init__(self):
-        self.db = None
-        self.sqlglot_dialect = None
-        self.conn_id = None
-        self.schemas = None
-        self.verbose = None
-        self.conn_params: sch.SQLDBSchema
-        self.agent = None
-        self.redis_client_async = None
-        self.all_tables: list = []
+    def __init__(
+        self,
+        db: AsyncSession,
+        sqlglot_dialect: str,
+        conn_id: int,
+        schemas: list[sch.DBSchema],
+        verbose: bool,
+        conn_params: sch.SQLDBSchema,
+        agent: BaseChatAgent,
+        service_context: sch.ServiceContext,
+    ):
+        self.db = db
+        self.sqlglot_dialect = sqlglot_dialect
+        self.conn_id = conn_id
+        self.schemas = schemas
+        self.verbose = verbose
+        self.conn_params = conn_params
+        self.agent = agent
+        self.service_context = service_context
+        self.parser = parse.SQLParser(sqlglot_dialect=sqlglot_dialect, verbose=verbose)
         self.db_columns: list = []
-        self.db_cols: list = []  # TODO: Why have db_cols and db_columns?
-        self.ignored_tables: list = []
-        self.ignored_cols: list = []
 
     async def check_all_tables(self, sql_query: str) -> Optional[str]:
         try:
+            all_tables = await self._get_db_tables()
             logger.info("Dialect: %s", self.sqlglot_dialect)
             parsed_query = parse_one(sql_query, dialect=self.sqlglot_dialect)
             parsed_query_tbls = parsed_query.find_all(exp.Table)
@@ -50,10 +59,10 @@ class SQLValidator:
                     cleaned_tbl_names.append(tbl.name)
             query_tbls_no_cte = set(cleaned_tbl_names) - {tbl.alias for tbl in cte_tbls}
             query_tbls_lowered = {table.lower() for table in query_tbls_no_cte}
-            all_full_tables_lowered = {table.lower() for table in self.all_tables}
-            all_tables_lowered = {table.lower().split(".")[-1] for table in self.all_tables}
+            all_full_tables_lowered = {table.table_name.lower() for table in all_tables}
+            all_tables_lowered = {table.table_name.lower().split(".")[-1] for table in all_tables}
             # Find the ignored tables
-            ignored_tables_lowered = {table.lower() for table in self.ignored_tables}
+            ignored_tables_lowered = {table.table_name.lower() for table in all_tables if table.ignore}
             tbl_overlap = ignored_tables_lowered & query_tbls_lowered
             # Check for hallucinated tables
             if (
@@ -72,37 +81,14 @@ class SQLValidator:
         else:
             return None
 
-    async def check_ignored_columns(self, sql_query: str) -> Optional[str]:
-        try:
-            parser = parse.SQLParser(sqlglot_dialect=self.sqlglot_dialect, verbose=self.verbose)
-            star_exists_msg = parser.check_for_star(sql_query=sql_query, dialect=self.sqlglot_dialect)
-            if star_exists_msg:
-                return star_exists_msg
-            parser = parse.SQLParser(sqlglot_dialect=self.sqlglot_dialect, verbose=self.verbose)
-            query_cols_base = parser.get_fully_qualified_col_names(sql_query=sql_query, dialect=self.sqlglot_dialect)
-            query_cols = {db_utils.get_column_str(column) for column in query_cols_base}
-            # logger.debug("Here are the columns from the sql query: %s", query_cols)
-            # logger.debug("Here are the columns from the ignored columns: %s", self.ignored_cols)
-            ignored_cols = {db_utils.get_column_str(column) for column in self.ignored_cols}
-            col_overlap = set(ignored_cols) & query_cols
-            if col_overlap:
-                ai_msg = f'You do not have access to query the following columns: {", ".join(col_overlap)}'
-                logger.info(ai_msg)
-                return ai_msg
-        except (errors.SQLParseError, sqlglot_errors.ParseError) as e:
-            logger.warning("SQLglot failed parsing: %s", str(e))
-            return None
-        else:
-            return None
-
-    async def check_all_columns(self, columns: list[sch.DBColumn]):
+    async def check_all_columns(self, sql_columns: list[sch.DBColumn], db_columns: list[sch.DBColumn]):
         """Check columns for hallucinations and capitalization errors"""
         try:
-            db_cols = {db_utils.get_column_str(column) for column in self.db_cols}
-            ignored_cols = {db_utils.get_column_str(column) for column in self.ignored_cols}
+            db_cols = {db_utils.get_column_str(column) for column in db_columns}
+            ignored_cols = {db_utils.get_column_str(column) for column in db_columns if column.ignore}
             valid_cols = db_cols - ignored_cols
             valid_cols_lowered = {column.lower() for column in valid_cols}
-            query_cols = {db_utils.get_column_str(column) for column in columns}
+            query_cols = {db_utils.get_column_str(column) for column in sql_columns}
             query_cols_lowered = {column.lower() for column in query_cols}
             # logger.warning("Here are the valid columns: %s", valid_cols)
             # logger.warning("Here are the query columns: %s", query_cols)
@@ -127,13 +113,13 @@ class SQLValidator:
     async def validate_all_columns(self, sql_query: str) -> str:
         """Validate all columns in the SQL query for capitalization errors and hallucinations and quote if needed"""
         logger.info("Validating all columns in the SQL query: %s", sql_query)
+        db_columns = await self._get_db_columns()
         try:
-            columns = db_utils.get_fully_qualified_col_names(sql_query=sql_query, dialect=self.sqlglot_dialect)
-            await self.check_all_columns(columns=columns)
+            sql_columns = self.parser.get_fully_qualified_col_names(sql_query=sql_query, dialect=self.sqlglot_dialect)
+            await self.check_all_columns(sql_columns=sql_columns, db_columns=db_columns)
             logger.info("All cols checked")
             try:
-                parser = parse.SQLParser(sqlglot_dialect=self.sqlglot_dialect, verbose=self.verbose)
-                sql_query = parser.quote_case_sensitive_cols(sql_query=sql_query, columns=self.db_cols)
+                sql_query = self.parser.quote_case_sensitive_cols(sql_query=sql_query, columns=db_columns)
             except Exception as e:
                 logger.warning(str(e))
                 logger.traceback()
@@ -149,8 +135,7 @@ class SQLValidator:
     between that semantically similar query and the new SQL query is only the WHERE clause. If it is, \
     then it can still be considered verified.
         """
-        parser = parse.SQLParser(sqlglot_dialect=self.sqlglot_dialect, verbose=self.verbose)
-        comparison = parser.compare_sql_queries_no_where_clause(
+        comparison = self.parser.compare_sql_queries_no_where_clause(
             query1=query1, query2=query2, dialect=self.sqlglot_dialect
         )
         if comparison == enums.SQLSimilarityLabel.IDENTICAL:
@@ -355,15 +340,14 @@ format: {db_col_filters}\n"""
 
     # TODO: Need to make tests for verifying the where clause
     async def verify_where_clause_distinct_values(self, sql_query: str) -> Optional[str]:
-        parser = parse.SQLParser(sqlglot_dialect=self.sqlglot_dialect, verbose=self.verbose)
-        columns = await parser.get_where_clause_columns(sql_query=sql_query)
+        columns = await self.parser.get_where_clause_columns(sql_query=sql_query)
         if not columns:
             logger.info("No where clause columns to verify")
             return None
         handler = ChatMessageHandler(
             prompt_metadata=self.agent.prompt_metadata,
             chat_metadata=self.agent.chat_metadata,
-            redis_client_async=self.redis_client_async,
+            redis_client_async=self.service_context.redis_client_async,
             verbose=self.verbose,
         )
         await handler.create_message(
@@ -394,18 +378,19 @@ format: {db_col_filters}\n"""
             raise errors.UnverifiedColumns("Column verification failed")
         return llm_feedback
 
-    async def get_db_table_info(self):
+    async def _get_db_tables(self) -> list[sch.SQLTableInfo]:
         all_tables = await crud_table.get_all_tables(db=self.db)
+        retrieved_tables = []
         for tbl in all_tables:
-            self.all_tables.append(
-                await TableManager.arender_query_jinja(jinja_str=tbl.table_name, schemas=self.schemas)
-            )
-            if tbl.ignore:
-                self.ignored_tables.append(
-                    await TableManager.arender_query_jinja(jinja_str=tbl.table_name, schemas=self.schemas)
-                )
+            result = await TableManager.arender_query_jinja(jinja_str=tbl.table_name, schemas=self.schemas)
+            retrieved_tables.append(sch.SQLTableInfo(table_name=result, ignore=tbl.ignore))
+        if not retrieved_tables:
+            raise ValueError("Missing table information in the database.")
+        return retrieved_tables
 
+    async def _get_db_columns(self) -> list[sch.DBColumn]:
         db_cols = await crud_table.get_all_columns(db=self.db, conn_id=self.conn_id)
+        retrieved_columns = []
         for col in db_cols:
             table_name = await TableManager.arender_query_jinja(jinja_str=col.table_name, schemas=self.schemas)
             col_obj = sch.DBColumn(
@@ -413,12 +398,9 @@ format: {db_col_filters}\n"""
                 table_name=db_utils.get_table_name(table_name=table_name),
                 schema_name=db_utils.get_table_schema(table_name=table_name),
                 quoted=col.quoted,
+                ignore=col.ignore,
             )
-            self.ignored_cols = []
-            if col.ignore:
-                self.ignored_cols.append(col_obj)
-            self.db_cols.append(col_obj)
-        if not self.all_tables:
-            raise ValueError("Missing table information in the database.")
-        if not self.db_cols:
+            retrieved_columns.append(col_obj)
+        if not retrieved_columns:
             raise ValueError("Missing column information in the database.")
+        return retrieved_columns

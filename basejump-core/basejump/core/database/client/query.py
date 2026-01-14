@@ -63,27 +63,21 @@ class ClientQueryRunner:
 
     # NOTE: run_client_query needs to use a synchronous engine
     # since not all drivers support SQLAlchemy 2 or async drivers
+    # TODO: Implement a timeout here
     def run_client_query(self) -> sch.QueryResultDF:
         """Run a SQL query against the client database."""
         try:
             logger.debug("Running client query: %s", self.sql_query)
             # NOTE: This needs to stay as connect so no DDL statements get committed
-            async with asyncio.timeout(TIMEOUT):
-                with self.client_engine.connect() as client_db:
-                    try:
-                        result = client_db.execute(sa.text(self.sql_query))
-                    except Exception as e:
-                        client_db.rollback()
-                        raise e
-                    query_result = result.all()
-                query_result_df = result_utils.get_output_df(query_result=list(query_result), sql_query=self.sql_query)
-                return query_result_df
-        except TimeoutError:
-            error_msg = f"SQL query took longer to execute than the max {TIMEOUT/60} minute time out limit."
-            logger.error(error_msg)
-            await self.db.rollback()
-            raise sch.SQLTimeoutError(error_msg)
-
+            with self.client_engine.connect() as client_db:
+                try:
+                    result = client_db.execute(sa.text(self.sql_query))
+                except Exception as e:
+                    client_db.rollback()
+                    raise e
+                query_result = result.all()
+            query_result_df = result_utils.get_output_df(query_result=list(query_result), sql_query=self.sql_query)
+            return query_result_df
         except Exception as e:
             # TODO: Improve the debugging
             if constants.SQLALCHEMY_TIMEOUT in str(e):
@@ -92,16 +86,19 @@ Connection timed out. Please try again."""
                 raise sch.SQLTimeoutError(error_msg)
             logger.warning("Error running this SQL query: %s", self.sql_query)
             logger.warning("Here is the error: %s", str(e))
-            await self.db.rollback()
             raise errors.SQLRunError("Error running SQL query") from e
         logger.info("Completed running client query")
         return query_result_df
 
     async def arun_client_query(self) -> sch.QueryResultDF:
-        """Function to run queries against the client database.
-        Needs to be synchronous queries since not all drivers
-        support async"""
-        return await asyncio.to_thread(self.run_client_query)
+        """Function to run queries against the client database."""
+        try:
+            async with asyncio.timeout(TIMEOUT):
+                return await asyncio.to_thread(self.run_client_query)
+        except TimeoutError:
+            error_msg = f"SQL query took longer to execute than the max {TIMEOUT/60} minute time out limit."
+            logger.error(error_msg)
+            raise sch.SQLTimeoutError(error_msg)
 
 
 class ClientQueryRecorder(ClientQueryRunner):

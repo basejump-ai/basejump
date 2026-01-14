@@ -5,9 +5,10 @@ from sqlglot import exp, parse_one
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database import db_utils
+from basejump.core.database.client.query import ClientQueryRunner
 from basejump.core.models import errors
 from basejump.core.models import schemas as sch
-from basejump.core.service.tools.sql import parse
+from basejump.core.service.agents.tools.sql import parse
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -60,9 +61,7 @@ class SQLSampler:
             limited_ast = ast.limit(5)  # type: ignore
             limited_query = limited_ast.sql(dialect=self.sqlglot_dialect)
             # Run the SQL query
-            async with query.ClientQueryRunner(
-                client_conn_params=self.conn_params, sql_query=limited_query
-            ) as query_runner:
+            async with ClientQueryRunner(client_conn_params=self.conn_params, sql_query=limited_query) as query_runner:
                 query_result = await query_runner.arun_client_query()
             # Update the examples list
             for column_name in query_result.output_df.columns:

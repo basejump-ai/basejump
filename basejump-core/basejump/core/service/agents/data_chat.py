@@ -21,8 +21,8 @@ from basejump.core.models import constants, enums, errors, models
 from basejump.core.models import schemas as sch
 from basejump.core.models.prompts import NO_DB_ACCESS_PROMPT, sql_result_prompt_basic
 from basejump.core.service.agents import agent_utils
+from basejump.core.service.agents.tools import sql, visualize
 from basejump.core.service.base import BaseChatAgent, ChatAgentSetup, ChatMessageHandler
-from basejump.core.service.tools import sql, visualize
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -110,10 +110,7 @@ class DataChatAgent(BaseChatAgent):
             self.connections.append(conn_schema)
         await self.db.commit()  # NOTE: Closing transaction to avoid idle in transaction
         for connection in self.connections:
-            self.sql_tool = sql.SQLTool(
-                agent=self,
-                db=self.db,
-                db_conn_params=self.db_conn_params,
+            sql_tool_context = sch.SQLToolContext(
                 client_conn_params=connection.conn_params,
                 conn_id=connection.conn_id,
                 conn_uuid=connection.conn_uuid,
@@ -122,8 +119,13 @@ class DataChatAgent(BaseChatAgent):
                 vector_id=connection.vector_id,
                 prompt_metadata=self.prompt_metadata,
                 service_context=self.service_context,
+            )
+            self.sql_tool = sql.SQLTool(
+                agent=self,
+                db=self.db,
+                db_conn_params=self.db_conn_params,
+                sql_tool_context=sql_tool_context,
                 select_sample_values=self.select_sample_values,
-                verbose=self.verbose,
                 result_store=self.result_store,
             )
             tools += await self.sql_tool.get_tools()

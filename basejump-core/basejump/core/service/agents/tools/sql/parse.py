@@ -11,7 +11,6 @@ from sqlglot.optimizer.qualify import qualify
 from sqlglot.optimizer.scope import Scope, build_scope
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database import db_utils
 from basejump.core.models import enums, errors
 from basejump.core.models import schemas as sch
 
@@ -29,16 +28,132 @@ class SQLParser:
         self.sqlglot_dialect = sqlglot_dialect
         self.verbose = verbose
 
+    @staticmethod
+    def standardize_aliases(tree):
+        """
+        Parameters
+        -----------
+        tree
+            The sqlglot parsed tree of a sql query string
+        """
+        olda = []
+        oldt = []
+        for a in tree.find_all(exp.Alias):
+            olda.append(a.alias)
+
+        for t in tree.find_all(exp.TableAlias):
+            oldt.append(t.this.this)
+
+        for i in tree.find_all(exp.Identifier):
+            if i.this in olda:
+                new = i.args
+                new["this"] = "alias"
+                i.replace(exp.Identifier(**new))
+            if i.this in oldt:
+                new = i.args
+                new["this"] = "tblalias"
+                i.replace(exp.Identifier(**new))
+        return tree
+
+    @staticmethod
+    def remove_where_clauses(ast):
+        """Remove where clauses from a query"""
+        # Traverse the AST to find subqueries
+        for node in ast.find_all(exp.Select):
+            # Check if the subquery has a WHERE clause
+            if node.args.get("where"):
+                # Remove the WHERE clause
+                del node.args["where"]
+
+    @staticmethod
+    def get_full_table_name(query, table_name):
+        # Escape special regex characters in the table name
+        escaped_table = re.escape(table_name)
+
+        # Regex pattern to match schema.table_name after whole words FROM or INNER JOIN
+        pattern = r"\b(?:FROM|INNER JOIN)\s+(\w+\." + escaped_table + r")\b"
+
+        match = re.search(pattern, query, re.IGNORECASE)
+
+        return match.group(1) if match else None
+
+    @staticmethod
+    def get_column_filters(column: exp.Column) -> list[str]:
+        """Get the string values that are used to filter a column in a SQL query"""
+        # Find if the column is part of a filter expression
+        operator = None
+        expression = column
+        not_str_expr = False
+        while expression.parent:
+            if operator:
+                break
+            expression = expression.parent  # type: ignore
+            for str_expr in ALL_STRING_EXPRESSION_OPS:
+                if isinstance(expression, str_expr):
+                    operator = str_expr
+                    found_expr = expression
+                    break
+            for non_str_expr in NON_STRING_EXPRESSION_OPS:
+                if isinstance(expression, non_str_expr):
+                    not_str_expr = True
+        if not operator or not_str_expr:
+            return []
+
+        # Define function to only return string values
+        def check_string(literal: exp.Literal):
+            if literal.is_string:
+                return literal.this
+            return None
+
+        # Collect filter values
+        filters = []
+        if operator == exp.In:
+            for expr in found_expr.expressions:
+                filter_val = check_string(expr)
+                if filter_val:
+                    filters.append(filter_val)
+        else:
+            if found_expr.expression.is_string:
+                filters.append(found_expr.expression.this)
+        return filters
+
+    @staticmethod
+    def get_column_cast(column: exp.Column):
+        cast_type = None
+        column_cast = column.find_ancestor(exp.Cast)
+        if not column_cast:
+            date_cast = column.find_ancestor(exp.Date)
+            if date_cast:
+                return "DATE"
+        if column_cast:
+            data_type = column_cast.find(exp.DataType)
+            if data_type:
+                cast_type = data_type.this.value
+        return cast_type
+
+    @staticmethod
+    def strip_column_qualifiers(expression: Expression) -> Expression:
+        """
+        Transform a Column expression by removing its table qualifier and alias.
+        For other expression types, returns them unchanged.
+        """
+        if isinstance(expression, exp.Column):
+            # Create a new Column with just the column name, no table or alias
+            return exp.Column(this=expression.name)
+
+        # For all other expressions, return as is
+        return expression
+
     def quote_case_sensitive_cols(self, sql_query: str, columns: list[sch.DBColumn]):
         """Quote case sensitive columns in the SQL query"""
         # logger.info("here are the columns to quote: %s", columns)
         table_aliases = {}
         table_dbs = {}
         try:
-            qualified_ast = db_utils.qualify_names(sql_query, dialect=self.sqlglot_dialect)
+            qualified_ast = self.qualify_names(sql_query, dialect=self.sqlglot_dialect)
             if self.verbose:
                 logger.info("Unquoting identifiers")
-            sql_query_unquoted = db_utils.unquote_identifiers(
+            sql_query_unquoted = self.unquote_identifiers(
                 qualified_ast.sql(dialect=self.sqlglot_dialect), dialect=self.sqlglot_dialect
             )
             if self.verbose:
@@ -101,39 +216,13 @@ class SQLParser:
             return None
         # Get the where clause columns
         try:
-            columns = db_utils.get_fully_qualified_col_names(
+            columns = self.get_fully_qualified_col_names(
                 sql_query=sql_query, dialect=self.sqlglot_dialect, ancestor_to_filter=exp.Where
             )
         except (errors.SQLParseError, sqlglot_errors.ParseError) as e:
             logger.warning("SQLglot failed parsing for where clause example values: %s", str(e))
             return None
         return columns
-
-    def standardize_aliases(tree):
-        """
-        Parameters
-        -----------
-        tree
-            The sqlglot parsed tree of a sql query string
-        """
-        olda = []
-        oldt = []
-        for a in tree.find_all(exp.Alias):
-            olda.append(a.alias)
-
-        for t in tree.find_all(exp.TableAlias):
-            oldt.append(t.this.this)
-
-        for i in tree.find_all(exp.Identifier):
-            if i.this in olda:
-                new = i.args
-                new["this"] = "alias"
-                i.replace(exp.Identifier(**new))
-            if i.this in oldt:
-                new = i.args
-                new["this"] = "tblalias"
-                i.replace(exp.Identifier(**new))
-        return tree
 
     # TODO: Update all inputs to compare SQL queries to have the dialect derived from the connection params
     # using the result_conn_id
@@ -166,26 +255,6 @@ class SQLParser:
             return enums.SQLSimilarityLabel.SIMILAR
 
         return enums.SQLSimilarityLabel.DIFFERENT
-
-    def remove_where_clauses(ast):
-        """Remove where clauses from a query"""
-        # Traverse the AST to find subqueries
-        for node in ast.find_all(exp.Select):
-            # Check if the subquery has a WHERE clause
-            if node.args.get("where"):
-                # Remove the WHERE clause
-                del node.args["where"]
-
-    def get_full_table_name(query, table_name):
-        # Escape special regex characters in the table name
-        escaped_table = re.escape(table_name)
-
-        # Regex pattern to match schema.table_name after whole words FROM or INNER JOIN
-        pattern = r"\b(?:FROM|INNER JOIN)\s+(\w+\." + escaped_table + r")\b"
-
-        match = re.search(pattern, query, re.IGNORECASE)
-
-        return match.group(1) if match else None
 
     def remove_jinjafied_schemas(self, query: str, schemas: list[sch.DBSchema], dialect: Optional[DialectType]) -> str:
         """Replace tables with schemas that are jinjafied with just the table name"""
@@ -245,7 +314,7 @@ class SQLParser:
             logger.warning("SQLglot failed parsing: %s", str(e))
             return None
 
-    def check_aggregate(item) -> bool:
+    def check_aggregate(self, item) -> bool:
         agg_types = [exp.Max, exp.Min, exp.Sum, exp.Count, exp.Avg, exp.Stddev, exp.Variance]
         for agg in agg_types:
             if isinstance(item, agg):
@@ -313,7 +382,7 @@ class SQLParser:
                     return self.qualify_column_names(column, source, depth + 1, columns)
         return columns
 
-    def check_for_star(sql_query: str, dialect: Optional[DialectType]) -> Optional[str]:
+    def check_for_star(self, sql_query: str, dialect: Optional[DialectType]) -> Optional[str]:
         """The SQLglot qualify method fails if any asterisks are used to select columns,
         so this query is used to check for any star and return a string if there is one
         guiding the LLM to not use asterisks to select columns.
@@ -325,7 +394,7 @@ class SQLParser:
                 raise errors.StarQueryError
         return None
 
-    def consolidate_columns(columns: list[sch.DBColumn]) -> list[sch.DBColumn]:
+    def consolidate_columns(self, columns: list[sch.DBColumn]) -> list[sch.DBColumn]:
         """Combine filters based on column names"""
         # TODO: Is this function necessary?
         consolidated_list = [columns[0]]
@@ -345,7 +414,7 @@ class SQLParser:
                 consolidated_list.append(column)
         return consolidated_list
 
-    def quote_identifiers(sql: str, dialect: DialectType) -> str:
+    def quote_identifiers(self, sql: str, dialect: DialectType) -> str:
         def _quote_identifiers(node):
             if isinstance(node, exp.Identifier):
                 node.set("quoted", True)
@@ -353,7 +422,7 @@ class SQLParser:
 
         return parse_one(sql, dialect=dialect).transform(_quote_identifiers).sql(dialect=dialect)
 
-    def unquote_identifiers(sql: str, dialect: DialectType) -> str:
+    def unquote_identifiers(self, sql: str, dialect: DialectType) -> str:
         def _unquote_identifiers(node):
             if isinstance(node, exp.Identifier):
                 node.set("quoted", False)
@@ -417,70 +486,6 @@ class SQLParser:
         if columns:
             consldt_cols = self.consolidate_columns(columns=columns)
         return consldt_cols
-
-    def get_column_filters(column: exp.Column) -> list[str]:
-        """Get the string values that are used to filter a column in a SQL query"""
-        # Find if the column is part of a filter expression
-        operator = None
-        expression = column
-        not_str_expr = False
-        while expression.parent:
-            if operator:
-                break
-            expression = expression.parent  # type: ignore
-            for str_expr in ALL_STRING_EXPRESSION_OPS:
-                if isinstance(expression, str_expr):
-                    operator = str_expr
-                    found_expr = expression
-                    break
-            for non_str_expr in NON_STRING_EXPRESSION_OPS:
-                if isinstance(expression, non_str_expr):
-                    not_str_expr = True
-        if not operator or not_str_expr:
-            return []
-
-        # Define function to only return string values
-        def check_string(literal: exp.Literal):
-            if literal.is_string:
-                return literal.this
-            return None
-
-        # Collect filter values
-        filters = []
-        if operator == exp.In:
-            for expr in found_expr.expressions:
-                filter_val = check_string(expr)
-                if filter_val:
-                    filters.append(filter_val)
-        else:
-            if found_expr.expression.is_string:
-                filters.append(found_expr.expression.this)
-        return filters
-
-    def get_column_cast(column: exp.Column):
-        cast_type = None
-        column_cast = column.find_ancestor(exp.Cast)
-        if not column_cast:
-            date_cast = column.find_ancestor(exp.Date)
-            if date_cast:
-                return "DATE"
-        if column_cast:
-            data_type = column_cast.find(exp.DataType)
-            if data_type:
-                cast_type = data_type.this.value
-        return cast_type
-
-    def strip_column_qualifiers(expression: Expression) -> Expression:
-        """
-        Transform a Column expression by removing its table qualifier and alias.
-        For other expression types, returns them unchanged.
-        """
-        if isinstance(expression, exp.Column):
-            # Create a new Column with just the column name, no table or alias
-            return exp.Column(this=expression.name)
-
-        # For all other expressions, return as is
-        return expression
 
     def get_column_func(self, column: exp.Column):
         not_str_expr = False
