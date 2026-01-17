@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database.db_connect import ConnectDB
+from basejump.core.database.connector import Connector
 from basejump.core.models import enums
 from basejump.core.models import schemas as sch
 from basejump.core.models.models import Base, DBParams
@@ -69,7 +69,7 @@ def helper_decrypt_db(database: DBParams) -> sch.GetDBParams:
     value_dict = value.model_dump()
     db_uuid = value_dict["db_uuid"]
     del value_dict["db_uuid"]
-    return_dict = ConnectDB.decrypt_db(value_dict)
+    return_dict = Connector.decrypt_db(value_dict)
     # BC v0.27.0: Schemas used to be null so handling that case
     if not return_dict.get("schemas"):
         return_dict["schemas"] = []

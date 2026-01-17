@@ -563,12 +563,31 @@ class ClientStorageConnection(Base):
     internal: Mapped[bool]
 
 
-class DBCredentials(BaseModel):
-    db_login: DBConn
-    db_params: DBParams
-
-    class Config:
-        arbitrary_types_allowed = True
+class TableUpload(Base):
+    __tablename__ = "table_upload"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            [
+                "client_id",
+            ],
+            ["account.client.client_id"],
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            [
+                "db_id",
+            ],
+            ["connect.database.db_id"],
+            ondelete="CASCADE",
+        ),
+        {"schema": "connect"},
+    )
+    client_id: Mapped[int] = mapped_column(primary_key=True)
+    upload_id: Mapped[int] = mapped_column(autoincrement=True, primary_key=True)
+    upload_uuid: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), server_default=text("gen_random_uuid()"))
+    table_name: Mapped[str]
+    table_location: Mapped[str]
+    db_id: Mapped[int]
 
 
 # =====================
@@ -702,6 +721,19 @@ class ClientSecretAssociation(Base):
     role: Mapped[enums.AllUserRoles]
     public_key: Mapped[Optional[str]]  # Optional since not all old accounts were migrated over
     description: Mapped[Optional[str]]  # Optional since not all old accounts were migrated over
+
+
+# =====================
+# Database Schemas
+# =====================
+
+
+class DBCredentials(BaseModel):
+    db_login: DBConn
+    db_params: DBParams
+
+    class Config:
+        arbitrary_types_allowed = True
 
 
 class VisualResult(BaseModel):

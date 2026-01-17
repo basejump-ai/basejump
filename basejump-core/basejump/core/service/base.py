@@ -39,7 +39,7 @@ from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database import db_utils
 from basejump.core.database.crud import crud_chat, crud_connection
 from basejump.core.database.crud.crud_utils import create_callback_mgrs
-from basejump.core.database.db_connect import LocalSession
+from basejump.core.database.session import LocalSession
 from basejump.core.models import constants, enums, errors, models
 from basejump.core.models import schemas as sch
 from basejump.core.models.ai.catalog import AICatalog
@@ -145,7 +145,8 @@ class ChatMessageHandler(MessageHandler):
     def format_message(self) -> str:
         self.api_message.timestamp = self.api_message.timestamp.isoformat()
         self.api_message.prompt_time = self.api_message.prompt_time.isoformat()
-        logger.debug("Here is the timestamp: %s", str(self.api_message.timestamp))
+        if self.verbose:
+            logger.debug("Here is the timestamp: %s", str(self.api_message.timestamp))
         return self.api_message.model_dump_json()
 
     async def save_message(self, message: sch.Message) -> None:
@@ -206,8 +207,9 @@ class ChatMessageHandler(MessageHandler):
                         logger.warning("Webhook status response: %s", response.status)
                         logger.warning("Webhook status text: %s", response.text)
         except AssertionError:
-            logger.debug("No webhook URL found")
-            logger.debug("Webhook header values %s", str(self.chat_metadata.webhook_headers))
+            if self.verbose:
+                logger.debug("No webhook URL found")
+                logger.debug("Webhook header values %s", str(self.chat_metadata.webhook_headers))
             # If no webhook URL, then skip sending the API message
             pass
 

@@ -87,3 +87,4 @@ TEAM_DESC = "A description of the team"
 TEAM_DESC = "A description of the team. This is provided to the AI as context."
 ATHENA_STAGING_DIR_NAME = "s3_staging_dir"
 MAX_FILE_SIZE = 100
+AWS_ROLE_ARN_NAME = "aws_role_arn"

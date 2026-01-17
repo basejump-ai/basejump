@@ -6,9 +6,9 @@ from alembic import context
 from sqlalchemy import Table
 from sqlalchemy.engine import Connection
 
-from basejump.core.database.db_connect import ConnectDB
+from basejump.alembic.utils import conn_params
+from basejump.core.database.connector import PostgresConnector
 from basejump.core.models.models import Base
-from basejump.demo.settings import conn_params
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -29,7 +29,7 @@ target_metadata = Base.metadata
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
-conn_db = ConnectDB(conn_params=conn_params)
+conn_db = PostgresConnector(conn_params=conn_params)
 sql_engine = conn_db.connect_async_db()
 
 

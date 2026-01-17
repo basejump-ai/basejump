@@ -5,11 +5,16 @@ from typing import Optional
 import sqlalchemy as sa
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database.db_connect import ConnectDB, SSLEngine, TableManager
+from basejump.core.database.connector import POOL_TIMEOUT, Connector
+from basejump.core.database.manager import TableManager
 from basejump.core.database.result import result_utils, store
+from basejump.core.database.ssl import SSLEngine
+from basejump.core.models import constants, errors
 from basejump.core.models import schemas as sch
 
 logger = set_logging(handler_option="stream", name=__name__)
+
+TIMEOUT = 60 * 15
 
 
 class ClientQueryRunner:
@@ -18,8 +23,9 @@ class ClientQueryRunner:
         client_conn_params: sch.SQLDBSchema,
         sql_query: str,
     ):
-        self._sql_query = sql_query
+        self.client_db = Connector.get_database_to_connect(conn_params=client_conn_params)
         self.client_conn_params = client_conn_params
+        self._sql_query = sql_query
         self._client_engine: Optional[SSLEngine] = None
 
     def __enter__(self):
@@ -43,8 +49,7 @@ class ClientQueryRunner:
     def client_engine(self) -> SSLEngine:
         """Lazily create and reuse the engine."""
         if self._client_engine is None:
-            conn_db = ConnectDB(conn_params=self.client_conn_params)
-            self._client_engine = conn_db.connect_db()
+            self._client_engine = self.client_db.connect_db()
         return self._client_engine
 
     async def close(self):
@@ -55,25 +60,42 @@ class ClientQueryRunner:
 
     # NOTE: run_client_query needs to use a synchronous engine
     # since not all drivers support SQLAlchemy 2 or async drivers
+    # TODO: Implement a timeout here
     def run_client_query(self) -> sch.QueryResultDF:
         """Run a SQL query against the client database."""
-        logger.debug("Running client query: %s", self.sql_query)
-        # NOTE: This needs to stay as connect so no DDL statements get committed
-        with self.client_engine.connect() as client_db:
-            try:
-                result = client_db.execute(sa.text(self.sql_query))
-            except Exception as e:
-                client_db.rollback()
-                raise e
-            query_result = result.all()
-        query_result_df = result_utils.get_output_df(query_result=list(query_result), sql_query=self.sql_query)
+        try:
+            logger.debug("Running client query: %s", self.sql_query)
+            # NOTE: This needs to stay as connect so no DDL statements get committed
+            with self.client_engine.connect() as client_db:
+                try:
+                    result = client_db.execute(sa.text(self.sql_query))
+                except Exception as e:
+                    client_db.rollback()
+                    raise e
+                query_result = result.all()
+            query_result_df = result_utils.get_output_df(query_result=list(query_result), sql_query=self.sql_query)
+            return query_result_df
+        except Exception as e:
+            # TODO: Improve the debugging
+            if constants.SQLALCHEMY_TIMEOUT in str(e):
+                error_msg = f"""Failed to connect to the database after {POOL_TIMEOUT/60} minutes. \
+Connection timed out. Please try again."""
+                raise sch.SQLTimeoutError(error_msg)
+            logger.warning("Error running this SQL query: %s", self.sql_query)
+            logger.warning("Here is the error: %s", str(e))
+            raise errors.SQLRunError("Error running SQL query") from e
+        logger.info("Completed running client query")
         return query_result_df
 
     async def arun_client_query(self) -> sch.QueryResultDF:
-        """Function to run queries against the client database.
-        Needs to be synchronous queries since not all drivers
-        support async"""
-        return await asyncio.to_thread(self.run_client_query)
+        """Function to run queries against the client database."""
+        try:
+            async with asyncio.timeout(TIMEOUT):
+                return await asyncio.to_thread(self.run_client_query)
+        except TimeoutError:
+            error_msg = f"SQL query took longer to execute than the max {TIMEOUT/60} minute time out limit."
+            logger.error(error_msg)
+            raise sch.SQLTimeoutError(error_msg)
 
 
 class ClientQueryRecorder(ClientQueryRunner):
@@ -94,7 +116,7 @@ class ClientQueryRecorder(ClientQueryRunner):
 
     def store_query_result(self) -> sch.QueryResult:
         """Run a SQL query against a client database and store the results."""
-        logger.debug("Running client query and storing results for SQL query: %s", self.sql_query)
+        logger.debug("Running client query and storing results for SQL query: \n\n%s", self.sql_query)
         # TODO: Parse and parameterize this SQL query
         # NOTE: This needs to stay as connect so no DDL statements get committed
 

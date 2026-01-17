@@ -2,13 +2,15 @@ import asyncio
 import copy
 import uuid
 from asyncio import Task
+from typing import Optional
 
 from redis.asyncio import Redis as RedisAsync
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from basejump.core.database.client.index import DBTableIndexer
+from basejump.core.database.connector import Connector
 from basejump.core.database.crud import crud_connection
-from basejump.core.database.db_connect import ConnectDB
+from basejump.core.database.manager import TableManager
 from basejump.core.database.vector_utils import get_index_name
 from basejump.core.models import schemas as sch
 
@@ -51,7 +53,7 @@ async def setup_connection(
     sql_engine: AsyncEngine,
 ) -> sch.GetSQLConn:
     # Verify the connection
-    conn_db = ConnectDB(conn_params=conn_params)
+    conn_db = Connector.get_database_to_connect(conn_params=conn_params)
     await asyncio.to_thread(conn_db.verify_client_connection)
     # Create the connection
     db_login = await crud_connection.create_db_conn(
@@ -88,17 +90,22 @@ async def setup_db(
     conn_params: sch.SQLDBSchema,
     redis_client_async: RedisAsync,  # TODO: Looks like this can be removed
     embedding_model_info: sch.AzureModelInfo,
+    db_uuid: Optional[uuid.UUID] = None,
+    verify_conn: bool = True,
 ) -> tuple[sch.SQLConn, DBTableIndexer]:
-    # Verify the connection
-    conn_db = ConnectDB(conn_params=conn_params)
-    await asyncio.to_thread(conn_db.verify_client_connection)
-    if conn_params.schemas:
-        conn_params.schemas = await conn_db.validate_schemas()
+    if verify_conn:
+        # Verify the connection
+        conn_db = Connector.get_database_to_connect(conn_params=conn_params)
+        await asyncio.to_thread(conn_db.verify_client_connection)
+        if conn_params.schemas:
+            tbl_manager = TableManager(conn_params=conn_db.conn_params)
+            conn_params.schemas = await tbl_manager.validate_schemas()
     # Create the alias name if it doesn't exist
     await create_alias_name(db=db, conn_params=conn_params)
     assert conn_params.database_name_alias
     # Save the vector db connection
-    db_uuid = uuid.uuid4()
+    if not db_uuid:
+        db_uuid = uuid.uuid4()
     # TODO: See if index_db_tables schema is necessary, seems like it isn't needed
     index_db_tables = DBTableIndexer(
         client_id=client_user.client_id,
@@ -140,7 +147,7 @@ async def create_database_from_existing_connection(
     # Get the database parameters
     database = await crud_connection.get_database_params_from_id(db=db, db_id=db_id)
     db_params = sch.DBParamsBytes.from_orm(database)
-    decrypted_db_params = ConnectDB.decrypt_db(db_params.dict())
+    decrypted_db_params = Connector.decrypt_db(db_params.dict())
 
     # Get the connection parameters
     db_conn = sch.DBConnSchema.parse_obj(login_params)
