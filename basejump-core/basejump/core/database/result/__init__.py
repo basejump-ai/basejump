@@ -1,3 +1,3 @@
-from . import manage, result_utils, store
+from . import manager, result_utils, store
 
-__all__ = ["result_utils", "manage", "store"]
+__all__ = ["result_utils", "manager", "store"]

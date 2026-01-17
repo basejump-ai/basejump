@@ -10,7 +10,7 @@ from basejump.core.service.database.client import utils
 from basejump.core.service.database.client.diagram import MermaidAgentManager
 from basejump.core.database.vector_utils import get_index_name
 from basejump.core.models import enums
-from basejump.core.database.manage import TableManager
+from basejump.core.database.manager import TableManager
 
 
 @pytest.mark.connection

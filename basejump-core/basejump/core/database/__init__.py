@@ -1,8 +1,8 @@
-from . import auth, connector, db_utils, manage, session, ssl, vector_utils
+from . import auth, connector, db_utils, manager, session, ssl, vector_utils
 
 __all__ = [
     "connector",
-    "manage",
+    "manager",
     "ssl",
     "session",
     "db_utils",

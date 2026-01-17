@@ -1,5 +1,5 @@
 """Business logic interacting with the client database."""
 
-from . import diagram, update, utils
+from . import diagram, manager, utils
 
-__all__ = ["utils", "diagram", "update"]
+__all__ = ["utils", "diagram", "manager"]

@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from basejump.core.database.client.index import DBTableIndexer
 from basejump.core.database.connector import Connector
 from basejump.core.database.crud import crud_connection
-from basejump.core.database.manage import TableManager
+from basejump.core.database.manager import TableManager
 from basejump.core.database.vector_utils import get_index_name
 from basejump.core.models import schemas as sch
 

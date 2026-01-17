@@ -14,7 +14,7 @@ import sqlalchemy as sa
 from botocore.exceptions import ClientError
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database.result import manage, result_utils
+from basejump.core.database.result import manager, result_utils
 from basejump.core.models import constants, errors
 from basejump.core.models import schemas as sch
 from basejump.core.models.ai import formats as fmt
@@ -202,7 +202,7 @@ class LocalResultStore(ResultStore):
         )
 
     def get_result_manager(self, result_file_path: str):
-        return manage.LocalResultManager(result_file_path=result_file_path)
+        return manager.LocalResultManager(result_file_path=result_file_path)
 
     def save_preview(self, preview_file_path: str, buffer: io.BytesIO, text_wrapper: io.TextIOWrapper):
         text_wrapper.flush()
@@ -343,7 +343,7 @@ class S3ResultStore(ResultStore):
         )
 
     def get_result_manager(self, result_file_path: str):
-        return manage.S3ResultManager(result_file_path=result_file_path, aws_s3_config=self.aws_s3_config)
+        return manager.S3ResultManager(result_file_path=result_file_path, aws_s3_config=self.aws_s3_config)
 
     def _upload_chunk(self, part_number, buffer: io.BytesIO):
         buffer.seek(0)

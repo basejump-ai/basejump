@@ -9,7 +9,7 @@ from basejump.core.database import db_utils
 from basejump.core.database.client.index import DBTableIndexer
 from basejump.core.database.connector import Connector
 from basejump.core.database.crud import crud_connection, crud_table, crud_utils
-from basejump.core.database.manage import TableManager
+from basejump.core.database.manager import TableManager
 from basejump.core.models import errors, models
 from basejump.core.models import schemas as sch
 

@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database import db_utils
 from basejump.core.database.crud import crud_connection, crud_table
-from basejump.core.database.manage import TableManager
+from basejump.core.database.manager import TableManager
 from basejump.core.database.session import LocalSession
 from basejump.core.database.vector_utils import get_index_name
 from basejump.core.models import constants, enums

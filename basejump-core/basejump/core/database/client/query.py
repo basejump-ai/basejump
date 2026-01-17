@@ -6,7 +6,7 @@ import sqlalchemy as sa
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.connector import POOL_TIMEOUT, Connector
-from basejump.core.database.manage import TableManager
+from basejump.core.database.manager import TableManager
 from basejump.core.database.result import result_utils, store
 from basejump.core.database.ssl import SSLEngine
 from basejump.core.models import constants, errors
