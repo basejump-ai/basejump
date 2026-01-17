@@ -5,7 +5,7 @@ from typing import Optional
 import sqlalchemy as sa
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database.connect import POOL_TIMEOUT, ConnectDB
+from basejump.core.database.connector import POOL_TIMEOUT, Connector
 from basejump.core.database.manage import TableManager
 from basejump.core.database.result import result_utils, store
 from basejump.core.database.ssl import SSLEngine
@@ -23,7 +23,7 @@ class ClientQueryRunner:
         client_conn_params: sch.SQLDBSchema,
         sql_query: str,
     ):
-        self.client_db = ConnectDB.get_database_to_connect(conn_params=client_conn_params)
+        self.client_db = Connector.get_database_to_connect(conn_params=client_conn_params)
         self.client_conn_params = client_conn_params
         self._sql_query = sql_query
         self._client_engine: Optional[SSLEngine] = None

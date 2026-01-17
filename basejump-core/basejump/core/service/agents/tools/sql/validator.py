@@ -14,7 +14,7 @@ from basejump.core.database.manage import TableManager
 from basejump.core.models import enums, errors
 from basejump.core.models import schemas as sch
 from basejump.core.models.prompts import ZERO_ROW_PROMPT
-from basejump.core.service.agents.tools.sql import SQLParser
+from basejump.core.service.agents.tools.sql.parser import SQLParser
 from basejump.core.service.base import BaseChatAgent, ChatMessageHandler
 
 logger = set_logging(handler_option="stream", name=__name__)

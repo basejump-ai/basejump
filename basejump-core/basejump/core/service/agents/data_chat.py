@@ -13,7 +13,7 @@ from redisvl.query.filter import Tag
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database import auth
-from basejump.core.database.connect import ConnectDB
+from basejump.core.database.connector import Connector
 from basejump.core.database.crud import crud_chat, crud_connection, crud_result
 from basejump.core.database.result import store
 from basejump.core.database.vector_utils import init_semcache
@@ -98,7 +98,7 @@ class DataChatAgent(BaseChatAgent):
         self.connections = []
         for conn in connections:
             assert isinstance(conn, models.DBConn)
-            conn_db = await ConnectDB.get_db_conn(db_conn=conn, db_params=conn.database_params)
+            conn_db = await Connector.get_db_conn(db_conn=conn, db_params=conn.database_params)
             conn_schema = sch.SQLConnSchema(
                 conn_params=conn_db.conn_params,
                 conn_id=conn.conn_id,

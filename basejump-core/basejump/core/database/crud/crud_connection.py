@@ -16,7 +16,7 @@ from sqlalchemy.orm import joinedload, selectinload
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.common.config.settings import get_encryption_key
-from basejump.core.database.connect import ConnectDB
+from basejump.core.database.connector import Connector
 from basejump.core.database.crud import crud_table, crud_utils
 from basejump.core.database.manage import TableManager
 from basejump.core.database.session import LocalSession
@@ -92,7 +92,7 @@ async def create_db_conn(
 ) -> models.DBConn:
     # Encrypt the username and password
     dict_to_encrypt = {"username": login_params.username, "password": login_params.password}
-    encrypted_dict = ConnectDB.encrypt_db(dict_to_encrypt=dict_to_encrypt)
+    encrypted_dict = Connector.encrypt_db(dict_to_encrypt=dict_to_encrypt)
     username = encrypted_dict["username"]
     password = encrypted_dict["password"]
     db_login = models.DBConn(
@@ -114,7 +114,7 @@ async def save_db_connection(
 ) -> models.DBCredentials:
     """Save the connection to the database"""
     # Add the fields to SQLDB
-    conn_db = ConnectDB.get_database_to_connect(conn_params=conn_params)
+    conn_db = Connector.get_database_to_connect(conn_params=conn_params)
     db_params = conn_db.conn_params_bytes.dict()
     database = models.DBParams(
         **db_params,
@@ -147,10 +147,10 @@ async def save_db_connection(
     return models.DBCredentials(db_login=db_login, db_params=database)
 
 
-async def get_conndb_from_connection(db_params: sch.DBParamsSchema, connection: models.DBConn) -> ConnectDB:
+async def get_conndb_from_connection(db_params: sch.DBParamsSchema, connection: models.DBConn) -> Connector:
     db_params_dict = db_params.dict()
-    db_params_dict["username"] = ConnectDB.decrypt_db({"username": connection.username})["username"]
-    db_params_dict["password"] = ConnectDB.decrypt_db({"password": connection.password})["password"]
+    db_params_dict["username"] = Connector.decrypt_db({"username": connection.username})["username"]
+    db_params_dict["password"] = Connector.decrypt_db({"password": connection.password})["password"]
     # HACK
     if isinstance(connection.schemas, str):
         connection_schemas = json.loads(connection.schemas)
@@ -158,10 +158,10 @@ async def get_conndb_from_connection(db_params: sch.DBParamsSchema, connection: 
         connection_schemas = connection.schemas
     db_params_dict["schemas"] = connection_schemas  # Use connection schemas and not DB schemas
     conn_params_all = sch.SQLDBSchema(**db_params_dict, data_source_desc="")
-    return ConnectDB.get_database_to_connect(conn_params=conn_params_all)
+    return Connector.get_database_to_connect(conn_params=conn_params_all)
 
 
-async def verify_connection(conn_db: ConnectDB) -> None:
+async def verify_connection(conn_db: Connector) -> None:
     try:
         await asyncio.to_thread(conn_db.verify_client_connection)
         if conn_db.conn_params.schemas:
@@ -178,7 +178,7 @@ async def verify_connection(conn_db: ConnectDB) -> None:
         raise e
     except Exception as e:
         logger.error("DB connection error %s", str(e))
-        raise errors.ConnectDBError
+        raise errors.ConnectorError
 
 
 async def update_connection_schemas(
@@ -292,7 +292,7 @@ async def get_db_aliases(db: AsyncSession) -> list[sch.Alias]:
     for alias in aliases:
         alias_list.append(
             sch.Alias(
-                alias_name=ConnectDB.decrypt_db(dict_to_decrypt={"database_name_alias": alias.database_name_alias})[
+                alias_name=Connector.decrypt_db(dict_to_decrypt={"database_name_alias": alias.database_name_alias})[
                     "database_name_alias"
                 ],
                 alias_number=alias.database_name_alias_number,

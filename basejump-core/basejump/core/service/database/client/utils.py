@@ -8,7 +8,7 @@ from redis.asyncio import Redis as RedisAsync
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from basejump.core.database.client.index import DBTableIndexer
-from basejump.core.database.connect import ConnectDB
+from basejump.core.database.connector import Connector
 from basejump.core.database.crud import crud_connection
 from basejump.core.database.manage import TableManager
 from basejump.core.database.vector_utils import get_index_name
@@ -53,7 +53,7 @@ async def setup_connection(
     sql_engine: AsyncEngine,
 ) -> sch.GetSQLConn:
     # Verify the connection
-    conn_db = ConnectDB.get_database_to_connect(conn_params=conn_params)
+    conn_db = Connector.get_database_to_connect(conn_params=conn_params)
     await asyncio.to_thread(conn_db.verify_client_connection)
     # Create the connection
     db_login = await crud_connection.create_db_conn(
@@ -95,7 +95,7 @@ async def setup_db(
 ) -> tuple[sch.SQLConn, DBTableIndexer]:
     if verify_conn:
         # Verify the connection
-        conn_db = ConnectDB.get_database_to_connect(conn_params=conn_params)
+        conn_db = Connector.get_database_to_connect(conn_params=conn_params)
         await asyncio.to_thread(conn_db.verify_client_connection)
         if conn_params.schemas:
             tbl_manager = TableManager(conn_params=conn_db.conn_params)
@@ -147,7 +147,7 @@ async def create_database_from_existing_connection(
     # Get the database parameters
     database = await crud_connection.get_database_params_from_id(db=db, db_id=db_id)
     db_params = sch.DBParamsBytes.from_orm(database)
-    decrypted_db_params = ConnectDB.decrypt_db(db_params.dict())
+    decrypted_db_params = Connector.decrypt_db(db_params.dict())
 
     # Get the connection parameters
     db_conn = sch.DBConnSchema.parse_obj(login_params)

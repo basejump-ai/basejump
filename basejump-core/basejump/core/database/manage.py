@@ -9,7 +9,7 @@ from jinja2 import Environment, TemplateSyntaxError, meta
 from sqlalchemy.sql.elements import quoted_name
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database.connect import ConnectDB
+from basejump.core.database.connector import Connector
 from basejump.core.database.inspector import base
 from basejump.core.models import enums, errors
 from basejump.core.models import schemas as sch
@@ -30,7 +30,7 @@ class TableManager:
         self.db_type = conn_params.database_type
         self.schemas = schemas or conn_params.schemas
         self.include_default_schema = conn_params.include_default_schema
-        self.client_db = ConnectDB.get_database_to_connect(conn_params=conn_params)
+        self.client_db = Connector.get_database_to_connect(conn_params=conn_params)
         self.engine = self.client_db.connect_db()
         self.verbose = verbose
 

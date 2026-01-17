@@ -44,5 +44,5 @@ class SQLTool(BaseTool):
 
     async def get_tools(self):
         runner_tools = await self.runner_tool.get_tools()
-        retriever_tools = await self.table_retriever_tools.get_tools()
+        retriever_tools = await self.table_retriever_tool.get_tools()
         return runner_tools + retriever_tools

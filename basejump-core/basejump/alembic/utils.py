@@ -4,7 +4,7 @@ from sqlalchemy.engine import Engine
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.common.config.settings import settings
-from basejump.core.database.connect import PostgresDB
+from basejump.core.database.connector import PostgresConnector
 from basejump.core.database.db_utils import get_table_schemas
 from basejump.core.models import enums
 from basejump.core.models import schemas as sch
@@ -31,7 +31,7 @@ conn_params = sch.SQLDBSchema(
 )
 conn_params_noasync = sch.SQLDBSchema(**conn_params.dict())
 conn_params_noasync.drivername = enums.DBDriverName.POSTGRES
-postgres_db = PostgresDB(conn_params=conn_params_noasync)
+postgres_db = PostgresConnector(conn_params=conn_params_noasync)
 
 
 def gen_client_id_suffixes(engine: Engine, reverse: bool = False, local_env: bool = True) -> list:

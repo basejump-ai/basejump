@@ -8,7 +8,7 @@ from basejump.core.database import db_utils
 from basejump.core.database.client.query import ClientQueryRunner
 from basejump.core.models import errors
 from basejump.core.models import schemas as sch
-from basejump.core.service.agents.tools.sql import SQLParser
+from basejump.core.service.agents.tools.sql.parser import SQLParser
 
 logger = set_logging(handler_option="stream", name=__name__)
 

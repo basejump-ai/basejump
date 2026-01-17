@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.client import query
-from basejump.core.database.connect import ConnectDB
+from basejump.core.database.connector import Connector
 from basejump.core.database.crud import crud_chat, crud_connection, crud_result
 from basejump.core.database.db_utils import extract_visual_info
 from basejump.core.database.result import store
@@ -35,7 +35,7 @@ async def refresh_result(
         logger.warning("Missing db conn")
         return None
     db_params = await db_conn.awaitable_attrs.database_params
-    conn_db = await ConnectDB.get_db_conn(db_conn=db_conn, db_params=db_params)
+    conn_db = await Connector.get_db_conn(db_conn=db_conn, db_params=db_params)
     # Get the initial prompt
     initial_prompt = await crud_chat.get_initial_prompt_for_result(db=db, result_uuid=result.result_uuid)
     assert initial_prompt, "Missing chat history"

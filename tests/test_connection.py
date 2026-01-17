@@ -115,14 +115,14 @@ async def test_invalid_creds(db_session):
     conn_params_local = copy.deepcopy(db_session.client_conn_params)
     wrong_password = "1234"
     conn_params_local.password = wrong_password
-    with pytest.raises(errors.ConnectDBError):
+    with pytest.raises(errors.ConnectorError):
         await service.setup_database(
             db=db_session.db,
             service_context=db_session.service_context,
             user_info=db_session.user_info,
             conn_params=conn_params_local,
         )
-    with pytest.raises(errors.ConnectDBError):
+    with pytest.raises(errors.ConnectorError):
         login_params = sch.CreateDBConn(
             username=db_session.client_conn_params.username,
             password=wrong_password,

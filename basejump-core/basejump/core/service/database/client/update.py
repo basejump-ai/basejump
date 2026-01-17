@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database import db_utils
 from basejump.core.database.client.index import DBTableIndexer
-from basejump.core.database.connect import ConnectDB
+from basejump.core.database.connector import Connector
 from basejump.core.database.crud import crud_connection, crud_table, crud_utils
 from basejump.core.database.manage import TableManager
 from basejump.core.models import errors, models
@@ -85,7 +85,7 @@ class DBManager:
         for client_db in client_dbs:
             if client_db.db_id == self.database.db_id:
                 continue
-            other_db_alias = ConnectDB.decrypt_db({"database_name_alias": client_db.database_name_alias})[
+            other_db_alias = Connector.decrypt_db({"database_name_alias": client_db.database_name_alias})[
                 "database_name_alias"
             ]
             logger.debug("New DB Alias = %s", self.db_params.database_name_alias)
@@ -147,7 +147,7 @@ class DBManager:
 
     async def update_db(self) -> sch.GetDBParams:
         if not self.db_params.database_name_alias:
-            self.db_params.database_name_alias = ConnectDB.decrypt_db(
+            self.db_params.database_name_alias = Connector.decrypt_db(
                 {"database_name_alias": self.database.database_name_alias}
             )["database_name_alias"]
         conn_db = await crud_connection.get_conndb_from_connection(

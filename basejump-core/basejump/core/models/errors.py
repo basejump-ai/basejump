@@ -98,7 +98,7 @@ class UnverifiedColumns(Exception):
     pass
 
 
-class ConnectDBError(Exception):
+class ConnectorError(Exception):
     pass
 
 

@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.client.query import TIMEOUT, ClientQueryRecorder
-from basejump.core.database.connect import POOL_TIMEOUT
+from basejump.core.database.connector import POOL_TIMEOUT
 from basejump.core.database.crud import crud_result
 from basejump.core.database.result import store
 from basejump.core.models import constants, enums, errors
@@ -18,7 +18,9 @@ from basejump.core.models.ai.formatter import get_title_description
 from basejump.core.models.prompts import get_sql_result_prompt
 from basejump.core.service.agents.tools import tool_utils
 from basejump.core.service.agents.tools.base import BaseTool
-from basejump.core.service.agents.tools.sql import SQLParser, SQLSampler, SQLValidator
+from basejump.core.service.agents.tools.sql.parser import SQLParser
+from basejump.core.service.agents.tools.sql.sampler import SQLSampler
+from basejump.core.service.agents.tools.sql.validator import SQLValidator
 from basejump.core.service.base import BaseChatAgent, ChatMessageHandler
 
 logger = set_logging(handler_option="stream", name=__name__)

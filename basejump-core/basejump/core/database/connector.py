@@ -48,7 +48,7 @@ POOL_RECYCLE = 3600  # Recycle connections after 1 hour
 POOL_TIMEOUT = 60 * 3  # Raise an exception after 3 minutes if no connection is available from the pool
 
 
-class ConnectDB(ABC):
+class Connector(ABC):
     database_type: ClassVar[enums.DatabaseType]  # Each subclass must define this
 
     def __init__(self, conn_params: sch.SQLDBSchema, echo: bool = False):
@@ -58,9 +58,9 @@ class ConnectDB(ABC):
         try:
             assert conn_params.database_type == self.database_type
         except AssertionError:
-            raise TypeError("ConnectDB class used does not match database type passed in conn_params")
+            raise TypeError("Connector class used does not match database type passed in conn_params")
         except AttributeError:
-            raise AttributeError("ConnectDB subclasses must have a database_type defined as a class attribute.")
+            raise AttributeError("Connector subclasses must have a database_type defined as a class attribute.")
 
     @abstractmethod
     def get_ssl_args(self) -> tuple:
@@ -118,19 +118,19 @@ class ConnectDB(ABC):
         )
 
     @staticmethod
-    def get_database_to_connect(conn_params: sch.SQLDBSchema) -> "ConnectDB":
+    def get_database_to_connect(conn_params: sch.SQLDBSchema) -> "Connector":
         if conn_params.database_type == enums.DatabaseType.ATHENA:
-            return AthenaDB(conn_params=conn_params)
+            return AthenaConnector(conn_params=conn_params)
         elif conn_params.database_type == enums.DatabaseType.POSTGRES:
-            return PostgresDB(conn_params=conn_params)
+            return PostgresConnector(conn_params=conn_params)
         elif conn_params.database_type == enums.DatabaseType.MYSQL:
-            return MySQLDB(conn_params=conn_params)
+            return MySQLConnector(conn_params=conn_params)
         elif conn_params.database_type == enums.DatabaseType.REDSHIFT:
-            return RedshiftDB(conn_params=conn_params)
+            return RedshiftConnector(conn_params=conn_params)
         elif conn_params.database_type == enums.DatabaseType.SQL_SERVER:
-            return SQLServerDB(conn_params=conn_params)
+            return SQLServerConnector(conn_params=conn_params)
         elif conn_params.database_type == enums.DatabaseType.SNOWFLAKE:
-            return SnowflakeDB(conn_params=conn_params)
+            return SnowflakeConnector(conn_params=conn_params)
         else:
             raise NotImplementedError("Database type not implemented.")
 
@@ -348,12 +348,12 @@ class ConnectDB(ABC):
                 logger.info("Connection successfully verified")
         except (Exception, sa.exc.OperationalError, psycopg2.OperationalError) as e:
             logger.error("Error in verify_client_connection %s", str(e))
-            raise errors.ConnectDBError("Database credentials are incorrect")
+            raise errors.ConnectorError("Database credentials are incorrect")
         finally:
             engine.dispose()
 
 
-class AthenaDB(ConnectDB):
+class AthenaConnector(Connector):
     database_type = enums.DatabaseType.ATHENA
 
     def __init__(self, conn_params: sch.SQLDBSchema, echo: bool = False):
@@ -430,7 +430,7 @@ class AthenaDB(ConnectDB):
         return athena.AthenaInspector.inspect(conn=conn)
 
 
-class SnowflakeDB(ConnectDB):
+class SnowflakeConnector(Connector):
     database_type = enums.DatabaseType.SNOWFLAKE
 
     def __init__(self, conn_params: sch.SQLDBSchema, echo: bool = False):
@@ -462,7 +462,7 @@ class SnowflakeDB(ConnectDB):
         return snowflake.SnowflakeInspector.inspect(conn=conn)
 
 
-class SQLServerDB(ConnectDB):
+class SQLServerConnector(Connector):
     database_type = enums.DatabaseType.SQL_SERVER
 
     def __init__(self, conn_params: sch.SQLDBSchema, echo: bool = False):
@@ -489,7 +489,7 @@ class SQLServerDB(ConnectDB):
         return sql_server.MSSQLServerInspector.inspect(conn=conn)
 
 
-class RedshiftDB(ConnectDB):
+class RedshiftConnector(Connector):
     database_type = enums.DatabaseType.REDSHIFT
 
     def __init__(self, conn_params: sch.SQLDBSchema, echo: bool = False):
@@ -515,7 +515,7 @@ class RedshiftDB(ConnectDB):
         return redshift.RedshiftInspector.inspect(conn=conn)
 
 
-class PostgresDB(ConnectDB):
+class PostgresConnector(Connector):
     database_type = enums.DatabaseType.POSTGRES
 
     def __init__(self, conn_params: sch.SQLDBSchema, echo: bool = False):
@@ -539,7 +539,7 @@ class PostgresDB(ConnectDB):
         return postgres.PostgresInspector.inspect(conn=conn)
 
 
-class MySQLDB(ConnectDB):
+class MySQLConnector(Connector):
     database_type = enums.DatabaseType.MYSQL
 
     def __init__(self, conn_params: sch.SQLDBSchema, echo: bool = False):
