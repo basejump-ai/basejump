@@ -156,9 +156,9 @@ class LLMType(StrEnum):
 class AIModelSchema(StrEnum):
     GROQ = "llama3-70b-8192"
     # Azure OpenAI
-    GPT52_CODEX_MAX = "gpt-5.2-codex-max"
+    GPT52_CODEX = "gpt-5.2-codex"
     GPT52 = "gpt-5.2"
-    GPT51_CODEX = "gpt-5.1-codex"
+    GPT51_CODEX_MAX = "gpt-5.1-codex-max"
     GPT51 = "gpt-5.1"
     GPT5 = "gpt-5"
     GPT4o = "gpt-4o"
@@ -177,9 +177,9 @@ class AIModelSchema(StrEnum):
 
 
 class AIModelSchemaClientOptions(StrEnum):
-    GPT52_CODEX_MAX = AIModelSchema.GPT52_CODEX_MAX.value
+    GPT52_CODEX = AIModelSchema.GPT52_CODEX.value
     GPT52 = AIModelSchema.GPT52.value
-    GPT51_CODEX = AIModelSchema.GPT51_CODEX.value
+    GPT51_CODEX_MAX = AIModelSchema.GPT51_CODEX_MAX.value
     GPT51 = AIModelSchema.GPT51.value
     GPT5 = AIModelSchema.GPT5.value
     GPT41 = AIModelSchema.GPT41.value
@@ -209,12 +209,12 @@ class AzurePricingQueries(StrEnum):
 #     - Azure OpenAI: https://azure.microsoft.com/en-us/pricing/details/cognitive-services/openai-service/#pricing # noqa
 class DefaultTokenPrices(Enum):
     # Azure OpenAI LLM
-    GPT52_CODEX_MAX_input = Decimal(0.00125)  # Using GPT51 since no GPT52 prices are provided
-    GPT52_CODEX_MAX_output = Decimal(0.01)  # Using GPT51 since no GPT52 prices are provided
+    GPT52_CODEX_input = Decimal(0.00125)  # Using GPT51 since no GPT52 prices are provided
+    GPT52_CODEX_output = Decimal(0.01)  # Using GPT51 since no GPT52 prices are provided
     GPT52_input = Decimal(0.00125)  # Using GPT51 since no GPT52 prices are provided
     GPT52_output = Decimal(0.01)  # Using GPT51 since no GPT52 prices are provided
-    GPT51_CODEX_input = Decimal(0.00125)
-    GPT51_CODEX_output = Decimal(0.01)
+    GPT51_CODEX_MAX_input = Decimal(0.00125)
+    GPT51_CODEX_MAX_output = Decimal(0.01)
     GPT51_input = Decimal(0.00125)
     GPT51_output = Decimal(0.01)
     GPT5_input = Decimal(0.00125)

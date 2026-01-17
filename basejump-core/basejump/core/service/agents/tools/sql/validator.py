@@ -14,7 +14,7 @@ from basejump.core.database.manage import TableManager
 from basejump.core.models import enums, errors
 from basejump.core.models import schemas as sch
 from basejump.core.models.prompts import ZERO_ROW_PROMPT
-from basejump.core.service.agents.tools.sql import parse
+from basejump.core.service.agents.tools.sql import SQLParser
 from basejump.core.service.base import BaseChatAgent, ChatMessageHandler
 
 logger = set_logging(handler_option="stream", name=__name__)
@@ -40,7 +40,7 @@ class SQLValidator:
         self.conn_params = conn_params
         self.agent = agent
         self.service_context = service_context
-        self.parser = parse.SQLParser(sqlglot_dialect=sqlglot_dialect, verbose=verbose)
+        self.parser = SQLParser(sqlglot_dialect=sqlglot_dialect, verbose=verbose)
         self.db_columns: list = []
 
     async def check_all_tables(self, sql_query: str) -> Optional[str]:

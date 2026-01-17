@@ -28,9 +28,12 @@ class SQLTool(BaseTool):
         self.db_conn_params = db_conn_params
         self.select_sample_values = select_sample_values
         self.result_store = result_store
-
-    async def get_tools(self):
-        runner_tool = runner.SQLRunnerTool(
+        self.table_retriever_tool = retriever.TableRetrieverTool(
+            db=self.db,
+            agent=self.agent,
+            sql_tool_context=self.sql_tool_context,
+        )
+        self.runner_tool = runner.SQLRunnerTool(
             db=self.db,
             agent=self.agent,
             sql_tool_context=self.sql_tool_context,
@@ -38,11 +41,8 @@ class SQLTool(BaseTool):
             db_conn_params=self.db_conn_params,
             select_sample_values=self.select_sample_values,
         )
-        runner_tools = await runner_tool.get_tools()
-        table_retriever_tools = retriever.TableRetrieverTool(
-            db=self.db,
-            agent=self.agent,
-            sql_tool_context=self.sql_tool_context,
-        )
-        retriever_tools = await table_retriever_tools.get_tools()
+
+    async def get_tools(self):
+        runner_tools = await self.runner_tool.get_tools()
+        retriever_tools = await self.table_retriever_tools.get_tools()
         return runner_tools + retriever_tools

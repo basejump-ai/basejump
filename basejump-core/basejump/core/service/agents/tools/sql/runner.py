@@ -18,8 +18,7 @@ from basejump.core.models.ai.formatter import get_title_description
 from basejump.core.models.prompts import get_sql_result_prompt
 from basejump.core.service.agents.tools import tool_utils
 from basejump.core.service.agents.tools.base import BaseTool
-from basejump.core.service.agents.tools.sql import parse, sample
-from basejump.core.service.agents.tools.sql.validate import SQLValidator
+from basejump.core.service.agents.tools.sql import SQLParser, SQLSampler, SQLValidator
 from basejump.core.service.base import BaseChatAgent, ChatMessageHandler
 
 logger = set_logging(handler_option="stream", name=__name__)
@@ -104,7 +103,7 @@ may be referring to, ask the user a clarifying question before proceeding. Do no
 - The plan should be formatted as == Plan ==, followed by plan bullet points."""
         intermediate_instructions = ""
         if self.select_sample_values:
-            sampler = sample.SQLSampler(sqlglot_dialect=self.sqlglot_dialect, conn_params=self.client_conn_params)
+            sampler = SQLSampler(sqlglot_dialect=self.sqlglot_dialect, conn_params=self.client_conn_params)
             columns, sample_values = await sampler.get_select_sample_values(sql_query=initial_sql_query)
             if sample_values and columns:
                 intermediate_instructions = f"""\n- Here are some sample values for the columns selected \
@@ -160,8 +159,7 @@ After stating your plan, do one of the following:
                 self.stuck_in_loop_ct = 0
             logger.warning("Stuck in loop ct: %s", self.stuck_in_loop_ct)
             try:
-                parser = parse.SQLParser(sqlglot_dialect=self.sqlglot_dialect, verbose=self.verbose)
-                sql_similarity = parser.compare_sql_queries(
+                sql_similarity = SQLParser.compare_sql_queries(
                     sql_source=self.prior_sql_query, sql_target=sql_query, dialect=self.sqlglot_dialect
                 )
                 if sql_similarity not in [enums.SQLSimilarityLabel.IDENTICAL, enums.SQLSimilarityLabel.EQUIVALENT]:
@@ -174,7 +172,7 @@ After stating your plan, do one of the following:
         if self.provided_sample_vals:
             # Get where clause sample values as a backup if column check fails
             try:
-                sampler = sample.SQLSampler(sqlglot_dialect=self.sqlglot_dialect, conn_params=self.client_conn_params)
+                sampler = SQLSampler(sqlglot_dialect=self.sqlglot_dialect, conn_params=self.client_conn_params)
                 where_clause_sample_vals = await sampler.get_where_clause_sample_values(sql_query=sql_query)
                 if where_clause_sample_vals:
                     self.provided_sample_vals = True

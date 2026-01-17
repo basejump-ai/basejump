@@ -267,7 +267,7 @@ class ConnectDB(ABC):
             password=db_conn_schema.password,
             data_source_desc=db_conn_schema.data_source_desc,
         )
-        return cls(conn_params=conn_params_obj)
+        return cls.get_database_to_connect(conn_params=conn_params_obj)
 
     def _create_async_connection_uri(self) -> str:
         """Create a database URI"""

@@ -8,7 +8,7 @@ from basejump.core.database import db_utils
 from basejump.core.database.client.query import ClientQueryRunner
 from basejump.core.models import errors
 from basejump.core.models import schemas as sch
-from basejump.core.service.agents.tools.sql import parse
+from basejump.core.service.agents.tools.sql import SQLParser
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -23,7 +23,7 @@ class SQLSampler:
         """Get sample values for the LLM"""
         try:
             logger.info("Here is the SQL query to parse: %s", sql_query)
-            parser = parse.SQLParser(sqlglot_dialect=self.sqlglot_dialect, verbose=self.verbose)
+            parser = SQLParser(sqlglot_dialect=self.sqlglot_dialect, verbose=self.verbose)
             columns_base = parser.get_fully_qualified_col_names(
                 sql_query=sql_query, dialect=self.sqlglot_dialect, ancestor_to_filter=exp.Select
             )
@@ -86,7 +86,7 @@ class SQLSampler:
         sample values does. However, the sample values is more performant since it's not running
         a distinct to get values in the database.
         """
-        parser = parse.SQLParser(sqlglot_dialect=self.sqlglot_dialect, verbose=self.verbose)
+        parser = SQLParser(sqlglot_dialect=self.sqlglot_dialect, verbose=self.verbose)
         columns = await parser.get_where_clause_columns(sql_query=sql_query)
         if not columns:
             return None

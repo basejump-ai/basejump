@@ -227,15 +227,16 @@ class SQLParser:
     # TODO: Update all inputs to compare SQL queries to have the dialect derived from the connection params
     # using the result_conn_id
     # GHI: https://github.com/Basejump-AI/Basejump/issues/1301
+    @classmethod
     def compare_sql_queries(
-        self, sql_source: str, sql_target: str, dialect: Optional[DialectType] = None
+        cls, sql_source: str, sql_target: str, dialect: Optional[DialectType] = None
     ) -> enums.SQLSimilarityLabel:
         """Compares two SQL queries to each other and gives them a label"""
 
         # TODO: Use the sqlglot optimize function on the queries to produce a more efficient and accurate diff
         # This will also help the AI compare between them
-        std_source = self.standardize_aliases(parse_one(sql_source, dialect=dialect))
-        std_target = self.standardize_aliases(parse_one(sql_target, dialect=dialect))
+        std_source = cls.standardize_aliases(parse_one(sql_source, dialect=dialect))
+        std_target = cls.standardize_aliases(parse_one(sql_target, dialect=dialect))
         # Compare the queries
         sql_diffs = diff(std_source, std_target)
         if all([True if isinstance(item, Keep) else False for item in sql_diffs]):
@@ -256,7 +257,8 @@ class SQLParser:
 
         return enums.SQLSimilarityLabel.DIFFERENT
 
-    def remove_jinjafied_schemas(self, query: str, schemas: list[sch.DBSchema], dialect: Optional[DialectType]) -> str:
+    @classmethod
+    def remove_jinjafied_schemas(cls, query: str, schemas: list[sch.DBSchema], dialect: Optional[DialectType]) -> str:
         """Replace tables with schemas that are jinjafied with just the table name"""
         # Get tables
         parsed_query = parse_one(query, dialect=dialect)
@@ -264,7 +266,7 @@ class SQLParser:
         # Get full table names
         tables_to_update = {}
         for table in tables:
-            full_table_name = self.get_full_table_name(query=query, table_name=table)
+            full_table_name = cls.get_full_table_name(query=query, table_name=table)
             add_table = False
             split_tbl_nm = full_table_name.split(".")
             if len(split_tbl_nm) == 1:
@@ -292,24 +294,25 @@ class SQLParser:
             query = re.sub(key, value, query)
         return query
 
+    @classmethod
     def compare_sql_queries_no_where_clause(
-        self, query1, query2, dialect: Optional[DialectType], schemas: Optional[list[sch.DBSchema]] = None
+        cls, query1, query2, dialect: Optional[DialectType], schemas: Optional[list[sch.DBSchema]] = None
     ) -> Optional[enums.SQLSimilarityLabel]:
         """Compare everything except the where clauses"""
         try:
             if schemas:
                 logger.debug("Schemas found - checking if schemas need to be replaced.")
-                query1 = self.remove_jinjafied_schemas(query=query1, schemas=schemas, dialect=dialect)
-                query2 = self.remove_jinjafied_schemas(query=query2, schemas=schemas, dialect=dialect)
+                query1 = cls.remove_jinjafied_schemas(query=query1, schemas=schemas, dialect=dialect)
+                query2 = cls.remove_jinjafied_schemas(query=query2, schemas=schemas, dialect=dialect)
             ast1 = parse_one(query1, dialect=dialect)
             ast2 = parse_one(query2, dialect=dialect)
             for ast in [ast1, ast2]:
-                self.remove_where_clauses(ast=ast)
+                cls.remove_where_clauses(ast=ast)
             query1 = str(ast1)
             query2 = str(ast2)
             logger.debug("query1: %s", query1)
             logger.debug("query1: %s", query2)
-            return self.compare_sql_queries(query1, query2)
+            return cls.compare_sql_queries(query1, query2)
         except (errors.SQLParseError, sqlglot_errors.ParseError) as e:
             logger.warning("SQLglot failed parsing: %s", str(e))
             return None
