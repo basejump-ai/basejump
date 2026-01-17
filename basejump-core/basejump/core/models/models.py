@@ -185,7 +185,6 @@ class DBParams(Base):
     include_views: Mapped[Optional[bool]] = mapped_column(server_default=text("false"))
     include_materialized_views: Mapped[Optional[bool]] = mapped_column(server_default=text("false"))
     include_partitioned_tables: Mapped[Optional[bool]] = mapped_column(server_default=text("false"))
-    database_metadata: Mapped[Optional[bytes]]
     timestamp: Mapped[datetime] = mapped_column(server_default=func.now())
     connections: Mapped[list["DBConn"]] = relationship(
         passive_deletes="all",

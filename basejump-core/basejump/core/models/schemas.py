@@ -128,9 +128,6 @@ class DBParamsSchema(DBParamsSchemaBase):
     drivername: Union[enums.DBDriverName, enums.DBAsyncDriverName] = (  # type: ignore
         Field(examples=["postgresql"], description="The SQLAlchemy drivername."),
     )
-    database_metadata: dict = Field(
-        default_factory=dict, description="Additional information to store in the database about the database"
-    )
 
 
 class DBParamsBytes(BaseModel):

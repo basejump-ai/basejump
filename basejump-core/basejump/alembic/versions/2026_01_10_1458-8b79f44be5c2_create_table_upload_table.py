@@ -15,7 +15,7 @@ from basejump.alembic.utils import refresh_views
 
 # revision identifiers, used by Alembic.
 revision: str = "8b79f44be5c2"
-down_revision: Union[str, Sequence[str], None] = "40fb2cd83300"
+down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

@@ -161,7 +161,7 @@ class ConnectDB(ABC):
             bytes_value = f.decrypt(value) if value else None
             # Convert from bytes to string
             # TODO: Use an StrEnum or something more robust than this
-            if key in ["query", "schemas", "database_metadata"]:
+            if key in ["query", "schemas"]:
                 assert bytes_value, "Value needs to not be None"
                 json_value = bytes_value.decode("UTF-8")
                 new_value = json.loads(json_value)
@@ -198,7 +198,7 @@ class ConnectDB(ABC):
                 "schema_maps",
             ]:
                 continue
-            if key in ["query", "schemas", "database_metadata"]:
+            if key in ["query", "schemas"]:
                 json_value = json.dumps(value)
                 value = json_value.encode("UTF-8")
             elif key == "port":
