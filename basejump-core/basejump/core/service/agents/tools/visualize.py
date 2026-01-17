@@ -19,8 +19,8 @@ from basejump.core.models import schemas as sch
 from basejump.core.models.ai import formats as fmt
 from basejump.core.models.ai import formatter
 from basejump.core.models.ai.catalog import AICatalog
+from basejump.core.service.agents.tools import tool_utils
 from basejump.core.service.base import BaseAgent, BaseChatAgent
-from basejump.core.service.tools import tool_utils
 
 bucket_name = "datasetsfromchat"
 

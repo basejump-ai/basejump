@@ -15,8 +15,8 @@ from basejump.core.common.common_utils import hash_value
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.client.index import index_db
 from basejump.core.database.crud import crud_connection, crud_main, crud_utils
-from basejump.core.database.db_connect import LocalSession
 from basejump.core.database.result import store
+from basejump.core.database.session import LocalSession
 from basejump.core.database.vector_utils import get_index_name, get_index_schema
 from basejump.core.models import enums, errors, models, prompts
 from basejump.core.models import schemas as sch

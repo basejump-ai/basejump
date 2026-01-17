@@ -5,19 +5,16 @@ import csv
 import io
 import os
 import pathlib
-import time
 import uuid
 from abc import ABC, abstractmethod
 from typing import Optional
 
 import boto3
-import pandas as pd
 import sqlalchemy as sa
 from botocore.exceptions import ClientError
-from fastapi import UploadFile
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database.result import manage, result_utils
+from basejump.core.database.result import manager, result_utils
 from basejump.core.models import constants, errors
 from basejump.core.models import schemas as sch
 from basejump.core.models.ai import formats as fmt
@@ -27,12 +24,6 @@ logger = set_logging(handler_option="stream", name=__name__)
 
 
 class ResultStore(ABC):
-    chunk_size = 8192
-    upload_size_mb = 5
-    upload_size = upload_size_mb * 1024 * 1024
-    upload_chunk_limit = 20
-    max_upload_size = upload_size * upload_chunk_limit  # 100 MB
-
     def __init__(
         self,
         client_id: int,
@@ -72,10 +63,8 @@ class ResultStore(ABC):
         )
         num_rows = self.total_row_counter
         num_cols = len(columns)
+        logger.debug(f"File has {num_rows} rows and {num_cols} columns.")
         result_type = result_utils.get_result_type(num_rows=num_rows, num_cols=num_cols)
-        file_size_est_base = self.upload_size * self.chunk_counter
-        file_size_est = f"<{self.upload_size_mb}MB" if file_size_est_base == 0 else f"{file_size_est_base}MB"
-        logger.debug(f"File has {num_rows} rows and {num_cols} columns. Estimated file size is {file_size_est}")
         logger.info("Here is the result file path: %s", result_file_path)
         logger.info("Here is the result preview file path: %s", preview_file_path)
         return sch.QueryResult(
@@ -213,7 +202,7 @@ class LocalResultStore(ResultStore):
         )
 
     def get_result_manager(self, result_file_path: str):
-        return manage.LocalResultManager(result_file_path=result_file_path)
+        return manager.LocalResultManager(result_file_path=result_file_path)
 
     def save_preview(self, preview_file_path: str, buffer: io.BytesIO, text_wrapper: io.TextIOWrapper):
         text_wrapper.flush()
@@ -227,6 +216,12 @@ class LocalResultStore(ResultStore):
 
 # TODO: Stream uploads for databases that allow streaming (Redshift does not allow streaming)
 class S3ResultStore(ResultStore):
+    chunk_size = 1024 * 100
+    bytes_in_a_mb = 1024 * 1024
+    upload_size = 5 * bytes_in_a_mb  # S3 requires a minimum of a 5MB upload size per part
+    upload_limit_in_mb = 0.05
+    upload_chunk_limit = upload_limit_in_mb * bytes_in_a_mb / chunk_size
+
     def __init__(
         self,
         client_id: int,
@@ -271,6 +266,10 @@ class S3ResultStore(ResultStore):
     def s3_file_key(self) -> str:
         return self.get_s3_key()
 
+    @property
+    def current_file_size(self):
+        return self.chunk_counter * self.chunk_size / (1024 * 1024)
+
     @staticmethod
     def get_default_prefix(client_uuid: uuid.UUID) -> str:
         default_prefix = os.getenv("AWS_DEFAULT_PREFIX") or ""
@@ -313,11 +312,10 @@ class S3ResultStore(ResultStore):
             if self.counter == 100 and not self.saved_preview:
                 self.save_preview(buffer=buffer, text_wrapper=text_wrapper)
 
-            # Flush the underlying buffer after writing - only flush every 500 rows to improve performance
+            # Flush the underlying buffer after writing
             if self.counter > self.chunk_size:
+                logger.debug(f"Chunk counter at {self.chunk_counter}, reached chunk size of {self.chunk_size}")
                 self.counter = 0
-                if not self.multipart_upload:
-                    self.create_multipart_upload()
                 self.upload_chunk(buffer=buffer, text_wrapper=text_wrapper)
 
         # Complete the multipart upload
@@ -330,6 +328,11 @@ class S3ResultStore(ResultStore):
             self.get_metric_value(
                 small_model_info=small_model_info, initial_prompt=initial_prompt, sql_query=sql_query, buffer=buffer
             )
+        if self.current_file_size == 0:
+            file_size_est = f"<{round(self.chunk_size / (1024 * 1024), 2)}"
+        else:
+            file_size_est = round(self.current_file_size, 2)
+        logger.debug(f"Estimated file size is {file_size_est}MB")
         result_file_path = self.get_s3_file_path(s3_file_key=self.s3_file_key, bucket_name=self.bucket_name)
         preview_file_path = self.get_s3_file_path(s3_file_key=self.preview_file_name, bucket_name=self.bucket_name)
         return self.create_query_result(
@@ -340,7 +343,7 @@ class S3ResultStore(ResultStore):
         )
 
     def get_result_manager(self, result_file_path: str):
-        return manage.S3ResultManager(result_file_path=result_file_path, aws_s3_config=self.aws_s3_config)
+        return manager.S3ResultManager(result_file_path=result_file_path, aws_s3_config=self.aws_s3_config)
 
     def _upload_chunk(self, part_number, buffer: io.BytesIO):
         buffer.seek(0)
@@ -356,11 +359,14 @@ class S3ResultStore(ResultStore):
     def upload_chunk(self, buffer: io.BytesIO, text_wrapper: io.TextIOWrapper):
         if text_wrapper:
             text_wrapper.flush()
-        # If buffer exceeds 5 MB, upload and reset the buffer
-        if buffer.tell() >= self.chunk_size:
+        # Upload and reset the buffer
+        if buffer.tell() >= self.upload_size:
+            if not self.multipart_upload:
+                self.create_multipart_upload()
             self.chunk_counter += 1
-            if self.chunk_counter > self.upload_chunk_limit:
-                # Not allowing uploads past 100 MB currently
+            logger.debug(f"Chunk counter at {self.chunk_counter} and file size of {self.current_file_size}MB.")
+            if self.current_file_size > self.upload_chunk_limit:
+                # Not allowing uploads past 10 MB currently
                 self.abort_multipart_upload()
             else:
                 try:
@@ -380,6 +386,7 @@ class S3ResultStore(ResultStore):
             logger.error("Error in stream query results %s", str(e))
             raise e
         self.upload_id = multipart_upload["UploadId"]
+        self.multipart_upload = True
 
     def complete_multipart_upload(self, buffer: io.BytesIO, text_wrapper: io.TextIOWrapper):
         text_wrapper.flush()
@@ -400,19 +407,26 @@ class S3ResultStore(ResultStore):
         self.s3_client.abort_multipart_upload(Bucket=self.bucket_name, Key=self.s3_file_key, UploadId=self.upload_id)
         # Confirm all parts are deleted
         try:
-            parts = self.s3_client.list_parts(Bucket=self.bucket_name, Key=self.s3_file_key, UploadId=self.upload_id)
-        except ClientError as e:
-            logger.warning("Error when listing parts %s", str(e))
-            raise e
-        # If parts still exist, then try to abort again
-        if len(parts["Parts"]) > 0:
             try:
-                self.s3_client.abort_multipart_upload(
+                parts = self.s3_client.list_parts(
                     Bucket=self.bucket_name, Key=self.s3_file_key, UploadId=self.upload_id
                 )
-            except Exception as e:
-                logger.warning("Error when in multipart upload %s", str(e))
+            except ClientError as e:
+                logger.warning("Error when listing parts %s", str(e))
                 raise e
+            # If parts still exist, then try to abort again
+            if len(parts["Parts"]) > 0:
+                try:
+                    self.s3_client.abort_multipart_upload(
+                        Bucket=self.bucket_name, Key=self.s3_file_key, UploadId=self.upload_id
+                    )
+                except Exception as e:
+                    logger.warning("Error when in multipart upload %s", str(e))
+                    raise e
+        except Exception as e:
+            logger.warning(f"Error when aborting multipart upload: {str(e)}")
+        finally:
+            raise errors.AbortMultipartUpload(max_file_size=f"{self.upload_limit_in_mb} MB")
 
     def _save_preview(self, buffer, s3_client, s3_bucket_name, file_name):
         buffer.seek(0)
@@ -449,135 +463,8 @@ class S3ResultStore(ResultStore):
         )
         self.saved_preview = True
 
-    async def upload_file(
-        self,
-        file: UploadFile,
-    ) -> pd.DataFrame:
-        # Upload file
-        t1 = time.time()
-
-        # Update the prefix since all files for Athena need to be in a single directory
-        self.prefix = self.get_s3_upload_prefix()
-
-        # Create buffer
-        buffer = io.BytesIO()
-        text_wrapper = io.TextIOWrapper(buffer, newline="", encoding="utf-8")
-        writer = csv.writer(text_wrapper)
-
-        # Stream and write headers
-        chunk = await file.read(self.chunk_size)  # Small chunk to get headers
-        text = chunk.decode("utf-8")
-
-        # Initialize multipart upload
-        self.create_multipart_upload()
-        headers: list = []
-
-        # Process rest of file
-        while chunk:
-            if buffer.tell() >= self.upload_size:
-                self.upload_chunk(buffer=buffer, text_wrapper=text_wrapper)
-                buffer.seek(0)
-                buffer.truncate()
-                text_wrapper = io.TextIOWrapper(buffer, newline="", encoding="utf-8")
-                writer = csv.writer(text_wrapper)
-
-            for row in csv.reader(text.splitlines()):
-                if len(headers) <= 5:
-                    headers.append(row)
-                writer.writerow(row)
-
-            chunk = await file.read(self.chunk_size)
-            text = chunk.decode("utf-8") if chunk else ""
-
-        # Upload final chunk
-        self.complete_multipart_upload(buffer=buffer, text_wrapper=text_wrapper)
-        t2 = time.time()
-        logger.debug(f"Time to upload file: {t2-t1}s")
-        return pd.DataFrame(data=headers[1:], columns=headers[0])
-
-    def create_table_from_csv(self, headers: pd.DataFrame):
-        t1 = time.time()
-        schema = {col: self.get_athena_type(headers[col].dtype) for col in headers.columns.tolist()}
-        table_suffix = str(copy.copy(self.result_uuid)).replace("-", "_")
-        table_location = self.get_s3_folder_path(bucket_name=self.bucket_name, prefix=self.prefix)
-        table_name = f"default.uploaded_table_{table_suffix}"
-        # TODO: Doesn't handle headers that are integers. Will get botocore.errorfactory.InvalidRequestException error.
-        # Surround cols in backticks.
-        create_table = f"""\
-CREATE EXTERNAL TABLE IF NOT EXISTS {table_name} (
-{", ".join(f"{str(column)} {dtype}" for column, dtype in schema.items())}
-)
-ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe'
-WITH SERDEPROPERTIES ('field.delim' = ',')
-STORED AS INPUTFORMAT 'org.apache.hadoop.mapred.TextInputFormat' OUTPUTFORMAT \
-'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat'
-LOCATION '{table_location}'
-TBLPROPERTIES ('classification' = 'csv','skip.header.line.count'='1');"""
-        query_execution = self.athena_client.start_query_execution(
-            QueryString=create_table, ResultConfiguration={"OutputLocation": f"s3://{self.bucket_name}/query_outputs"}
-        )
-        execution_id = query_execution["QueryExecutionId"]
-        query_details = self.athena_client.get_query_execution(QueryExecutionId=execution_id)
-
-        count = 0
-        query_state = query_details["QueryExecution"]["Status"]["State"]
-        while query_state not in ["SUCCEEDED", "FAILED", "CANCELED"]:
-            # wait n seconds
-            time.sleep(1)
-            max_time = 30
-            if count >= max_time:
-                logger.warning("Athena table creation failed after %s seconds", count)
-                break
-            query_details = self.athena_client.get_query_execution(QueryExecutionId=execution_id)
-            query_state = query_details["QueryExecution"]["Status"]["State"]
-            count += 1
-        logger_msg = f"Athena table creation {query_state} after {count} seconds"
-        logger.info("Athena table location: %s", table_location)
-        logger.info("Athena table name: %s", table_name)
-        if query_state != "SUCCEEDED":
-            logger.warning(logger_msg)
-        else:
-            logger.info(logger_msg)
-        t2 = time.time()
-        logger.debug(f"Time to create table: {t2-t1}s")
-
-    @staticmethod
-    def get_athena_type(pd_type) -> str:
-        type_map = {
-            # Numeric
-            "int8": "tinyint",
-            "int16": "smallint",
-            "int32": "int",
-            "int64": "bigint",
-            "uint8": "smallint",
-            "uint16": "int",
-            "uint32": "bigint",
-            "uint64": "decimal",
-            "float16": "float",
-            "float32": "float",
-            "float64": "double",
-            "decimal": "decimal",
-            # String/Text
-            "object": "string",
-            "string": "string",
-            "category": "string",
-            # Boolean
-            "bool": "boolean",
-            # Date/Time
-            "datetime64[ns]": "timestamp",
-            "datetime64[ms]": "timestamp",
-            "datetime64[us]": "timestamp",
-            "timedelta64[ns]": "string",
-            "date": "date",
-            "time": "string",
-        }
-        return type_map.get(pd_type, "string")
-
     def get_s3_key(self):
         if self.prefix:
             # NOTE: Prefixes end with a slash
             return f"{self.prefix}{self.result_file_name}"
         return self.result_file_name
-
-    def get_s3_upload_prefix(self):
-        return f"{self.prefix}{str(self.result_uuid)}/"

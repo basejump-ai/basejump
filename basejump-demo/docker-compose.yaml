@@ -16,7 +16,7 @@ services:
       - db
       - cache
     env_file:
-      - .env
+      - ../.env
     stdin_open: true
     tty: true
   cache:

@@ -12,7 +12,7 @@ from basejump.demo import (
     schemas,
 )  # inits env vars so it needs to be first # isort: skip
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database.db_connect import LocalSession
+from basejump.core.database.session import LocalSession
 from basejump.core.models import enums
 from basejump.core.models import schemas as sch
 

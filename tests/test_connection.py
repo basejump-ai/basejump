@@ -10,7 +10,7 @@ from basejump.core.service.database.client import utils
 from basejump.core.service.database.client.diagram import MermaidAgentManager
 from basejump.core.database.vector_utils import get_index_name
 from basejump.core.models import enums
-from basejump.core.database.db_connect import ConnectDB
+from basejump.core.database.manager import TableManager
 
 
 @pytest.mark.connection
@@ -115,14 +115,14 @@ async def test_invalid_creds(db_session):
     conn_params_local = copy.deepcopy(db_session.client_conn_params)
     wrong_password = "1234"
     conn_params_local.password = wrong_password
-    with pytest.raises(errors.ConnectDBError):
+    with pytest.raises(errors.ConnectorError):
         await service.setup_database(
             db=db_session.db,
             service_context=db_session.service_context,
             user_info=db_session.user_info,
             conn_params=conn_params_local,
         )
-    with pytest.raises(errors.ConnectDBError):
+    with pytest.raises(errors.ConnectorError):
         login_params = sch.CreateDBConn(
             username=db_session.client_conn_params.username,
             password=wrong_password,
@@ -182,7 +182,7 @@ async def test_validate_jinja_braces():
     texts.append(Pairs("}}hey there{{", False))
     for text in texts:
         try:
-            ConnectDB.validate_jinja_braces(text.text)
+            TableManager.validate_jinja_braces(text.text)
 
         except (
             errors.InvalidJinjaBraceCount,

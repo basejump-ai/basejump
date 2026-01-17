@@ -98,7 +98,7 @@ class UnverifiedColumns(Exception):
     pass
 
 
-class ConnectDBError(Exception):
+class ConnectorError(Exception):
     pass
 
 
@@ -215,3 +215,11 @@ class NotFoundError(ValueError):
 
 class MissingEnvironmentVariable(KeyError):
     """Raiseed when missing an environment variable"""
+
+
+class AbortMultipartUpload(Exception):
+    def __init__(self, max_file_size: str):
+        super().__init__(
+            f"Upload file size exceeded the max file size of {max_file_size}. \
+The results are too large and the query needs to be filtered."
+        )

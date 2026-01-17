@@ -211,6 +211,11 @@ the value it is being cast to.",
     )
     column_type: Optional[str] = None
     quoted: bool = Field(default=False, description="Whether or not the column is quoted in the DB")
+    ignore: Optional[bool] = Field(
+        default=False,
+        description="""Use this field to remove this column from consideration for the AI for use in SQL queries. \
+This will also remove this table as a viewable table for users when exploring the database as well.""",
+    )
 
 
 class SharedTableColumns(BaseModel):
@@ -276,13 +281,13 @@ class SQLTableInfo(BaseModel):
         description="The full name of the table (including the schema if needed)",
     )
     context: Optional[str] = Field(default=None, examples=["This is table 1"])
+    ignore: Optional[bool] = False
 
 
 # TODO: Consider renaming
 class GetSQLTable(SQLTableInfo):
     tbl_uuid: uuid.UUID = Field(examples=[str(uuid.uuid4())])
     columns: list[GetSQLTableColumn]
-    ignore: Optional[bool] = False
     primary_keys: Optional[list] = Field(default_factory=list)
     model_config = ConfigDict(from_attributes=True)
 
@@ -691,9 +696,10 @@ class IndexedTables(BaseModel):
     number_of_days: Optional[int] = None
 
 
-class UploadResult(BaseModel):
-    result_uuid: uuid.UUID
-    s3_file_key: str
+class UploadTable(BaseModel):
+    upload_uuid: uuid.UUID
+    database_name: str
+    table_name: str
 
 
 class CoreSession(BaseModel):
@@ -743,3 +749,16 @@ class ClientStorageConnEncrypted(BaseModel):
     internal: bool
     storage_uuid: uuid.UUID
     model_config = ConfigDict(from_attributes=True)
+
+
+class SQLToolContext(BaseModel):
+    service_context: ServiceContext
+    prompt_metadata: PromptMetadata
+    client_conn_params: SQLDBSchema
+    conn_id: int
+    conn_uuid: uuid.UUID
+    db_id: int
+    db_uuid: uuid.UUID
+    vector_id: int
+    verbose: bool = False
+    model_config = ConfigDict(arbitrary_types_allowed=True)

@@ -12,17 +12,17 @@ from llama_index.core.tools.types import AsyncBaseTool
 from redisvl.query.filter import Tag
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database import db_auth
+from basejump.core.database import auth
+from basejump.core.database.connector import Connector
 from basejump.core.database.crud import crud_chat, crud_connection, crud_result
-from basejump.core.database.db_connect import ConnectDB
 from basejump.core.database.result import store
 from basejump.core.database.vector_utils import init_semcache
 from basejump.core.models import constants, enums, errors, models
 from basejump.core.models import schemas as sch
 from basejump.core.models.prompts import NO_DB_ACCESS_PROMPT, sql_result_prompt_basic
 from basejump.core.service.agents import agent_utils
+from basejump.core.service.agents.tools import sql, visualize
 from basejump.core.service.base import BaseChatAgent, ChatAgentSetup, ChatMessageHandler
-from basejump.core.service.tools import sql, visualize
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -69,7 +69,8 @@ class DataChatAgent(BaseChatAgent):
         self.check_if_prompt_is_cached = check_if_prompt_is_cached
         self.result_store = result_store or store.LocalResultStore(client_id=self.prompt_metadata.client_id)
         self.conn_id = conn_id
-        logger.debug("Chat history: %s", chat_history)
+        if self.verbose:
+            logger.debug("Chat history: %s", chat_history)
 
     @staticmethod
     def get_llm_type() -> enums.LLMType:
@@ -97,7 +98,7 @@ class DataChatAgent(BaseChatAgent):
         self.connections = []
         for conn in connections:
             assert isinstance(conn, models.DBConn)
-            conn_db = await ConnectDB.get_db_conn(db_conn=conn, db_params=conn.database_params)
+            conn_db = await Connector.get_db_conn(db_conn=conn, db_params=conn.database_params)
             conn_schema = sch.SQLConnSchema(
                 conn_params=conn_db.conn_params,
                 conn_id=conn.conn_id,
@@ -109,10 +110,7 @@ class DataChatAgent(BaseChatAgent):
             self.connections.append(conn_schema)
         await self.db.commit()  # NOTE: Closing transaction to avoid idle in transaction
         for connection in self.connections:
-            self.sql_tool = sql.SQLTool(
-                agent=self,
-                db=self.db,
-                db_conn_params=self.db_conn_params,
+            sql_tool_context = sch.SQLToolContext(
                 client_conn_params=connection.conn_params,
                 conn_id=connection.conn_id,
                 conn_uuid=connection.conn_uuid,
@@ -121,12 +119,16 @@ class DataChatAgent(BaseChatAgent):
                 vector_id=connection.vector_id,
                 prompt_metadata=self.prompt_metadata,
                 service_context=self.service_context,
+            )
+            self.sql_tool = sql.SQLTool(
+                agent=self,
+                db=self.db,
+                db_conn_params=self.db_conn_params,
+                sql_tool_context=sql_tool_context,
                 select_sample_values=self.select_sample_values,
-                verbose=self.verbose,
                 result_store=self.result_store,
             )
-            await self.sql_tool.post_init()
-            tools += self.sql_tool.tools
+            tools += await self.sql_tool.get_tools()
         vis_tool = visualize.VisTool(
             db=self.db,
             agent=self,
@@ -157,7 +159,7 @@ class DataChatAgent(BaseChatAgent):
             # Get variables for the first result
             logger.info("Semantic similarity distance: %s", semcache_response[0]["vector_distance"])
             metadata = semcache_response[0]["metadata"]
-            can_verify = db_auth.check_can_verify(
+            can_verify = auth.check_can_verify(
                 required_role=enums.UserRoles(metadata["verified_user_role"]),
                 user_role=enums.UserRoles(self.prompt_metadata.user_role),
             )

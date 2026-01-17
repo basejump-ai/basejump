@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database.db_connect import LocalSession
+from basejump.core.database.session import LocalSession
 from basejump.core.models import enums, errors, models
 from basejump.core.models import schemas as sch
 
