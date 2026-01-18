@@ -16,7 +16,7 @@ from basejump.core.models import schemas as sch
 
 logger = set_logging(handler_option="stream", name=__name__)
 
-TABLE_PROFILING_TIME_LIMIT = 60 * 3
+TABLE_PROFILING_TIME_LIMIT = 60 * 60
 
 
 class TableManager:
