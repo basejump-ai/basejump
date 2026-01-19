@@ -99,9 +99,6 @@ async def setup_db(
     if verify_conn:
         # Verify the connection
         conn_db = Connector.get_database_to_connect(conn_params=conn_params)
-        # TEST: Adding logging
-        logger.debug("Here are the query args: %s", conn_params.query)
-        logger.debug("Database type: %s", conn_db.database_type)
         await asyncio.to_thread(conn_db.verify_client_connection)
         if conn_params.schemas:
             tbl_manager = TableManager(conn_params=conn_db.conn_params)
