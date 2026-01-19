@@ -13,7 +13,7 @@ Basejump indexes a database and connects it with an AI data agent to chat with y
 ## Installation
 Create a virtual environment and then install from PYPI:
 ```bash
-pip install basejump-core
+pip install basejump
 ```
 
 ### Example usage
