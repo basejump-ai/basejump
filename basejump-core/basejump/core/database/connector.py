@@ -333,8 +333,13 @@ class Connector(ABC):
             ssl_args = {}
             ssl_cert_path = None
         # HACK: Doing this here since ssl args are getting messed up with saved info
+        logger.debug("here are the ssl args: %s", ssl_args)
         if self.database_type == enums.DatabaseType.REDSHIFT:
             ssl_args = {"sslmode": self.conn_params.ssl_mode.value}
+
+        logger.debug("here is the database_type: %s", self.database_type)
+        logger.debug("here are the ssl args: %s", ssl_args)
+        logger.debug("here is the uri: %s", uri)
         engine = create_engine(
             uri,
             connect_args=ssl_args,
@@ -472,6 +477,7 @@ class SQLServerConnector(Connector):
         super().__init__(conn_params=conn_params, echo=echo)
 
     def get_conn_uri(self, hide_password: bool = False) -> str:
+        logger.debug("SQL Server URI here")
         if self.conn_params.query is None:
             self.conn_params.query = {}
         self.conn_params.query["driver"] = os.getenv("SQL_SERVER_ODBC_DRIVER") or "ODBC Driver 18 for SQL Server"
@@ -499,6 +505,7 @@ class RedshiftConnector(Connector):
         super().__init__(conn_params=conn_params, echo=echo)
 
     def get_conn_uri(self, hide_password: bool = False) -> str:
+        logger.debug("Redshift URI here")
         return super()._get_conn_uri(hide_password=hide_password)
 
     def get_ssl_args(self) -> tuple:
