@@ -499,7 +499,7 @@ class RedshiftConnector(Connector):
         return super()._get_conn_uri(hide_password=hide_password)
 
     def get_ssl_args(self) -> tuple:
-        ssl_params = MSSQLSSLParams(
+        ssl_params = PostgresSSLParams(
             ssl_mode=self.conn_params.ssl_mode,
             ssl_root_cert=self.conn_params.ssl_root_cert,
         )
