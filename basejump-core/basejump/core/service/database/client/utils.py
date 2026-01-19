@@ -7,12 +7,15 @@ from typing import Optional
 from redis.asyncio import Redis as RedisAsync
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
+from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.client.index import DBTableIndexer
 from basejump.core.database.connector import Connector
 from basejump.core.database.crud import crud_connection
 from basejump.core.database.manager import TableManager
 from basejump.core.database.vector_utils import get_index_name
 from basejump.core.models import schemas as sch
+
+logger = set_logging(handler_option="stream", name=__name__)
 
 
 async def setup_vector(db: AsyncSession, client_id: int, index_db_tables: DBTableIndexer) -> int:
@@ -96,6 +99,9 @@ async def setup_db(
     if verify_conn:
         # Verify the connection
         conn_db = Connector.get_database_to_connect(conn_params=conn_params)
+        # TEST: Adding logging
+        logger.debug("Here are the query args: %s", conn_params.query)
+        logger.debug("Database type: %s", conn_db.database_type)
         await asyncio.to_thread(conn_db.verify_client_connection)
         if conn_params.schemas:
             tbl_manager = TableManager(conn_params=conn_db.conn_params)
