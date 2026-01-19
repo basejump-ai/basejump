@@ -332,6 +332,9 @@ class Connector(ABC):
         if not self.conn_params.ssl:
             ssl_args = {}
             ssl_cert_path = None
+        # HACK: Doing this here since ssl args are getting messed up with saved info
+        if self.database_type == enums.DatabaseType.REDSHIFT:
+            ssl_args = {"sslmode": self.conn_params.ssl_mode.value}
         engine = create_engine(
             uri,
             connect_args=ssl_args,
