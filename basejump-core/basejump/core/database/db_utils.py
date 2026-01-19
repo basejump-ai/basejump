@@ -155,13 +155,13 @@ async def process_db_tables(
             columns=[
                 sch.SQLTableColumn(**column.dict())
                 for column in table.columns
-                if not column.ignore and exclude_ignored_columns
+                if not column.ignore or not exclude_ignored_columns
             ],
             ignore=table.ignore,
             primary_keys=table.primary_keys,
         )
         for table in tables
-        if not table.ignore and exclude_ignored_tables
+        if not table.ignore or not exclude_ignored_tables
     ]
     return tables_base
 
