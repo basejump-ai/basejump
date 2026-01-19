@@ -504,6 +504,10 @@ class RedshiftConnector(Connector):
             ssl_root_cert=self.conn_params.ssl_root_cert,
         )
         ssl_args, ssl_cert_path = ssl_params.get_ssl_args()
+        # HACK
+        logger.debug("Here are the SSL args: %s", ssl_args)
+        ssl_args = {"sslmode": self.conn_params.ssl_mode.value}
+        logger.debug("Here are the SSL args updated: %s", ssl_args)
         return ssl_args, ssl_cert_path
 
     def create_ssl_engine(self, engine: Engine, ssl_cert_path) -> SSLEngine:
