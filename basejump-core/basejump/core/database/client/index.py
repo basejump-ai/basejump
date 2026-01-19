@@ -127,10 +127,13 @@ class DBTableIndexer:
         try:
             ignore_tables_uuid = [str(table.tbl_uuid) for table in tables if table.ignore]
             final_nodes = [node for node in nodes if node.node_id not in ignore_tables_uuid]
-            await vector_store.async_add(final_nodes)  # type: ignore
+            if final_nodes:
+                await vector_store.async_add(final_nodes)  # type: ignore
+            else:
+                logger.debug("Final nodes is empty")
             logger.info("Finished indexing")
         except Exception as e:
-            logger.error("Error inn _update_index %s", str(e))
+            logger.error("Error in _update_index %s", str(e))
             update_nodes_error = True
         if update_nodes_error:
             # TODO: This seems backwards, the hash key should likely be provided first

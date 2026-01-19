@@ -9,6 +9,7 @@ import json
 import uuid
 from typing import Optional, Sequence
 
+from asyncpg.exceptions import UniqueViolationError
 from cryptography.fernet import Fernet
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
@@ -335,7 +336,12 @@ async def setup_connection_assoc_table(
         for table in tables:
             conn_table = models.ConnTableAssociation(client_id=client_id, conn_id=conn_id, tbl_id=table.tbl_id)
             db.add(conn_table)
-        await db.commit()
+            try:
+                await db.commit()
+            # HACK: Less efficient, but allows tables to still be added when there is a unique violation error
+            # Catch the unique violiation exception and let it pass
+            except UniqueViolationError as e:
+                logger.warning("Error when creating association table: %s", str(e))
     except Exception as e:
         await db.rollback()
         logger.error("Create connection association tables error: %s", str(e))

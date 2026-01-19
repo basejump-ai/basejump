@@ -44,6 +44,7 @@ class DBManager:
         self.small_model_info = small_model_info
         self.redis_client_async = redis_client_async
         self.connections = connections
+        self.verbose = False
 
     async def validate_db(self):
         # Verify the updated params using a random connection
@@ -244,8 +245,11 @@ class DBManager:
             database = self.database
         # Identify new tables
         prior_tables_base = [sch.GetSQLTable.from_orm(table) for table in database.tables]  # type: ignore
-        logger.debug("Here are the prior_tables_base: %s", prior_tables_base)
-        prior_tables = await db_utils.process_db_tables(tables=prior_tables_base)
+        if self.verbose:
+            logger.debug("Here are the prior_tables_base: %s", prior_tables_base)
+        prior_tables = await db_utils.process_db_tables(
+            tables=prior_tables_base, exclude_ignored_tables=False, exclude_ignored_columns=False
+        )
         distinct_prior_table_names = {table.full_table_name.lower() for table in prior_tables}
         prior_tables_dict = {table.full_table_name.lower(): table for table in prior_tables}
         logger.debug("Here are the prior table names: %s", distinct_prior_table_names)

@@ -141,8 +141,8 @@ def get_query_column_values(query_result: sch.QueryResultDF) -> list:
 
 async def process_db_tables(
     tables: list[sch.GetSQLTable],
-    ignore_columns: bool = True,
-    ignore_tables: bool = True,
+    exclude_ignored_columns: bool = True,
+    exclude_ignored_tables: bool = True,
     include_db_table: bool = False,
 ) -> list[sch.SQLTable]:
     tables_base = [
@@ -153,13 +153,15 @@ async def process_db_tables(
             context_str=table.context,
             tbl_uuid=str(table.tbl_uuid),
             columns=[
-                sch.SQLTableColumn(**column.dict()) for column in table.columns if not column.ignore and ignore_columns
+                sch.SQLTableColumn(**column.dict())
+                for column in table.columns
+                if not column.ignore and exclude_ignored_columns
             ],
             ignore=table.ignore,
             primary_keys=table.primary_keys,
         )
         for table in tables
-        if not table.ignore and ignore_tables
+        if not table.ignore and exclude_ignored_tables
     ]
     return tables_base
 
