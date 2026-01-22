@@ -826,7 +826,7 @@ https://go.microsoft.com/fwlink/?linkid=2198766"""
         # logger.info("Webhook messages: %s", text)
         # If webhook is set, then post the thoughts to the webhook
         thoughts = []
-        sentence_ls_base = re.split(r"\.\s|\.\n", text)
+        sentence_ls_base = re.split(r"\.\s|\.\n|\s==", text)
         # Recombine sentences if they don't start capitalized (e.g. table names)
         sentence_ls: list = []
         for idx, sentence in enumerate(sentence_ls_base):
