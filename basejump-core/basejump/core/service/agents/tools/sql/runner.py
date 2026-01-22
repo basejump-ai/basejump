@@ -203,7 +203,9 @@ After reviewing, run this tool again to run your original or updated SQL query."
 
     async def _verify_sql_query(self, sql_query: str) -> Optional[str]:
         # Check for hallucinations
-        await self._check_hallucinations(sql_query)
+        msg = await self._check_hallucinations(sql_query)
+        if msg:
+            return msg
         await tool_utils.update_agent_tokens(agent=self.agent, max_tokens=1000)
 
         # Check if SQL query has been previously used

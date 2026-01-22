@@ -128,8 +128,7 @@ Filters:
 - Column: <Column name here>, Filter: <filter description>
 Ask the user if they would like you to search for similar filter values or if they would like you \
 to change any of them. Also advise the user to check the spelling. \
-Also let them know they can also review the tables you used in the 'Explore' page and ask a question \
-specifying columns and/or tables. Finally, they then can try re-phrasing the prompt."""
+Finally, they then can try re-phrasing the prompt."""
 
 
 # TODO: Let the AI know how many attempts it has remaining
