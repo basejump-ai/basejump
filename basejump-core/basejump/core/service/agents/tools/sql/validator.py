@@ -95,7 +95,7 @@ class SQLValidator:
             # logger.warning("Here are the all columns: %s", self.db_cols)
             if not query_cols_lowered.issubset(valid_cols_lowered):
                 ai_msg = f'The following column does not exist in the \
-    table. Do not use these column(s): {", ".join(query_cols_lowered-valid_cols_lowered)}'
+table. Do not use these column(s): {", ".join(query_cols_lowered-valid_cols_lowered)}'
                 logger.info(ai_msg)
                 raise errors.HallucinatedColumnError(ai_msg)
             elif not query_cols.issubset(valid_cols):

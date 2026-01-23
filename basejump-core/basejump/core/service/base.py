@@ -856,7 +856,7 @@ https://go.microsoft.com/fwlink/?linkid=2198766"""
                 continue
             if "UUID" in sentence or "uuid" in sentence:
                 continue
-            if "== Plan" in sentence:
+            if ">>>" in sentence:
                 continue
             if "Use the '" in sentence:
                 continue
@@ -865,6 +865,7 @@ https://go.microsoft.com/fwlink/?linkid=2198766"""
             # if SQL_OPTION_1 in sentence or SQL_OPTION_2_SUFFIX in sentence or SQL_OPTION_3_SUFFIX:
             #     continue
             else:
+                logger.debug("Here is the thought: %s", sentence)
                 thoughts.append(sentence.strip())
         for thought in thoughts:
             if not thought:
