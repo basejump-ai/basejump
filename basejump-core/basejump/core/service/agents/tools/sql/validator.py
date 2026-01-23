@@ -340,7 +340,10 @@ format: {db_col_filters}\n"""
 
     # TODO: Need to make tests for verifying the where clause
     async def verify_where_clause_distinct_values(self, sql_query: str) -> Optional[str]:
-        columns = await self.parser.get_where_clause_columns(sql_query=sql_query)
+        try:
+            columns = await self.parser.get_where_clause_columns(sql_query=sql_query)
+        except errors.StarQueryError as e:
+            return str(e)
         if not columns:
             logger.info("No where clause columns to verify")
             return None
