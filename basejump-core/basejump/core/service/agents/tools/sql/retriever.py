@@ -248,6 +248,9 @@ Here is the prompt that needs to be broken out: \n\n\
         await tool_utils.update_agent_tokens(agent=self.agent, max_tokens=1000)
         try:
             tables = await self.use_sub_questions(prompt=inquiry)
+        except Exception as e:
+            logger.warning(f"Failed to use sub questions: {str(e)}")
+        try:
             if not tables:
                 tables = await self.get_sql_tables_helper(inquiry=inquiry, sql_retriever=self.sql_retriever)
             tables_str = "\n\n".join(tables)
