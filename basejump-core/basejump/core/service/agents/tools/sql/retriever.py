@@ -55,9 +55,7 @@ class TableRetrieverTool(BaseTool):
         self.prompt_metadata = sql_tool_context.prompt_metadata
         self.db_uuid = sql_tool_context.db_uuid
         self.schemas = sql_tool_context.client_conn_params.schemas or []
-        # TEST
-        # self.verbose = sql_tool_context.verbose
-        self.verbose = True
+        self.verbose = sql_tool_context.verbose
         self.is_demo = False
         self.retrieved_sql_tables = False
 
