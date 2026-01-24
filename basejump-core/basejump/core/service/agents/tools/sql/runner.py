@@ -102,7 +102,8 @@ numbering them.
 - Determine if you have enough information or if you need to ask the user clarifying questions. This means that for \
 every filter the user has given enough context and defined it clearly. If you are unsure what column the filter \
 may be referring to, ask the user a clarifying question before proceeding. Do not ask the user for the column name.
-- The plan should be formatted with each step using this for preceding each bullet point >>>"""
+- The plan should be formatted with each step using this for preceding each bullet point >>
+- Do not include this plan reasoning in the final output."""
         intermediate_instructions = ""
         if self.select_sample_values:
             sampler = SQLSampler(sqlglot_dialect=self.sqlglot_dialect, conn_params=self.client_conn_params)
