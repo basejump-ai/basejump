@@ -858,7 +858,7 @@ https://go.microsoft.com/fwlink/?linkid=2198766"""
                 continue
             if "UUID" in sentence or "uuid" in sentence:
                 continue
-            if ">>>" in sentence:
+            if ">>" in sentence:
                 continue
             if "Use the '" in sentence:
                 continue
