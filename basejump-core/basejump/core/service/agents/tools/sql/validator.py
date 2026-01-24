@@ -81,10 +81,14 @@ class SQLValidator:
         else:
             return None
 
-    def compare_query_columns(self, query_columns: set, database_columns: set) -> list[str]:
+    def get_hallucinated_columns(self, query_columns: set, database_columns: set) -> list[str]:
         hallucinated_columns = []
         for query_column in query_columns:
-            if query_column not in database_columns:
+            # NOTE: If the same column exists in different schemas, it will not be caught
+            # TODO: Enforce schemas being specified for tables to avoid same table + column names in different schemas
+            # getting through
+            column_exists = any(query_column in database_column for database_column in database_columns)
+            if not column_exists:
                 logger.warning(f"Query column: {query_column} was not found in {database_columns}.")
                 hallucinated_columns.append(query_column)
         return hallucinated_columns
@@ -101,7 +105,7 @@ class SQLValidator:
             query_columns_lowered = {column.lower() for column in query_columns}
 
             # Check for hallucinated lowered columns
-            hallucinated_columns = self.compare_query_columns(
+            hallucinated_columns = self.get_hallucinated_columns(
                 query_columns=query_columns_lowered, database_columns=valid_database_columns_lowered
             )
             if hallucinated_columns:
@@ -111,7 +115,7 @@ table. Do not use these column(s): {", ".join(hallucinated_columns)}'
                 raise errors.HallucinatedColumnError(ai_msg)
 
             # Check for hallucination due to miscapitalization
-            miscapitalized_columns = self.compare_query_columns(
+            miscapitalized_columns = self.get_hallucinated_columns(
                 query_columns=query_columns, database_columns=valid_database_columns
             )
             if miscapitalized_columns:
