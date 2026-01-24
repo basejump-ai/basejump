@@ -826,7 +826,7 @@ https://go.microsoft.com/fwlink/?linkid=2198766"""
         # logger.info("Webhook messages: %s", text)
         # If webhook is set, then post the thoughts to the webhook
         thoughts = []
-        sentence_ls_base = re.split(r"\.\s|\.\n|\s==", text)
+        sentence_ls_base = re.split(r"\.\s|\.\n", text)
         # Recombine sentences if they don't start capitalized (e.g. table names)
         sentence_ls: list = []
         for idx, sentence in enumerate(sentence_ls_base):
@@ -836,7 +836,7 @@ https://go.microsoft.com/fwlink/?linkid=2198766"""
             else:
                 sentence_ls.append(sentence)
         for sentence in sentence_ls:
-            logger.info("LLM thought: %s", sentence)
+            logger.debug("Initial LLM thought: %s", sentence)
             # TODO: Make this more robust
             # TODO: Fix the hard reference to structured_sql_generation_tool
             if not sentence:
@@ -856,7 +856,7 @@ https://go.microsoft.com/fwlink/?linkid=2198766"""
                 continue
             if "UUID" in sentence or "uuid" in sentence:
                 continue
-            if "== Plan" in sentence:
+            if ">>>" in sentence:
                 continue
             if "Use the '" in sentence:
                 continue
@@ -865,6 +865,7 @@ https://go.microsoft.com/fwlink/?linkid=2198766"""
             # if SQL_OPTION_1 in sentence or SQL_OPTION_2_SUFFIX in sentence or SQL_OPTION_3_SUFFIX:
             #     continue
             else:
+                logger.info("LLM Thought: %s", sentence)
                 thoughts.append(sentence.strip())
         for thought in thoughts:
             if not thought:
