@@ -85,6 +85,7 @@ class SQLValidator:
         hallucinated_columns = []
         for query_column in query_columns:
             if query_column not in database_columns:
+                logger.warning(f"Query column: {query_column} was not found in {database_columns}.")
                 hallucinated_columns.append(query_column)
         return hallucinated_columns
 
