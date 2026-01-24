@@ -81,29 +81,44 @@ class SQLValidator:
         else:
             return None
 
+    def compare_query_columns(self, query_columns: set, database_columns: set) -> list[str]:
+        hallucinated_columns = []
+        for query_column in query_columns:
+            if query_column not in database_columns:
+                hallucinated_columns.append(query_column)
+        return hallucinated_columns
+
     async def check_all_columns(self, sql_columns: list[sch.DBColumn], db_columns: list[sch.DBColumn]):
         """Check columns for hallucinations and capitalization errors"""
         try:
-            db_cols = {db_utils.get_column_str(column) for column in db_columns}
-            ignored_cols = {db_utils.get_column_str(column) for column in db_columns if column.ignore}
-            valid_cols = db_cols - ignored_cols
-            valid_cols_lowered = {column.lower() for column in valid_cols}
-            query_cols = {db_utils.get_column_str(column) for column in sql_columns}
-            query_cols_lowered = {column.lower() for column in query_cols}
-            logger.warning("Here are the valid columns: %s", valid_cols)
-            logger.warning("Here are the query columns: %s", query_cols)
-            logger.warning("Here are the all columns: %s", db_cols)
-            if not query_cols_lowered.issubset(valid_cols_lowered):
-                ai_msg = f'The following column does not exist in the \
-table. Do not use these column(s): {", ".join(query_cols_lowered-valid_cols_lowered)}'
-                logger.info(ai_msg)
+            # Get column sets for the SQL query and the database
+            distinct_db_columns = {db_utils.get_column_str(column) for column in db_columns}
+            ignored_columns = {db_utils.get_column_str(column) for column in db_columns if column.ignore}
+            valid_database_columns = distinct_db_columns - ignored_columns
+            valid_database_columns_lowered = {column.lower() for column in valid_database_columns}
+            query_columns = {db_utils.get_column_str(column) for column in sql_columns}
+            query_columns_lowered = {column.lower() for column in query_columns}
+
+            # Check for hallucinated lowered columns
+            hallucinated_columns = self.compare_query_columns(
+                query_columns=query_columns_lowered, database_columns=valid_database_columns_lowered
+            )
+            if hallucinated_columns:
+                ai_msg = f'The following column(s) does not exist in the \
+table. Do not use these column(s): {", ".join(hallucinated_columns)}'
+                logger.warning(ai_msg)
                 raise errors.HallucinatedColumnError(ai_msg)
-            elif not query_cols.issubset(valid_cols):
-                # TODO: does not need all valid cols, just need ones that are miscapitalized in the query
-                ai_msg = f'The following column(s) do exist in the schema but you have the capitalization wrong:\
-                        {", ".join(query_cols-valid_cols)}. Try using one of these instead: {", ".join(valid_cols)}'
-                logger.info(ai_msg)
+
+            # Check for hallucination due to miscapitalization
+            miscapitalized_columns = self.compare_query_columns(
+                query_columns=query_columns, database_columns=valid_database_columns
+            )
+            if miscapitalized_columns:
+                ai_msg = f'The following column(s) exists in the \
+table, but you miscapitalized it/them: {", ".join(miscapitalized_columns)}'
+                logger.warning(ai_msg)
                 raise errors.ColumnCapitalizationError(ai_msg)
+
         except (errors.SQLParseError, sqlglot_errors.ParseError) as e:
             logger.warning("SQLglot failed parsing: %s", str(e))
             return None
