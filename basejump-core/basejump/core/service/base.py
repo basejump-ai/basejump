@@ -836,7 +836,7 @@ https://go.microsoft.com/fwlink/?linkid=2198766"""
             else:
                 sentence_ls.append(sentence)
         for sentence in sentence_ls:
-            logger.info("LLM thought: %s", sentence)
+            logger.debug("Initial LLM thought: %s", sentence)
             # TODO: Make this more robust
             # TODO: Fix the hard reference to structured_sql_generation_tool
             if not sentence:
@@ -865,7 +865,7 @@ https://go.microsoft.com/fwlink/?linkid=2198766"""
             # if SQL_OPTION_1 in sentence or SQL_OPTION_2_SUFFIX in sentence or SQL_OPTION_3_SUFFIX:
             #     continue
             else:
-                logger.debug("Here is the thought: %s", sentence)
+                logger.info("LLM Thought: %s", sentence)
                 thoughts.append(sentence.strip())
         for thought in thoughts:
             if not thought:
