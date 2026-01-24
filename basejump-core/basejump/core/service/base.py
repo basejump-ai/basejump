@@ -622,6 +622,8 @@ instructions for the expected output format: \n{EXPECTED_OUTPUT_INSTRUCTIONS}\
                 max_function_calls=self.max_iterations,
                 callback_manager=self.agent_llm.callback_manager,
                 response_hook=self._get_response_hook(),
+                # NOTE: If not set to False, then the same result UUID can be applied to 2 SQL results
+                allow_parallel_tool_calls=False,
             )
         return agent
 
@@ -826,7 +828,7 @@ https://go.microsoft.com/fwlink/?linkid=2198766"""
         # logger.info("Webhook messages: %s", text)
         # If webhook is set, then post the thoughts to the webhook
         thoughts = []
-        sentence_ls_base = re.split(r"\.\s|\.\n", text)
+        sentence_ls_base = re.split(r"[a-zA-Z]\.\s|\.\n", text)
         # Recombine sentences if they don't start capitalized (e.g. table names)
         sentence_ls: list = []
         for idx, sentence in enumerate(sentence_ls_base):
