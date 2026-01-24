@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "basejump"
-version = "0.2.2"
+version = "0.2.4"
 description = "AI data agents to chat with your data"
 authors = [
     { name = "Andreas Martinson", email = "andreas.martinson@basejump.ai" },
@@ -13,7 +13,7 @@ requires-python = ">=3.11,<3.13"
 readme = "README.md"
 license = {text = "AGPL-3.0-or-later"}
 dependencies = [
-    "basejump-core==0.32.1",
+    "basejump-core==0.32.3",
 ]
 
 [project.optional-dependencies]
