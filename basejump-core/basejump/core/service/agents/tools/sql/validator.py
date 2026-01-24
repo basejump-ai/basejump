@@ -90,9 +90,9 @@ class SQLValidator:
             valid_cols_lowered = {column.lower() for column in valid_cols}
             query_cols = {db_utils.get_column_str(column) for column in sql_columns}
             query_cols_lowered = {column.lower() for column in query_cols}
-            # logger.warning("Here are the valid columns: %s", valid_cols)
-            # logger.warning("Here are the query columns: %s", query_cols)
-            # logger.warning("Here are the all columns: %s", self.db_cols)
+            logger.warning("Here are the valid columns: %s", valid_cols)
+            logger.warning("Here are the query columns: %s", query_cols)
+            logger.warning("Here are the all columns: %s", db_cols)
             if not query_cols_lowered.issubset(valid_cols_lowered):
                 ai_msg = f'The following column does not exist in the \
 table. Do not use these column(s): {", ".join(query_cols_lowered-valid_cols_lowered)}'
