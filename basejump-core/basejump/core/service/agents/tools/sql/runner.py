@@ -146,6 +146,7 @@ After stating your plan, do one of the following:
             errors.StarQueryError,
             errors.ColumnCapitalizationError,
             errors.HallucinatedColumnError,
+            errors.SQLParseError,
         ) as e:
             logger.error("Here is the error from validate_all_columns: %s", str(e))
             return str(e)
