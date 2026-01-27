@@ -11,9 +11,8 @@ from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.connector import Connector
 from basejump.core.database.crud import crud_connection
 from basejump.core.database.result import store
-from basejump.core.models import constants, enums, errors, models
+from basejump.core.models import constants, enums, errors, models, prompts
 from basejump.core.models import schemas as sch
-from basejump.core.models.prompts import NO_DB_ACCESS_PROMPT
 from basejump.core.service.agents.base import BaseChatAgent
 from basejump.core.service.agents.memory import AgentMemory
 from basejump.core.service.agents.message import ChatMessageHandler
@@ -169,20 +168,28 @@ class DataChatAgent(BaseChatAgent):
         # Prompt the AI
         # Modify the prompt if needed
         if not self.connections:
-            prompt = NO_DB_ACCESS_PROMPT.format(prompt=prompt)
+            prompt = prompts.NO_DB_ACCESS_PROMPT.format(prompt=prompt)
         if self.check_if_prompt_is_cached:
             conn_uuids = {str(connection.conn_uuid) for connection in self.connections}
             db_uuids = {str(connection.db_uuid) for connection in self.connections}
             agent_memory = AgentMemory(
                 db=self.db,
-                prompt_metadata=self.prompt_metadata,
                 service_context=self.service_context,
+                prompt_metadata=self.prompt_metadata,
+                prompt_metadata=self.chat_metadata,
                 conn_params=self.db_conn_params,
                 result_store=self.result_store,
                 query_result=self.query_result,
             )
-            if semcache_response := await agent_memory.check_semcache(
-                prompt=prompt, conn_uuids=conn_uuids, db_uuids=db_uuids
-            ):
-                return semcache_response
+            message_pair = await agent_memory.check_semcache(prompt=prompt, conn_uuids=conn_uuids, db_uuids=db_uuids)
+            if not message_pair.response:
+                prompt = message_pair.prompt.prompt
+            elif message_pair.response:
+                # Update the prompt ID for token cost calcs to just use previous cost
+                prompt_hist = await crud_chat.get_prompt_history(
+                    db=self.db, prompt_uuid=uuid.UUID(message_pair.response.metadata.prompt_uuid)
+                )
+                assert prompt_hist
+                self.prompt_metadata.prompt_id = prompt_hist.prompt_id
+                return await self._get_message(response=message_pair.response)
         return await self._chat_base(prompt=prompt)

@@ -425,8 +425,9 @@ async def chat(
         retrieved_chat = await chat_setup.get_chat()
         agent_memory = AgentMemory(
             db=db,
-            prompt_metadata=agent_setup.prompt_metadata,
             service_context=service_context,
+            chat_metadata=chat_metadata,
+            prompt_metadata=agent_setup.prompt_metadata,
             conn_params=settings.conn_params,
         )
         chat_history = await agent_memory.get_chat_history(

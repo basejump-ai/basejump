@@ -76,7 +76,6 @@ class ChatAgentSetup(AgentSetup):
             db=db,
             redis_client_async=redis_client_async,
             embedding_model_info=embedding_model_info,
-            team_info=team_info,
         )
 
     @staticmethod

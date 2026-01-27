@@ -36,18 +36,22 @@ logger = set_logging(handler_option="stream", name=__name__)
 
 
 class AgentMemory:
+    """Manages retrieval of chat history as well as the semantic cache."""
+
     def __init__(
         self,
         db: AsyncSession,
-        prompt_metadata: sch.PromptMetadata,
         service_context: sch.ServiceContext,
+        prompt_metadata: sch.PromptMetadata,
+        chat_metadata: sch.ChatMetadata,
         conn_params: sch.SQLDBSchema,
         query_result: Optional[sch.MessageQueryResult] = None,
         result_store: Optional[store.ResultStore] = None,
     ):
         self.db = db
-        self.prompt_metadata = prompt_metadata
         self.service_context = service_context
+        self.prompt_metadata = prompt_metadata
+        self.chat_metadata = chat_metadata
         self.conn_params = conn_params
         self.result_store = result_store or store.LocalResultStore(client_id=self.prompt_metadata.client_id)
         self.query_result = query_result
@@ -76,25 +80,25 @@ class AgentMemory:
             num_results=num_results,
         )
 
-    async def check_semcache(self, prompt, conn_uuids: set[str], db_uuids: set[str]) -> Optional[sch.Message]:
+    async def check_semcache(self, prompt, conn_uuids: set[str], db_uuids: set[str]) -> Optional[sch.MessagePair]:
         # See if a similar prompt has been cached
-        semcache_response = await self.get_cached_prompt(
+        semcache_response_raw = await self.get_cached_prompt(
             prompt=prompt, distance_threshold=constants.REDIS_SEMCACHE_EXACT_DISTANCE, db_uuids=db_uuids
         )
-        if not semcache_response:
+        if not semcache_response_raw:
             return None
 
         # Load cached response
-        logger.info("Semantic similarity distance: %s", semcache_response[0]["vector_distance"])
-        metadata = semcache_response[0]["metadata"]
+        logger.info("Semantic similarity distance: %s", semcache_response_raw[0]["vector_distance"])
+        metadata = semcache_response_raw[0]["metadata"]
         can_verify = auth.check_can_verify(
             required_role=enums.UserRoles(metadata["verified_user_role"]),
             user_role=enums.UserRoles(self.prompt_metadata.user_role),
         )
         semcache_response = sch.SemCacheResponse(
-            response=semcache_response[0]["response"],
-            prompt=semcache_response[0]["prompt"],
-            vector_dist=semcache_response[0]["vector_distance"],
+            response=semcache_response_raw[0]["response"],
+            prompt=semcache_response_raw[0]["prompt"],
+            vector_dist=semcache_response_raw[0]["vector_distance"],
             can_verify=can_verify,
             verified=True,
             **metadata,
@@ -106,10 +110,10 @@ class AgentMemory:
             return None
 
         # Get the response
-        return self.get_cached_response(semcache_response=semcache_response)
+        return await self.get_cached_response(semcache_response=semcache_response)
 
     # TODO: Clean this up
-    async def get_cached_response(self, semcache_response: sch.SemCacheResponse) -> sch.Message:
+    async def get_cached_response(self, semcache_response: sch.SemCacheResponse) -> Optional[sch.QueryResult]:
         # Get query result
         result = await crud_result.get_result(db=self.db, result_uuid=uuid.UUID(semcache_response.result_uuid))
         visual_result = await crud_result.get_visual_result_from_result(db=self.db, result_id=result.result_id)
@@ -127,13 +131,11 @@ class AgentMemory:
         if refresh_not_needed:
             # Create a message to return
             logger.info("Cached message found - returning cached message.")
-            # Update the prompt ID for token cost calcs to just use previous cost
-            prompt_hist = await crud_chat.get_prompt_history(
-                db=self.db, prompt_uuid=uuid.UUID(semcache_response.prompt_uuid)
+            return sch.ChatResponse(
+                response=semcache_response.response,
+                query_result=self.query_result,
+                metadata=sch.ResponseMetadata.parse_obj(semcache_response),
             )
-            assert prompt_hist
-            self.prompt_metadata.prompt_id = prompt_hist.prompt_id
-            return await self._get_message(response=semcache_response.response)
         else:
             # Refresh the results
             refresher = ResultRefresher(
@@ -144,15 +146,7 @@ class AgentMemory:
                 result_store=self.result_store,
                 query_result=self.query_result,
             )
-            query_res = await refresher.refresh_results(result=result, visual_result=visual_result)
-            # Get the response using SQL query results
-            new_prompt_base = prompts.sql_result_prompt_basic(query_result=query_res)
-            new_prompt = (
-                f"""The user asked this question: {self.prompt_metadata.initial_prompt}. \
-    This SQL query has been ran for you: {self.query_result.sql_query}. """
-                + new_prompt_base
-            )
-            return await self._chat_base(prompt=new_prompt)
+            return await refresher.refresh_results(result=result, visual_result=visual_result)
 
     async def get_chat_history(
         self, chat: models.Chat, team_info: sch.TeamFields, system_prompt: Optional[str]

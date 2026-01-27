@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any, Callable, Dict, Literal, Optional, Union
 
+from llama_index.core.base.llms.types import ChatMessage
 import pandas as pd
 import sqlalchemy as sa
 from llama_index.core.callbacks import (
@@ -496,14 +497,19 @@ class PromptMetadata(PromptMetadataBase):
 
 
 # NOTE: UUIDs need to be str since they are dumped into Redis
-class SemCacheMetadata(BaseModel):
+
+
+class ResponseMetadata(BaseModel):
+    conn_uuid: str
     result_uuid: str
     prompt_uuid: str
     verified_user_uuid: str
     sql_query: str
     timestamp: str
+
+
+class SemCacheMetadata(ResponseMetadata):
     verified_user_role: str
-    conn_uuid: str
 
 
 class SemCache(SemCacheMetadata):
@@ -763,3 +769,18 @@ class SQLToolContext(BaseModel):
     vector_id: int
     verbose: bool = False
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+
+class ChatPrompt(BaseModel):
+    prompt: str
+
+
+class ChatResponse(BaseModel):
+    response: str
+    query_result: MessageQueryResult
+    metadata: Optional[ResponseMetadata] = None
+
+
+class MessagePair(BaseModel):
+    prompt: ChatMessage
+    response: Optional[ChatResponse] = None

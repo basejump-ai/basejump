@@ -68,15 +68,8 @@ class ResultRefresher:
         if visual_result:
             client_user = sch.ClientUserInfo.parse_obj(self.prompt_metadata)
             visual_result = await self.refresh_visual_result(
-                db=self.db,
                 visual_result=visual_result,
                 client_user=client_user,
-                sql_engine=self.service_context.sql_engine,
-                small_model_info=self.service_context.small_model_info,
-                large_model_info=self.service_context.large_model_info,
-                embedding_model_info=self.service_context.embedding_model_info,
-                redis_client_async=self.service_context.redis_client_async,
-                result_store=self.result_store,
             )
             self.query_result.visual_result_uuid = visual_result.visual_result_uuid
             self.query_result.visual_json = visual_result.visual_json
