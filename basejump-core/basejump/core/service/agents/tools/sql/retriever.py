@@ -28,9 +28,9 @@ from basejump.core.models.ai import formats as fmt
 from basejump.core.models.ai import formatter
 from basejump.core.models.ai.catalog import AICatalog
 from basejump.core.models.prompts import DB_METADATA_PROMPT
+from basejump.core.service.agents.base import BaseChatAgent
 from basejump.core.service.agents.tools import tool_utils
 from basejump.core.service.agents.tools.base import BaseTool
-from basejump.core.service.base import BaseChatAgent
 
 logger = set_logging(handler_option="stream", name=__name__)
 

@@ -5,9 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.result import store
 from basejump.core.models import schemas as sch
+from basejump.core.service.agents.base import BaseChatAgent
 from basejump.core.service.agents.tools.base import BaseTool
 from basejump.core.service.agents.tools.sql import retriever, runner
-from basejump.core.service.base import BaseChatAgent
 
 logger = set_logging(handler_option="stream", name=__name__)
 

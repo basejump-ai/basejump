@@ -427,6 +427,7 @@ class QueryResult(QueryResultBase, QueryResultRows):
     metric_value: Optional[str] = None
     metric_value_formatted: Optional[str] = None
     aborted_upload: bool = False
+    message_query_result: Optional[MessageQueryResult] = None
 
 
 class QueryResultDF(QueryResultBase, QueryResultRows):
@@ -703,7 +704,7 @@ class UploadTable(BaseModel):
 
 
 class CoreSession(BaseModel):
-    sql_engine: AsyncEngine
+    sql_engine: AsyncEngine = Field(description="The SQL engine for the application, not the client database.")
     redis_client_async: RedisAsync
     model_config = ConfigDict(arbitrary_types_allowed=True)
 

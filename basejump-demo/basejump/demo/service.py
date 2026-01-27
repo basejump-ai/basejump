@@ -23,8 +23,9 @@ from basejump.core.models import schemas as sch
 from basejump.core.models.ai.catalog import AICatalog
 from basejump.core.service.agents import agent_utils
 from basejump.core.service.agents.data_chat import DataChatAgent
+from basejump.core.service.agents.memory import AgentMemory
 from basejump.core.service.agents.mermaid import MermaidAgent
-from basejump.core.service.base import AgentSetup, ChatAgentSetup
+from basejump.core.service.agents.setup import AgentSetup, ChatAgentSetup
 from basejump.core.service.database.client import utils
 from basejump.demo import crud, schemas, settings
 
@@ -420,10 +421,17 @@ async def chat(
             chat_metadata=chat_metadata,
             redis_client_async=service_context.redis_client_async,
             embedding_model_info=service_context.embedding_model_info,
-            team_info=sch.TeamFields.model_validate(user_info),
         )
         retrieved_chat = await chat_setup.get_chat()
-        chat_history = await chat_setup.get_chat_history(chat=retrieved_chat)
+        agent_memory = AgentMemory(
+            db=db,
+            prompt_metadata=agent_setup.prompt_metadata,
+            service_context=service_context,
+            conn_params=settings.conn_params,
+        )
+        chat_history = await agent_memory.get_chat_history(
+            chat=retrieved_chat, team_info=sch.TeamFields.model_validate(user_info)
+        )
 
     # Prompt the agent
     ai_catalog = AICatalog()

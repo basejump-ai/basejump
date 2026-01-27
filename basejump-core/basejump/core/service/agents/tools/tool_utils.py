@@ -1,5 +1,5 @@
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.service.base import BaseAgent, SimpleAgent
+from basejump.core.service.agents.base import BaseAgent, SimpleAgent
 
 logger = set_logging(handler_option="stream", name=__name__)
 
