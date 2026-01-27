@@ -2,15 +2,16 @@
 
 from typing import Optional
 
-from basejump.core.common.config.logconfig import set_logging
-from basejump.core.models import enums
-from basejump.core.models import schemas as sch
-from basejump.core.service.base import BaseAgent
-from llama_index.core.llms.function_calling import FunctionCallingLLM
 from llama_index.core.llms import ChatMessage
+from llama_index.core.llms.function_calling import FunctionCallingLLM
 from llama_index.core.tools.types import AsyncBaseTool
 from redis.asyncio import Redis as RedisAsync
 from sqlalchemy.ext.asyncio import AsyncEngine
+
+from basejump.core.common.config.logconfig import set_logging
+from basejump.core.models import enums
+from basejump.core.models import schemas as sch
+from basejump.core.service.agents.base import BaseAgent
 
 logger = set_logging(handler_option="stream", name=__name__)
 
