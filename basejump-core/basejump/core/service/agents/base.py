@@ -71,7 +71,7 @@ class BaseAgent(ABC):
         self.agent_llm: FunctionCallingLLM = agent_llm or ai_catalog.get_llm(
             model_info=self.service_context.large_model_info
         )
-        self.initial_memory = ChatMemoryBuffer.from_defaults(chat_history=memory.chat_history, llm=self.agent_llm)
+        self.memory_buffer = ChatMemoryBuffer.from_defaults(chat_history=memory.chat_history, llm=self.agent_llm)
         self.memory = memory
         self.max_iterations = max_iterations  # NOTE: This only works with streaming off
         self.sql_engine = self.service_context.sql_engine
@@ -126,7 +126,7 @@ instructions for the expected output format: \n{EXPECTED_OUTPUT_INSTRUCTIONS}\
         if not tools:
             agent = SimpleChatEngine.from_defaults(
                 llm=self.agent_llm,
-                memory=self.initial_memory,
+                memory=self.memory_buffer,
                 callback_manager=self.agent_llm.callback_manager,
             )
         else:
@@ -135,7 +135,7 @@ instructions for the expected output format: \n{EXPECTED_OUTPUT_INSTRUCTIONS}\
                 tools,  # type: ignore
                 llm=self.agent_llm,
                 verbose=self.verbose,
-                memory=self.initial_memory,
+                memory=self.memory_buffer,
                 max_function_calls=self.max_iterations,
                 callback_manager=self.agent_llm.callback_manager,
                 response_hook=self._get_response_hook(),

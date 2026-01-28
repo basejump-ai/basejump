@@ -17,7 +17,7 @@ async def update_agent_tokens(agent: BaseAgent, max_tokens: int = 500):
     from basejump.core.service.agents.simple import SimpleAgent
 
     if not isinstance(agent, SimpleAgent):
-        agent.agent.memory.token_limit = agent.memory.get_llm_token_limit(llm=agent.agent_llm)  # type: ignore
+        agent.agent.memory.token_limit = agent.agent.memory.get_llm_token_limit(llm=agent.agent_llm)  # type: ignore
         agent.agent.agent_worker._llm.max_tokens = max_tokens  # type: ignore
         logger.debug("Updated the agent to max_tokens = %s", max_tokens)
 
