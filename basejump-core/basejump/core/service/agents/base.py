@@ -47,13 +47,7 @@ class BaseAgentMemory(ABC):
 
 
 class BaseAgent(ABC):
-    """Concrete class for agents
-
-    See Also
-    --------
-    BaseChatAgent
-        Use the BaseChatAgent if you want to track the chat history of the agent with a human in the loop
-    """
+    """Abstract class for agents"""
 
     def __init__(
         self,
@@ -241,12 +235,20 @@ class BaseChatAgent(BaseAgent):
         prompt_metadata: sch.PromptMetadata,
         chat_metadata: sch.ChatMetadata,
         service_context: sch.ServiceContext,
-        memory: BaseAgentMemory,
+        memory: Optional[BaseAgentMemory] = None,
         result_store: Optional[store.ResultStore] = None,
         agent_llm: Optional[FunctionCallingLLM] = None,
         max_iterations: int = constants.MAX_ITERATIONS,
         verbose: bool = False,
     ):
+        if not memory:
+            memory = AgentMemory(
+                service_context=service_context,
+                prompt_metadata=prompt_metadata,
+                chat_metadata=chat_metadata,
+                conn_params=db_conn_params,
+                chat_history=chat_history,
+            )
         super().__init__(
             prompt_metadata=prompt_metadata,
             memory=memory,

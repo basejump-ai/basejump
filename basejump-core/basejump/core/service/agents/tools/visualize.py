@@ -1,3 +1,6 @@
+"""An agent tool for visualizing results.
+Only includes methods that either support a FunctionTool or are a FunctionTool themselves."""
+
 import json
 import uuid
 from typing import Optional
@@ -12,15 +15,14 @@ from llama_index.core.tools.function_tool import create_tool_metadata
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.crud import crud_result
-from basejump.core.database.db_utils import extract_visual_info
 from basejump.core.models import constants, enums, errors, models
 from basejump.core.models import schemas as sch
 from basejump.core.models.ai import formats as fmt
 from basejump.core.models.ai import formatter
 from basejump.core.models.ai.catalog import AICatalog
-from basejump.core.service.agents.base import BaseChatAgent
+from basejump.core.service.agents.simple import SimpleAgent
 from basejump.core.service.agents.tools import tool_utils
-from basejump.core.service.agents.tools.base import ResultTool
+from basejump.core.service.agents.tools.base import BaseTool
 
 bucket_name = "datasetsfromchat"
 
@@ -29,10 +31,10 @@ logger = set_logging(handler_option="stream", name=__name__)
 TIMEOUT = 60 * 3
 
 
-class VisTool(ResultTool):
+class VisTool(BaseTool):
     def __init__(
         self,
-        agent: BaseChatAgent,
+        agent: SimpleAgent,
         llm: Optional[LLM] = None,
     ):
         self.agent = agent
@@ -154,40 +156,3 @@ then you would respond "Here is the bar chart you requested." \
 Do not mention anything about the results being displayed to the user. \
 Talk as if you are showing them the chart in person."""
         return prompt
-
-    async def refresh(
-        self,
-        result: models.VisualResultHistory,
-    ) -> models.VisualResultHistory:
-        """Refresh the visualization result"""
-        # Create the prompt that includes the axis from the prior chart
-        visual_info = extract_visual_info(visual_json=json.loads(result.visual_json))  # type: ignore
-        # TODO: This was part of the logic for inferring the chart type to provide to the LLM to improve charting
-        # Need to revisit this
-        # match = re.search(r"type\s*=\s*(\w+)", visual_info)
-        # if match:
-        #     chart_type_base = match.group(1)
-        #     try:
-        #         chart_type_obj = sch.ChartType(chart_type=chart_type_base)
-        #         chart_type = chart_type_obj.chart_type
-        #     except Exception as e:
-        #         logger.error(f"{chart_type_base} is not a valid chart type. Here is the error: {str(e)}")
-        #     logger.info(f"Chart type: {chart_type}")
-        # else:
-        #     msg = "No chart type found"
-        #     logger.error(msg)
-        #     raise Exception(msg)
-        prompt = f"""You are refreshing a plot you previously created. You need to use the same axis titles as \
-    well as the same/similar axis ranges and/or format. Here is the visual information from the previous plot:
-    {visual_info}
-    """
-        logger.debug("Refresh visual result prompt: %s", visual_info)
-        # Query the VisTool
-        result_uuid = result.result_uuid
-        await self.get_plot(result_uuid=result_uuid, prompt=prompt)
-        # Return the new visual result
-        assert self.agent.query_result, "There should be a query result - check your code"
-        assert self.agent.query_result.visual_result_uuid
-        return await crud_result.get_visual_result(
-            db=self.agent.db, visual_result_uuid=self.agent.query_result.visual_result_uuid
-        )

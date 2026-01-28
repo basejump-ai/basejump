@@ -11,6 +11,7 @@ from llama_index.core.tools.types import AsyncBaseTool
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.connector import Connector
+from basejump.core.database import auth
 from basejump.core.database.crud import crud_chat, crud_connection
 from basejump.core.database.result import store
 from basejump.core.models import constants, enums, errors, models, prompts
@@ -144,13 +145,7 @@ will be ignored; using memory's chat history instead."""
     async def check_semantic_memory(self, prompt: str) -> Optional[sch.MessagePair]:
         conn_uuids = {str(connection.conn_uuid) for connection in self.connections}
         db_uuids = {str(connection.db_uuid) for connection in self.connections}
-        semantic_memory = SemanticMemory(
-            redis_client_async=self.service_context.redis_client_async,
-        )
-        if message_pair := await semantic_memory.check_cache(
-            db=self.db,
-            sql_tool=self.sql_tool,
-            vis_tool=self.vis_tool,
+        if message_pair := await self._check_semantic_memory(
             prompt=prompt,
             conn_uuids=conn_uuids,
             db_uuids=db_uuids,
@@ -164,6 +159,48 @@ will be ignored; using memory's chat history instead."""
                 assert prompt_hist
                 self.prompt_metadata.prompt_id = prompt_hist.prompt_id
         return message_pair
+
+    async def _check_semantic_memory(
+        self,
+        prompt: str,
+        conn_uuids: set[str],
+        db_uuids: set[str],
+    ) -> Optional[sch.MessagePair]:
+        # See if a similar prompt has been cached
+        semantic_memory = SemanticMemory(
+            redis_client_async=self.service_context.redis_client_async,
+        )
+        semcache_response = await semantic_memory.get_cached_prompt(
+            prompt=prompt,
+            client_id=self.prompt_metadata.client_id,
+            distance_threshold=constants.REDIS_SEMCACHE_EXACT_DISTANCE,
+            db_uuids=db_uuids,
+        )
+        if not semcache_response:
+            return None
+
+        # Load cached response
+        logger.info("Semantic similarity distance: %s", semcache_response.vector_dist)
+        can_verify = auth.check_can_verify(
+            required_role=enums.UserRoles(semcache_response.verified_user_role),
+            user_role=enums.UserRoles(self.prompt_metadata.user_role),
+        )
+        semcache_response.can_verify = can_verify
+        self.chat_metadata.semcache_response = semcache_response  # save for later use in SQL query tool
+
+        # Confirm permissions
+        if semcache_response.conn_uuid not in conn_uuids:
+            return None
+
+        # Get the response
+        return await semantic_memory.get_cached_response(
+            prompt=prompt,
+            db=self.db,
+            service_context=self.service_context,
+            result_store=self.result_store,
+            client_id=self.prompt_metadata.client_id,
+            semcache_response=semcache_response,
+        )
 
     async def _chat(self, prompt: str) -> sch.Message:
         """Prompt the AI"""
