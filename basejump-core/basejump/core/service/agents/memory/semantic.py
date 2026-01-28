@@ -1,7 +1,7 @@
 import asyncio
 import uuid
 from datetime import datetime, timedelta
-from typing import Any, Optional
+from typing import Optional
 
 from redis.asyncio import Redis as RedisAsync
 from redisvl.query.filter import Tag
@@ -34,7 +34,7 @@ class SemanticMemory:
 
     async def get_cached_prompt(
         self, prompt: str, client_id: int, distance_threshold: float, db_uuids: set[str], num_results=1
-    ) -> list[dict[str, Any]]:
+    ) -> Optional[sch.SemCacheResponse]:
         if not self.cache:
             try:
                 # TODO: Determine why the semantic cache has issues initializing sometimes
@@ -46,7 +46,7 @@ class SemanticMemory:
                     )
             except TimeoutError:
                 logger.warning(f"Connection to the semcache timed out after {semcache_init_timeout} seconds")
-                return []
+                return None
         client_id_filter = Tag("client_id") == str(client_id)
         db_uuid_filter = Tag("db_uuid") == db_uuids
         complex_filter = db_uuid_filter & client_id_filter
@@ -124,7 +124,7 @@ class SemanticMemory:
         # Load cached response
         logger.info("Semantic similarity distance: %s", semcache_response.vector_dist)
         can_verify = auth.check_can_verify(
-            required_role=enums.UserRoles(semcache_response.metadata.verified_user_role),
+            required_role=enums.UserRoles(semcache_response.verified_user_role),
             user_role=enums.UserRoles(sql_tool.agent.prompt_metadata.user_role),
         )
         semcache_response.can_verify = can_verify
