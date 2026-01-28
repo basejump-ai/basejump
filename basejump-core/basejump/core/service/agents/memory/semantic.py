@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.crud import crud_result
+from basejump.core.database.result.store import ResultStore
 from basejump.core.database.vector_utils import (
     AsyncSemanticCache,
     init_semcache,
@@ -17,7 +18,6 @@ from basejump.core.database.vector_utils import (
 from basejump.core.models import models, prompts
 from basejump.core.models import schemas as sch
 from basejump.core.service.agents.memory.utils import refresh_results
-from basejump.core.database.result.store import ResultStore
 
 logger = set_logging(handler_option="stream", name=__name__)
 

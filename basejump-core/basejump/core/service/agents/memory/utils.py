@@ -1,7 +1,7 @@
 """Common utility functions shared across the memory package and its dependencies."""
 
-from datetime import datetime
 import json
+from datetime import datetime
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,10 +10,10 @@ from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.client import query
 from basejump.core.database.connector import Connector
 from basejump.core.database.crud import crud_chat, crud_connection, crud_result
-from basejump.core.models import models, constants, enums
-from basejump.core.models import schemas as sch
 from basejump.core.database.db_utils import extract_visual_info
 from basejump.core.database.result.store import ResultStore
+from basejump.core.models import constants, enums, models
+from basejump.core.models import schemas as sch
 from basejump.core.service.agents.setup import AgentSetup
 from basejump.core.service.agents.simple import SimpleAgent
 from basejump.core.service.agents.tools.visualize import VisTool

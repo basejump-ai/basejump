@@ -10,8 +10,8 @@ from llama_index.core.llms.function_calling import FunctionCallingLLM
 from llama_index.core.tools.types import AsyncBaseTool
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database.connector import Connector
 from basejump.core.database import auth
+from basejump.core.database.connector import Connector
 from basejump.core.database.crud import crud_chat, crud_connection
 from basejump.core.database.result import store
 from basejump.core.models import constants, enums, errors, models, prompts
