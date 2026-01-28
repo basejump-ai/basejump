@@ -1,15 +1,16 @@
 """Defines the AI models and routers to use for text to SQL"""
 
+import uuid
 from random import choice
 from typing import Optional, Sequence
 
-from llama_index.core.llms import ChatMessage, MessageRole
+from llama_index.core.llms import MessageRole
 from llama_index.core.llms.function_calling import FunctionCallingLLM
 from llama_index.core.tools.types import AsyncBaseTool
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.connector import Connector
-from basejump.core.database.crud import crud_connection
+from basejump.core.database.crud import crud_chat, crud_connection
 from basejump.core.database.result import store
 from basejump.core.models import constants, enums, errors, models, prompts
 from basejump.core.models import schemas as sch
@@ -38,11 +39,11 @@ class DataChatAgent(BaseChatAgent):
         prompt_metadata: sch.PromptMetadata,
         chat_metadata: sch.ChatMetadata,
         service_context: sch.ServiceContext,
-        chat_history: Optional[list[ChatMessage]] = None,
+        memory: AgentMemory,
         max_iterations: int = constants.MAX_ITERATIONS,
         agent_llm: Optional[FunctionCallingLLM] = None,
         select_sample_values: bool = False,
-        check_if_prompt_is_cached: bool = False,
+        use_semantic_cache: bool = False,
         result_store: Optional[store.ResultStore] = None,
         conn_id: Optional[int] = None,
         verbose: bool = False,
@@ -50,7 +51,7 @@ class DataChatAgent(BaseChatAgent):
         super().__init__(
             prompt_metadata=prompt_metadata,
             chat_metadata=chat_metadata,
-            chat_history=chat_history,
+            memory=memory,
             max_iterations=max_iterations,
             agent_llm=agent_llm,
             sql_engine=service_context.sql_engine,
@@ -61,11 +62,11 @@ class DataChatAgent(BaseChatAgent):
         self.service_context = service_context
         self.db_conn_params = db_conn_params
         self.select_sample_values = select_sample_values
-        self.check_if_prompt_is_cached = check_if_prompt_is_cached
+        self.use_semantic_cache = use_semantic_cache
         self.result_store = result_store or store.LocalResultStore(client_id=self.prompt_metadata.client_id)
         self.conn_id = conn_id
         if self.verbose:
-            logger.debug("Chat history: %s", chat_history)
+            logger.debug("Chat history: %s", self.memory.chat_history)
 
     @staticmethod
     def get_llm_type() -> enums.LLMType:
@@ -135,6 +136,28 @@ class DataChatAgent(BaseChatAgent):
         tools.append(vis_tool.get_plot_tool())
         return tools
 
+    async def check_semantic_memory(self, prompt: str) -> sch.MessagePair:
+        conn_uuids = {str(connection.conn_uuid) for connection in self.connections}
+        db_uuids = {str(connection.db_uuid) for connection in self.connections}
+        agent_memory = AgentMemory(
+            db=self.db,
+            service_context=self.service_context,
+            prompt_metadata=self.prompt_metadata,
+            chat_metadata=self.chat_metadata,
+            conn_params=self.db_conn_params,
+            result_store=self.result_store,
+            query_result=self.query_result,
+        )
+        if message_pair := await agent_memory.check_cache(prompt=prompt, conn_uuids=conn_uuids, db_uuids=db_uuids):
+            if message_pair.response:
+                # Update the prompt ID for token cost calcs to just use previous cost
+                prompt_hist = await crud_chat.get_prompt_history(
+                    db=self.db, prompt_uuid=uuid.UUID(message_pair.response.metadata.prompt_uuid)
+                )
+                assert prompt_hist
+                self.prompt_metadata.prompt_id = prompt_hist.prompt_id
+        return message_pair
+
     async def _chat(self, prompt: str) -> sch.Message:
         """Prompt the AI"""
         intros = [
@@ -169,27 +192,10 @@ class DataChatAgent(BaseChatAgent):
         # Modify the prompt if needed
         if not self.connections:
             prompt = prompts.NO_DB_ACCESS_PROMPT.format(prompt=prompt)
-        if self.check_if_prompt_is_cached:
-            conn_uuids = {str(connection.conn_uuid) for connection in self.connections}
-            db_uuids = {str(connection.db_uuid) for connection in self.connections}
-            agent_memory = AgentMemory(
-                db=self.db,
-                service_context=self.service_context,
-                prompt_metadata=self.prompt_metadata,
-                prompt_metadata=self.chat_metadata,
-                conn_params=self.db_conn_params,
-                result_store=self.result_store,
-                query_result=self.query_result,
-            )
-            message_pair = await agent_memory.check_semcache(prompt=prompt, conn_uuids=conn_uuids, db_uuids=db_uuids)
-            if not message_pair.response:
+        elif self.use_semantic_cache:
+            if message_pair := self.check_semantic_memory(prompt=prompt):
+                if message_pair.response:
+                    return await self._get_message(response=message_pair.response)
                 prompt = message_pair.prompt.prompt
-            elif message_pair.response:
-                # Update the prompt ID for token cost calcs to just use previous cost
-                prompt_hist = await crud_chat.get_prompt_history(
-                    db=self.db, prompt_uuid=uuid.UUID(message_pair.response.metadata.prompt_uuid)
-                )
-                assert prompt_hist
-                self.prompt_metadata.prompt_id = prompt_hist.prompt_id
-                return await self._get_message(response=message_pair.response)
+
         return await self._chat_base(prompt=prompt)

@@ -26,6 +26,7 @@ from basejump.core.database.session import LocalSession
 from basejump.core.models import constants, enums, errors
 from basejump.core.models import schemas as sch
 from basejump.core.models.ai.catalog import AICatalog
+from basejump.core.service.agents.memory.base import BaseAgentMemory, SimpleAgentMemory
 from basejump.core.service.agents.message import ChatMessageHandler, MessageHandler
 
 logger = set_logging(handler_option="stream", name=__name__)
@@ -43,7 +44,7 @@ class BaseAgent(ABC):
     def __init__(
         self,
         prompt_metadata: sch.PromptMetadata,
-        chat_history: Optional[list[ChatMessage]],
+        memory: BaseAgentMemory,
         redis_client_async: RedisAsync,
         sql_engine: AsyncEngine,
         large_model_info: sch.ModelInfo,
@@ -55,8 +56,8 @@ class BaseAgent(ABC):
         self.query_result: Optional[sch.MessageQueryResult] = None
         ai_catalog = AICatalog(callback_manager=prompt_metadata.callback_manager)
         self.agent_llm: FunctionCallingLLM = agent_llm or ai_catalog.get_llm(model_info=large_model_info)
-        self.memory = ChatMemoryBuffer.from_defaults(chat_history=chat_history, llm=self.agent_llm)
-        self.chat_history = chat_history or []
+        self.initial_memory = ChatMemoryBuffer.from_defaults(chat_history=memory.chat_history, llm=self.agent_llm)
+        self.memory = memory
         self.max_iterations = max_iterations  # NOTE: This only works with streaming off
         self.sql_engine = sql_engine
         self.verbose = verbose
@@ -110,7 +111,7 @@ instructions for the expected output format: \n{EXPECTED_OUTPUT_INSTRUCTIONS}\
         if not tools:
             agent = SimpleChatEngine.from_defaults(
                 llm=self.agent_llm,
-                memory=self.memory,
+                memory=self.initial_memory,
                 callback_manager=self.agent_llm.callback_manager,
             )
         else:
@@ -119,7 +120,7 @@ instructions for the expected output format: \n{EXPECTED_OUTPUT_INSTRUCTIONS}\
                 tools,  # type: ignore
                 llm=self.agent_llm,
                 verbose=self.verbose,
-                memory=self.memory,
+                memory=self.initial_memory,
                 max_function_calls=self.max_iterations,
                 callback_manager=self.agent_llm.callback_manager,
                 response_hook=self._get_response_hook(),
@@ -223,7 +224,7 @@ class BaseChatAgent(BaseAgent):
     def __init__(
         self,
         prompt_metadata: sch.PromptMetadata,
-        chat_history: Optional[list[ChatMessage]],
+        memory: BaseAgentMemory,
         chat_metadata: sch.ChatMetadata,
         redis_client_async: RedisAsync,
         sql_engine: AsyncEngine,
@@ -234,7 +235,7 @@ class BaseChatAgent(BaseAgent):
     ):
         super().__init__(
             prompt_metadata=prompt_metadata,
-            chat_history=chat_history,
+            memory=memory,
             agent_llm=agent_llm,
             max_iterations=max_iterations,
             redis_client_async=redis_client_async,
@@ -399,14 +400,14 @@ class SimpleAgent(BaseAgent):
         sql_engine: AsyncEngine,
         large_model_info: sch.ModelInfo,
         redis_client_async: RedisAsync,
-        chat_history: Optional[list[ChatMessage]] = None,
+        memory: SimpleAgentMemory,
         agent_llm: Optional[FunctionCallingLLM] = None,
         max_iterations: int = 10,
         verbose: bool = False,
     ):
         super().__init__(
             prompt_metadata=prompt_metadata,
-            chat_history=chat_history,
+            memory=memory,
             max_iterations=max_iterations,
             agent_llm=agent_llm,
             sql_engine=sql_engine,

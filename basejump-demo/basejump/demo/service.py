@@ -23,7 +23,8 @@ from basejump.core.models import schemas as sch
 from basejump.core.models.ai.catalog import AICatalog
 from basejump.core.service.agents import agent_utils
 from basejump.core.service.agents.data_chat import DataChatAgent
-from basejump.core.service.agents.memory import AgentMemory
+from basejump.core.service.agents.memory.agent import AgentMemory
+from basejump.core.service.agents.memory.semantic import SemanticMemory
 from basejump.core.service.agents.mermaid import MermaidAgent
 from basejump.core.service.agents.setup import AgentSetup, ChatAgentSetup
 from basejump.core.service.database.client import utils
@@ -414,6 +415,7 @@ async def chat(
 
     # Get chat history
     chat_history = None
+    semantic_memory = None
     if get_chat_history:
         chat_setup = ChatAgentSetup(
             db=db,
@@ -423,20 +425,29 @@ async def chat(
             embedding_model_info=service_context.embedding_model_info,
         )
         retrieved_chat = await chat_setup.get_chat()
-        agent_memory = AgentMemory(
+        semantic_memory = SemanticMemory(
             db=db,
             service_context=service_context,
             chat_metadata=chat_metadata,
             prompt_metadata=agent_setup.prompt_metadata,
             conn_params=settings.conn_params,
         )
-        chat_history = await agent_memory.get_chat_history(
+        chat_history = await semantic_memory.get_chat_history(
             chat=retrieved_chat, team_info=sch.TeamFields.model_validate(user_info)
         )
 
     # Prompt the agent
     ai_catalog = AICatalog()
     agent_llm = ai_catalog.get_llm(model_info=service_context.large_model_info)
+    memory = AgentMemory(
+        db=db,
+        service_context=service_context,
+        chat_metadata=chat_metadata,
+        prompt_metadata=agent_setup.prompt_metadata,
+        conn_params=settings.conn_params,
+        chat_history=chat_history,
+        semantic_memory=semantic_memory,
+    )
     agent = DataChatAgent(
         db_conn_params=settings.conn_params,
         prompt_metadata=agent_setup.prompt_metadata,
@@ -445,6 +456,7 @@ async def chat(
         agent_llm=agent_llm,
         service_context=service_context,
         conn_id=connection.conn_id if connection else None,
+        memory=memory,
     )
     message = await agent.prompt_agent()
     return message

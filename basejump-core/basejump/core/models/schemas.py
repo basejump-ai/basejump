@@ -5,9 +5,9 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any, Callable, Dict, Literal, Optional, Union
 
-from llama_index.core.base.llms.types import ChatMessage
 import pandas as pd
 import sqlalchemy as sa
+from llama_index.core.base.llms.types import ChatMessage
 from llama_index.core.callbacks import (
     CallbackManager,
     LlamaDebugHandler,
@@ -773,6 +773,7 @@ class SQLToolContext(BaseModel):
 
 class ChatPrompt(BaseModel):
     prompt: str
+    timestamp: Optional[datetime] = None
 
 
 class ChatResponse(BaseModel):
