@@ -74,28 +74,9 @@ class AgentMemory(BaseAgentMemory):
         self.conn_params = conn_params
         self.semantic_memory = semantic_memory or self.load_semantic_memory()
 
-    @classmethod
-    def load_from_semantic_memory(
-        cls, semantic_memory: SemanticMemory, chat_history: Optional[list[ChatMessage]] = None
-    ):
-        return cls(
-            service_context=cls.semantic_memory.service_context,
-            prompt_metadata=cls.semantic_memory.prompt_metadata,
-            chat_metadata=cls.semantic_memory.chat_metadata,
-            conn_params=cls.semantic_memory.conn_params,
-            result_store=cls.semantic_memory.result_store,
-            query_result=cls.semantic_memory.query_result,
-            semantic_memory=semantic_memory,
-        )
-
     def load_semantic_memory(self) -> SemanticMemory:
         return SemanticMemory(
-            service_context=self.service_context,
-            prompt_metadata=self.prompt_metadata,
-            chat_metadata=self.chat_metadata,
-            conn_params=self.conn_params,
-            result_store=self.result_store,
-            query_result=self.query_result,
+            redis_client_async=self.service_context.redis_client_async,
         )
 
     async def get_chat_history(

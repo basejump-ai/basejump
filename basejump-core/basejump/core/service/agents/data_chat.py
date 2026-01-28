@@ -4,6 +4,7 @@ import uuid
 from random import choice
 from typing import Optional, Sequence
 
+from llama_index.core.base.llms.types import ChatMessage
 from llama_index.core.llms import MessageRole
 from llama_index.core.llms.function_calling import FunctionCallingLLM
 from llama_index.core.tools.types import AsyncBaseTool
@@ -35,6 +36,7 @@ class DataChatAgent(BaseChatAgent):
         prompt_metadata: sch.PromptMetadata,
         chat_metadata: sch.ChatMetadata,
         service_context: sch.ServiceContext,
+        chat_history: Optional[list[ChatMessage]] = None,
         memory: Optional[AgentMemory] = None,
         max_iterations: int = constants.MAX_ITERATIONS,
         agent_llm: Optional[FunctionCallingLLM] = None,
@@ -44,12 +46,18 @@ class DataChatAgent(BaseChatAgent):
         conn_id: Optional[int] = None,
         verbose: bool = False,
     ):
+        if memory and chat_history:
+            logger.warning(
+                """Both 'memory' and 'chat_history' were provided. The 'chat_history' parameter \
+will be ignored; using memory's chat history instead."""
+            )
         if not memory:
             memory = AgentMemory(
                 service_context=service_context,
                 prompt_metadata=prompt_metadata,
                 chat_metadata=chat_metadata,
                 conn_params=db_conn_params,
+                chat_history=chat_history,
             )
         super().__init__(
             prompt_metadata=prompt_metadata,
@@ -137,12 +145,7 @@ class DataChatAgent(BaseChatAgent):
         conn_uuids = {str(connection.conn_uuid) for connection in self.connections}
         db_uuids = {str(connection.db_uuid) for connection in self.connections}
         semantic_memory = SemanticMemory(
-            service_context=self.service_context,
-            prompt_metadata=self.prompt_metadata,
-            chat_metadata=self.chat_metadata,
-            conn_params=self.db_conn_params,
-            result_store=self.result_store,
-            query_result=self.query_result,
+            redis_client_async=self.service_context.redis_client_async,
         )
         if message_pair := await semantic_memory.check_cache(
             db=self.db,

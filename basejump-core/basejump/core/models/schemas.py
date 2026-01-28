@@ -518,7 +518,7 @@ class SemCache(SemCacheMetadata):
 
 class SemCacheResponse(SemCache):
     vector_dist: float
-    can_verify: bool
+    can_verify: bool = False
     verified: bool
 
 

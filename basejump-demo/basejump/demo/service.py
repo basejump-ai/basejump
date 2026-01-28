@@ -411,7 +411,6 @@ async def chat(
 
     # Get chat history
     chat_history = None
-    semantic_memory = None
     if get_chat_history:
         chat_setup = ChatAgentSetup(
             db=db,
@@ -434,14 +433,6 @@ async def chat(
     # Prompt the agent
     ai_catalog = AICatalog()
     agent_llm = ai_catalog.get_llm(model_info=service_context.large_model_info)
-    memory = AgentMemory(
-        service_context=service_context,
-        chat_metadata=chat_metadata,
-        prompt_metadata=agent_setup.prompt_metadata,
-        conn_params=settings.conn_params,
-        chat_history=chat_history,
-        semantic_memory=semantic_memory,
-    )
     agent = DataChatAgent(
         db_conn_params=settings.conn_params,
         prompt_metadata=agent_setup.prompt_metadata,
@@ -449,7 +440,7 @@ async def chat(
         agent_llm=agent_llm,
         service_context=service_context,
         conn_id=connection.conn_id if connection else None,
-        memory=memory,
+        chat_history=chat_history,
     )
     message = await agent.prompt_agent()
     return message
