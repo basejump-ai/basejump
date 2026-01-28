@@ -8,7 +8,6 @@ from zoneinfo import ZoneInfo
 
 from llama_index.core.llms import ChatMessage
 from llama_index.vector_stores.redis import RedisVectorStore
-from redis.asyncio import Redis as RedisAsync
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from basejump.core.common.common_utils import hash_value
@@ -23,8 +22,7 @@ from basejump.core.models import schemas as sch
 from basejump.core.models.ai.catalog import AICatalog
 from basejump.core.service.agents import agent_utils
 from basejump.core.service.agents.data_chat import DataChatAgent
-from basejump.core.service.agents.memory.agent import AgentMemory
-from basejump.core.service.agents.memory.semantic import SemanticMemory
+from basejump.core.service.agents.memory.agent import AgentMemory, SimpleAgentMemory
 from basejump.core.service.agents.mermaid import MermaidAgent
 from basejump.core.service.agents.setup import AgentSetup, ChatAgentSetup
 from basejump.core.service.database.client import utils
@@ -316,12 +314,7 @@ async def create_chat(db: AsyncSession, client_id: int, user_id: int, team_id: i
 
 
 async def setup_mermaid_agent(
-    client_user: sch.ClientUserInfo,
-    prompt_id: int,
-    prompt_uuid: uuid.UUID,
-    large_model_info: sch.ModelInfo,
-    sql_engine: AsyncEngine,
-    redis_client_async: RedisAsync,
+    client_user: sch.ClientUserInfo, prompt_id: int, prompt_uuid: uuid.UUID, service_context: sch.ServiceContext
 ) -> MermaidAgent:
     # Setup the agent prompts
     prompt_metadata_base = sch.PromptMetadataBase(
@@ -333,19 +326,20 @@ async def setup_mermaid_agent(
         user_role=client_user.user_role,
         prompt_uuid=prompt_uuid,
         prompt_id=prompt_id,
-        model_name=large_model_info.model_name,
+        model_name=service_context.large_model_info.model_name,
         llm_type=enums.LLMType.MERMAID_AGENT,
         prompt_time=datetime.now(),
     )
     agent_setup = AgentSetup.load_from_prompt_metadata(prompt_metadata_base=prompt_metadata_base)
 
     # Set up the agent
-    large_model_info.max_tokens = 4096
+    service_context.large_model_info.max_tokens = 4096
     ai_catalog = AICatalog()
-    agent_llm = ai_catalog.get_llm(model_info=large_model_info)
+    agent_llm = ai_catalog.get_llm(model_info=service_context.large_model_info)
 
     # Set up the mermaid agent
-    mermaid_agent = MermaidAgent(
+    memory = SimpleAgentMemory(
+        service_context=service_context,
         prompt_metadata=agent_setup.prompt_metadata,
         chat_history=[
             ChatMessage(
@@ -354,11 +348,13 @@ async def setup_mermaid_agent(
                 timestamp=datetime.now(ZoneInfo("UTC")),
             )
         ],
+    )
+    mermaid_agent = MermaidAgent(
+        prompt_metadata=agent_setup.prompt_metadata,
+        memory=memory,
         max_iterations=8,
         agent_llm=agent_llm,
-        sql_engine=sql_engine,
-        large_model_info=large_model_info,
-        redis_client_async=redis_client_async,
+        service_context=service_context,
     )
     return mermaid_agent
 
@@ -425,22 +421,20 @@ async def chat(
             embedding_model_info=service_context.embedding_model_info,
         )
         retrieved_chat = await chat_setup.get_chat()
-        semantic_memory = SemanticMemory(
-            db=db,
+        agent_memory = AgentMemory(
             service_context=service_context,
             chat_metadata=chat_metadata,
             prompt_metadata=agent_setup.prompt_metadata,
             conn_params=settings.conn_params,
         )
-        chat_history = await semantic_memory.get_chat_history(
-            chat=retrieved_chat, team_info=sch.TeamFields.model_validate(user_info)
+        chat_history = await agent_memory.get_chat_history(
+            db=db, chat=retrieved_chat, team_info=sch.TeamFields.model_validate(user_info)
         )
 
     # Prompt the agent
     ai_catalog = AICatalog()
     agent_llm = ai_catalog.get_llm(model_info=service_context.large_model_info)
     memory = AgentMemory(
-        db=db,
         service_context=service_context,
         chat_metadata=chat_metadata,
         prompt_metadata=agent_setup.prompt_metadata,
@@ -452,7 +446,6 @@ async def chat(
         db_conn_params=settings.conn_params,
         prompt_metadata=agent_setup.prompt_metadata,
         chat_metadata=chat_metadata,
-        chat_history=chat_history,
         agent_llm=agent_llm,
         service_context=service_context,
         conn_id=connection.conn_id if connection else None,

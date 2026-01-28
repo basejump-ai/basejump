@@ -9,18 +9,18 @@ from llama_index.core.llms import LLM
 from llama_index.core.retrievers import VectorIndexRetriever
 from llama_index.core.tools import FunctionTool
 from llama_index.core.tools.function_tool import create_tool_metadata
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.crud import crud_result
-from basejump.core.database.result import store
+from basejump.core.database.db_utils import extract_visual_info
 from basejump.core.models import constants, enums, errors, models
 from basejump.core.models import schemas as sch
 from basejump.core.models.ai import formats as fmt
 from basejump.core.models.ai import formatter
 from basejump.core.models.ai.catalog import AICatalog
-from basejump.core.service.agents.base import BaseAgent, BaseChatAgent
+from basejump.core.service.agents.base import BaseChatAgent
 from basejump.core.service.agents.tools import tool_utils
+from basejump.core.service.agents.tools.base import ResultTool
 
 bucket_name = "datasetsfromchat"
 
@@ -29,21 +29,16 @@ logger = set_logging(handler_option="stream", name=__name__)
 TIMEOUT = 60 * 3
 
 
-class VisTool:
+class VisTool(ResultTool):
     def __init__(
         self,
-        db: AsyncSession,
-        agent,
-        small_model_info: sch.ModelInfo,
-        embedding_model_info: sch.AzureModelInfo,
-        result_store: store.ResultStore,
+        agent: BaseChatAgent,
         llm: Optional[LLM] = None,
     ):
-        self.db = db
-        self.agent: BaseAgent = agent
-        self.small_model_info = small_model_info
-        self.embedding_model_info = embedding_model_info
-        self.result_store = result_store
+        self.agent = agent
+
+    async def get_tools(self) -> list[FunctionTool]:
+        return [self.get_plot_tool()]
 
     def get_plot_tool(self) -> FunctionTool:
         func = self.get_plot
@@ -72,7 +67,7 @@ shown to the user to provide more insight into their data.""",
         # Build index
         # TODO: Add a callback manager to track token usage
         ai_catalog = AICatalog()
-        embed_model = ai_catalog.get_embedding_model(model_info=self.embedding_model_info)
+        embed_model = ai_catalog.get_embedding_model(model_info=self.agent.service_context.embedding_model_info)
         index = VectorStoreIndex.from_documents(documents, embed_model=embed_model)
 
         # Configure retriever
@@ -94,7 +89,7 @@ shown to the user to provide more insight into their data.""",
         f = formatter.DateFormatter(
             response=date_prompt,
             pydantic_format=fmt.DateData,
-            small_model_info=self.small_model_info,
+            small_model_info=self.agent.service_context.small_model_info,
         )
         return await f.format()
 
@@ -102,7 +97,7 @@ shown to the user to provide more insight into their data.""",
         await tool_utils.update_agent_tokens(agent=self.agent)
         # Get the result
         result = await crud_result.get_result_filtered(
-            db=self.db, result_uuid=result_uuid, user_uuid=self.agent.prompt_metadata.user_uuid
+            db=self.agent.db, result_uuid=result_uuid, user_uuid=self.agent.prompt_metadata.user_uuid
         )
         if not result:
             logger.error(errors.RESULT_UUID_NOT_FOUND)
@@ -111,7 +106,7 @@ result_uuid is incorrect or the originally created data has been deleted."""
 
         # Retrieve the result
         try:
-            result_manager = self.result_store.get_result_manager(result_file_path=result.result_file_path)
+            result_manager = self.agent.result_store.get_result_manager(result_file_path=result.result_file_path)
             df = await result_manager.aget_result(max_file_size=5)
         except errors.FileSizeError:
             return """File size is larger than 5 MB. Make sure to aggregate the data using SQL \
@@ -148,8 +143,8 @@ before attempting to visualize."""
             visual_json=visual_json,
             visual_explanation=visual.explanation,
         )
-        self.db.add(visual_result_hist)
-        await self.db.commit()
+        self.agent.db.add(visual_result_hist)
+        await self.agent.db.commit()
         prompt = """
 Either use another tool or complete your current line of thinking by responding to the user. \
 If you decide to respond to the user, follow these instructions:
@@ -159,3 +154,40 @@ then you would respond "Here is the bar chart you requested." \
 Do not mention anything about the results being displayed to the user. \
 Talk as if you are showing them the chart in person."""
         return prompt
+
+    async def refresh(
+        self,
+        result: models.VisualResultHistory,
+    ) -> models.VisualResultHistory:
+        """Refresh the visualization result"""
+        # Create the prompt that includes the axis from the prior chart
+        visual_info = extract_visual_info(visual_json=json.loads(result.visual_json))  # type: ignore
+        # TODO: This was part of the logic for inferring the chart type to provide to the LLM to improve charting
+        # Need to revisit this
+        # match = re.search(r"type\s*=\s*(\w+)", visual_info)
+        # if match:
+        #     chart_type_base = match.group(1)
+        #     try:
+        #         chart_type_obj = sch.ChartType(chart_type=chart_type_base)
+        #         chart_type = chart_type_obj.chart_type
+        #     except Exception as e:
+        #         logger.error(f"{chart_type_base} is not a valid chart type. Here is the error: {str(e)}")
+        #     logger.info(f"Chart type: {chart_type}")
+        # else:
+        #     msg = "No chart type found"
+        #     logger.error(msg)
+        #     raise Exception(msg)
+        prompt = f"""You are refreshing a plot you previously created. You need to use the same axis titles as \
+    well as the same/similar axis ranges and/or format. Here is the visual information from the previous plot:
+    {visual_info}
+    """
+        logger.debug("Refresh visual result prompt: %s", visual_info)
+        # Query the VisTool
+        result_uuid = result.result_uuid
+        await self.get_plot(result_uuid=result_uuid, prompt=prompt)
+        # Return the new visual result
+        assert self.agent.query_result, "There should be a query result - check your code"
+        assert self.agent.query_result.visual_result_uuid
+        return await crud_result.get_visual_result(
+            db=self.agent.db, visual_result_uuid=self.agent.query_result.visual_result_uuid
+        )

@@ -86,9 +86,7 @@ async def test_get_mermaid_erd_diagram(db_session):
         prompt_id=prompt_id,
         prompt_uuid=prompt_uuid,
         client_user=db_session.client_user,
-        large_model_info=settings.large_model_info,
-        sql_engine=db_session.sql_engine,
-        redis_client_async=db_session.redis_client_async,
+        service_context=db_session.service_context,
     )
     # Set up the mermaid agent manager
     mgn_mermaid = MermaidAgentManager(

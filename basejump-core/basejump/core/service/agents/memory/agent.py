@@ -25,10 +25,28 @@ from basejump.core.database.result import store
 from basejump.core.models import constants, enums, errors, models, prompts
 from basejump.core.models import schemas as sch
 from basejump.core.models.ai.catalog import AICatalog
+from basejump.core.service.agents.base import BaseAgentMemory
 from basejump.core.service.agents.memory.semantic import SemanticMemory
-from basejump.core.service.memory.base import BaseAgentMemory
 
 logger = set_logging(handler_option="stream", name=__name__)
+
+
+class SimpleAgentMemory(BaseAgentMemory):
+    def __init__(
+        self,
+        service_context: sch.ServiceContext,
+        prompt_metadata: sch.PromptMetadata,
+        chat_history: Optional[list[ChatMessage]] = None,
+        query_result: Optional[sch.MessageQueryResult] = None,
+        result_store: Optional[store.ResultStore] = None,
+    ):
+        super().__init__(
+            service_context=service_context,
+            prompt_metadata=prompt_metadata,
+            chat_history=chat_history,
+            query_result=query_result,
+            result_store=result_store,
+        )
 
 
 class AgentMemory(BaseAgentMemory):
@@ -36,7 +54,6 @@ class AgentMemory(BaseAgentMemory):
 
     def __init__(
         self,
-        db: AsyncSession,
         service_context: sch.ServiceContext,
         prompt_metadata: sch.PromptMetadata,
         chat_metadata: sch.ChatMetadata,
@@ -46,14 +63,15 @@ class AgentMemory(BaseAgentMemory):
         result_store: Optional[store.ResultStore] = None,
         semantic_memory: Optional[SemanticMemory] = None,
     ):
-        self.db = db
-        self.service_context = service_context
-        self.prompt_metadata = prompt_metadata
+        super().__init__(
+            service_context=service_context,
+            prompt_metadata=prompt_metadata,
+            chat_history=chat_history,
+            query_result=query_result,
+            result_store=result_store,
+        )
         self.chat_metadata = chat_metadata
         self.conn_params = conn_params
-        self.result_store = result_store or store.LocalResultStore(client_id=self.prompt_metadata.client_id)
-        self.query_result = query_result
-        self.chat_history = chat_history
         self.semantic_memory = semantic_memory or self.load_semantic_memory()
 
     @classmethod
@@ -61,7 +79,6 @@ class AgentMemory(BaseAgentMemory):
         cls, semantic_memory: SemanticMemory, chat_history: Optional[list[ChatMessage]] = None
     ):
         return cls(
-            db=cls.semantic_memory.db,
             service_context=cls.semantic_memory.service_context,
             prompt_metadata=cls.semantic_memory.prompt_metadata,
             chat_metadata=cls.semantic_memory.chat_metadata,
@@ -73,7 +90,6 @@ class AgentMemory(BaseAgentMemory):
 
     def load_semantic_memory(self) -> SemanticMemory:
         return SemanticMemory(
-            db=self.db,
             service_context=self.service_context,
             prompt_metadata=self.prompt_metadata,
             chat_metadata=self.chat_metadata,
@@ -83,10 +99,10 @@ class AgentMemory(BaseAgentMemory):
         )
 
     async def get_chat_history(
-        self, chat: models.Chat, team_info: sch.TeamFields, system_prompt: Optional[str] = None
+        self, db: AsyncSession, chat: models.Chat, team_info: sch.TeamFields, system_prompt: Optional[str] = None
     ) -> list[ChatMessage]:
         try:
-            full_chat_history = await crud_chat.get_chat_history_for_ai(db=self.db, chat_id=chat.chat_id)
+            full_chat_history = await crud_chat.get_chat_history_for_ai(db=db, chat_id=chat.chat_id)
         except Exception as e:
             logger.error("Error retrieving get chat history %s", str(e))
             raise errors.GetChatHistoryError

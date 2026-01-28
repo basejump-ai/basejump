@@ -7,7 +7,6 @@ from typing import Any, Callable, Dict, Literal, Optional, Union
 
 import pandas as pd
 import sqlalchemy as sa
-from llama_index.core.base.llms.types import ChatMessage
 from llama_index.core.callbacks import (
     CallbackManager,
     LlamaDebugHandler,
@@ -783,5 +782,5 @@ class ChatResponse(BaseModel):
 
 
 class MessagePair(BaseModel):
-    prompt: ChatMessage
+    prompt: ChatPrompt
     response: Optional[ChatResponse] = None

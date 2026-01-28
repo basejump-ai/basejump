@@ -1,5 +1,3 @@
-"""Code for the MermaidJS Agent"""
-
 from typing import Optional
 
 from llama_index.core.llms.function_calling import FunctionCallingLLM
@@ -14,40 +12,39 @@ from basejump.core.service.agents.memory.agent import SimpleAgentMemory
 logger = set_logging(handler_option="stream", name=__name__)
 
 
-class MermaidAgent(BaseAgent):
-    """An AI Agent for generated MermaidJS ERD diagrams"""
+class SimpleAgent(BaseAgent):
+    """An AI Agent with the bare minimum"""
 
     def __init__(
         self,
         prompt_metadata: sch.PromptMetadata,
         service_context: sch.ServiceContext,
-        memory: SimpleAgentMemory,
+        memory: Optional[SimpleAgentMemory] = None,
         agent_llm: Optional[FunctionCallingLLM] = None,
         max_iterations: int = 10,
+        verbose: bool = False,
     ):
+        if not memory:
+            memory = SimpleAgentMemory(
+                service_context=service_context,
+                prompt_metadata=prompt_metadata,
+            )
         super().__init__(
             prompt_metadata=prompt_metadata,
+            memory=memory,
             max_iterations=max_iterations,
             agent_llm=agent_llm,
             service_context=service_context,
-            memory=memory,
+            verbose=verbose,
         )
 
     @staticmethod
     def get_llm_type() -> enums.LLMType:
-        return enums.LLMType.MERMAID_AGENT
+        return enums.LLMType.SIMPLE_AGENT
 
     async def setup_tools(self) -> list[AsyncBaseTool]:
-        # NOTE: This can be overwritten with your own tools, such as validation using the minlag/mermaid-cli \
-        # docker image
         return []
 
     async def _chat(self, prompt: str) -> sch.Message:
-        logger.debug("Here is the prompt sent to the mermaid agent: %s", prompt)
+        logger.debug("Here is the prompt sent to the simple agent: %s", prompt)
         return await self._chat_base(prompt=prompt)
-
-    async def retrieve_mermaidjs_diagram(self) -> str:
-        """Use the AI to create a mermaidJS ERD diagram"""
-        agent_output = await self.prompt_agent()
-        # Extract the correct format
-        return agent_output.content

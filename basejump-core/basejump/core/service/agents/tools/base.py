@@ -10,3 +10,12 @@ class BaseTool(ABC):
     @abstractmethod
     async def get_tools(self) -> list[FunctionTool]:
         pass
+
+
+class ResultTool(BaseTool):
+    def __init__(self):
+        pass
+
+    @abstractmethod
+    async def refresh(self, result):
+        pass

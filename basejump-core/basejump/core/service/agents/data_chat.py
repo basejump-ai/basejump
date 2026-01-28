@@ -15,7 +15,8 @@ from basejump.core.database.result import store
 from basejump.core.models import constants, enums, errors, models, prompts
 from basejump.core.models import schemas as sch
 from basejump.core.service.agents.base import BaseChatAgent
-from basejump.core.service.agents.memory import AgentMemory
+from basejump.core.service.agents.memory.agent import AgentMemory
+from basejump.core.service.agents.memory.semantic import SemanticMemory
 from basejump.core.service.agents.message import ChatMessageHandler
 from basejump.core.service.agents.setup import ChatAgentSetup
 from basejump.core.service.agents.tools import sql, visualize
@@ -26,11 +27,6 @@ logger = set_logging(handler_option="stream", name=__name__)
 class DataChatAgent(BaseChatAgent):
     """
     An AI Agent used for chatting with data in relational or unstructured formats
-
-    NOTES
-    -----
-    This agent currently only has the ability to chat with databases. However, additional
-    functionality will be added in the future
     """
 
     def __init__(
@@ -39,7 +35,7 @@ class DataChatAgent(BaseChatAgent):
         prompt_metadata: sch.PromptMetadata,
         chat_metadata: sch.ChatMetadata,
         service_context: sch.ServiceContext,
-        memory: AgentMemory,
+        memory: Optional[AgentMemory] = None,
         max_iterations: int = constants.MAX_ITERATIONS,
         agent_llm: Optional[FunctionCallingLLM] = None,
         select_sample_values: bool = False,
@@ -48,22 +44,27 @@ class DataChatAgent(BaseChatAgent):
         conn_id: Optional[int] = None,
         verbose: bool = False,
     ):
+        if not memory:
+            memory = AgentMemory(
+                service_context=service_context,
+                prompt_metadata=prompt_metadata,
+                chat_metadata=chat_metadata,
+                conn_params=db_conn_params,
+            )
         super().__init__(
             prompt_metadata=prompt_metadata,
             chat_metadata=chat_metadata,
             memory=memory,
             max_iterations=max_iterations,
             agent_llm=agent_llm,
-            sql_engine=service_context.sql_engine,
-            redis_client_async=service_context.redis_client_async,
-            large_model_info=service_context.large_model_info,
+            service_context=service_context,
             verbose=verbose,
+            result_store=result_store,
         )
         self.service_context = service_context
         self.db_conn_params = db_conn_params
         self.select_sample_values = select_sample_values
         self.use_semantic_cache = use_semantic_cache
-        self.result_store = result_store or store.LocalResultStore(client_id=self.prompt_metadata.client_id)
         self.conn_id = conn_id
         if self.verbose:
             logger.debug("Chat history: %s", self.memory.chat_history)
@@ -125,22 +126,17 @@ class DataChatAgent(BaseChatAgent):
                 result_store=self.result_store,
             )
             tools += await self.sql_tool.get_tools()
-        vis_tool = visualize.VisTool(
-            db=self.db,
+        self.vis_tool = visualize.VisTool(
             agent=self,
             llm=self.agent_llm,
-            small_model_info=self.service_context.small_model_info,
-            embedding_model_info=self.service_context.embedding_model_info,
-            result_store=self.result_store,
         )
-        tools.append(vis_tool.get_plot_tool())
+        tools += await self.vis_tool.get_tools()
         return tools
 
-    async def check_semantic_memory(self, prompt: str) -> sch.MessagePair:
+    async def check_semantic_memory(self, prompt: str) -> Optional[sch.MessagePair]:
         conn_uuids = {str(connection.conn_uuid) for connection in self.connections}
         db_uuids = {str(connection.db_uuid) for connection in self.connections}
-        agent_memory = AgentMemory(
-            db=self.db,
+        semantic_memory = SemanticMemory(
             service_context=self.service_context,
             prompt_metadata=self.prompt_metadata,
             chat_metadata=self.chat_metadata,
@@ -148,9 +144,17 @@ class DataChatAgent(BaseChatAgent):
             result_store=self.result_store,
             query_result=self.query_result,
         )
-        if message_pair := await agent_memory.check_cache(prompt=prompt, conn_uuids=conn_uuids, db_uuids=db_uuids):
+        if message_pair := await semantic_memory.check_cache(
+            db=self.db,
+            sql_tool=self.sql_tool,
+            vis_tool=self.vis_tool,
+            prompt=prompt,
+            conn_uuids=conn_uuids,
+            db_uuids=db_uuids,
+        ):
             if message_pair.response:
                 # Update the prompt ID for token cost calcs to just use previous cost
+                assert message_pair.response.metadata, "Missing ChatResponse metadata"
                 prompt_hist = await crud_chat.get_prompt_history(
                     db=self.db, prompt_uuid=uuid.UUID(message_pair.response.metadata.prompt_uuid)
                 )
@@ -174,7 +178,7 @@ class DataChatAgent(BaseChatAgent):
             redis_client_async=self.redis_client_async,
             verbose=self.verbose,
         )
-        if self.chat_history:
+        if self.memory.chat_history:
             await handler.create_message(
                 db=self.db, role=MessageRole.ASSISTANT, content=choice(intros), msg_type=enums.MessageType.THOUGHT
             )
@@ -193,9 +197,9 @@ class DataChatAgent(BaseChatAgent):
         if not self.connections:
             prompt = prompts.NO_DB_ACCESS_PROMPT.format(prompt=prompt)
         elif self.use_semantic_cache:
-            if message_pair := self.check_semantic_memory(prompt=prompt):
+            if message_pair := await self.check_semantic_memory(prompt=prompt):
                 if message_pair.response:
-                    return await self._get_message(response=message_pair.response)
+                    return await self._get_message(response=message_pair.response.response)
                 prompt = message_pair.prompt.prompt
 
         return await self._chat_base(prompt=prompt)

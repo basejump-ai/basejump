@@ -1,4 +1,4 @@
-"""Contains parent classes for the service directory"""
+"""Contains concrete/parent base classes for the agents package"""
 
 import re
 from abc import ABC, abstractmethod
@@ -17,19 +17,33 @@ from llama_index.core.llms import ChatMessage, MessageRole
 from llama_index.core.llms.function_calling import FunctionCallingLLM
 from llama_index.core.memory.chat_memory_buffer import ChatMemoryBuffer
 from llama_index.core.tools.types import AsyncBaseTool
-from redis.asyncio import Redis as RedisAsync
-from sqlalchemy.ext.asyncio import AsyncEngine
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.crud import crud_chat
+from basejump.core.database.result import store
 from basejump.core.database.session import LocalSession
 from basejump.core.models import constants, enums, errors
 from basejump.core.models import schemas as sch
 from basejump.core.models.ai.catalog import AICatalog
-from basejump.core.service.agents.memory.base import BaseAgentMemory, SimpleAgentMemory
 from basejump.core.service.agents.message import ChatMessageHandler, MessageHandler
 
 logger = set_logging(handler_option="stream", name=__name__)
+
+
+class BaseAgentMemory(ABC):
+    def __init__(
+        self,
+        service_context: sch.ServiceContext,
+        prompt_metadata: sch.PromptMetadata,
+        chat_history: Optional[list[ChatMessage]] = None,
+        query_result: Optional[sch.MessageQueryResult] = None,
+        result_store: Optional[store.ResultStore] = None,
+    ):
+        self.service_context = service_context
+        self.prompt_metadata = prompt_metadata
+        self.chat_history = chat_history or []
+        self.query_result = query_result
+        self.result_store = result_store or store.LocalResultStore(client_id=self.prompt_metadata.client_id)
 
 
 class BaseAgent(ABC):
@@ -44,22 +58,23 @@ class BaseAgent(ABC):
     def __init__(
         self,
         prompt_metadata: sch.PromptMetadata,
+        service_context: sch.ServiceContext,
         memory: BaseAgentMemory,
-        redis_client_async: RedisAsync,
-        sql_engine: AsyncEngine,
-        large_model_info: sch.ModelInfo,
         agent_llm: Optional[FunctionCallingLLM] = None,
         max_iterations: int = constants.MAX_ITERATIONS,
         verbose: bool = False,
     ):
         self.prompt_metadata = prompt_metadata
+        self.service_context = service_context
         self.query_result: Optional[sch.MessageQueryResult] = None
         ai_catalog = AICatalog(callback_manager=prompt_metadata.callback_manager)
-        self.agent_llm: FunctionCallingLLM = agent_llm or ai_catalog.get_llm(model_info=large_model_info)
+        self.agent_llm: FunctionCallingLLM = agent_llm or ai_catalog.get_llm(
+            model_info=self.service_context.large_model_info
+        )
         self.initial_memory = ChatMemoryBuffer.from_defaults(chat_history=memory.chat_history, llm=self.agent_llm)
         self.memory = memory
         self.max_iterations = max_iterations  # NOTE: This only works with streaming off
-        self.sql_engine = sql_engine
+        self.sql_engine = self.service_context.sql_engine
         self.verbose = verbose
 
     @abstractmethod
@@ -224,11 +239,10 @@ class BaseChatAgent(BaseAgent):
     def __init__(
         self,
         prompt_metadata: sch.PromptMetadata,
-        memory: BaseAgentMemory,
         chat_metadata: sch.ChatMetadata,
-        redis_client_async: RedisAsync,
-        sql_engine: AsyncEngine,
-        large_model_info: sch.ModelInfo,
+        service_context: sch.ServiceContext,
+        memory: BaseAgentMemory,
+        result_store: Optional[store.ResultStore] = None,
         agent_llm: Optional[FunctionCallingLLM] = None,
         max_iterations: int = constants.MAX_ITERATIONS,
         verbose: bool = False,
@@ -238,13 +252,12 @@ class BaseChatAgent(BaseAgent):
             memory=memory,
             agent_llm=agent_llm,
             max_iterations=max_iterations,
-            redis_client_async=redis_client_async,
-            sql_engine=sql_engine,
-            large_model_info=large_model_info,
+            service_context=service_context,
             verbose=verbose,
         )
+        self.result_store = result_store or store.LocalResultStore(client_id=self.prompt_metadata.client_id)
         self.chat_metadata = chat_metadata
-        self.redis_client_async = redis_client_async
+        self.redis_client_async = service_context.redis_client_async
 
     async def _prompt_agent(self) -> sch.Message:
         try:
@@ -389,40 +402,3 @@ https://go.microsoft.com/fwlink/?linkid=2198766"""
 
     def _get_response_hook(self):
         return self.response_hook
-
-
-class SimpleAgent(BaseAgent):
-    """An AI Agent with the bare minimum"""
-
-    def __init__(
-        self,
-        prompt_metadata: sch.PromptMetadata,
-        sql_engine: AsyncEngine,
-        large_model_info: sch.ModelInfo,
-        redis_client_async: RedisAsync,
-        memory: SimpleAgentMemory,
-        agent_llm: Optional[FunctionCallingLLM] = None,
-        max_iterations: int = 10,
-        verbose: bool = False,
-    ):
-        super().__init__(
-            prompt_metadata=prompt_metadata,
-            memory=memory,
-            max_iterations=max_iterations,
-            agent_llm=agent_llm,
-            sql_engine=sql_engine,
-            large_model_info=large_model_info,
-            redis_client_async=redis_client_async,
-            verbose=verbose,
-        )
-
-    @staticmethod
-    def get_llm_type() -> enums.LLMType:
-        return enums.LLMType.SIMPLE_AGENT
-
-    async def setup_tools(self) -> list[AsyncBaseTool]:
-        return []
-
-    async def _chat(self, prompt: str) -> sch.Message:
-        logger.debug("Here is the prompt sent to the simple agent: %s", prompt)
-        return await self._chat_base(prompt=prompt)

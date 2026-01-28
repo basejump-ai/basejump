@@ -13,7 +13,9 @@ from basejump.core.database.result import store
 from basejump.core.database.vector_utils import init_semcache
 from basejump.core.models import constants, enums, prompts
 from basejump.core.models import schemas as sch
-from basejump.core.service.agents.results.refresh import ResultRefresher
+from basejump.core.service.agents.tools.sql.base import SQLTool
+from basejump.core.service.agents.tools.tool_utils import refresh_results
+from basejump.core.service.agents.tools.visualize import VisTool
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -21,7 +23,6 @@ logger = set_logging(handler_option="stream", name=__name__)
 class SemanticMemory:
     def __init__(
         self,
-        db: AsyncSession,
         service_context: sch.ServiceContext,
         prompt_metadata: sch.PromptMetadata,
         chat_metadata: sch.ChatMetadata,
@@ -29,7 +30,6 @@ class SemanticMemory:
         query_result: Optional[sch.MessageQueryResult] = None,
         result_store: Optional[store.ResultStore] = None,
     ):
-        self.db = db
         self.service_context = service_context
         self.prompt_metadata = prompt_metadata
         self.chat_metadata = chat_metadata
@@ -61,10 +61,12 @@ class SemanticMemory:
             num_results=num_results,
         )
 
-    async def get_cached_response(self, semcache_response: sch.SemCacheResponse) -> sch.MessagePair:
+    async def get_cached_response(
+        self, sql_tool: SQLTool, vis_tool: VisTool, db: AsyncSession, semcache_response: sch.SemCacheResponse
+    ) -> sch.MessagePair:
         # Get query result
-        result = await crud_result.get_result(db=self.db, result_uuid=uuid.UUID(semcache_response.result_uuid))
-        visual_result = await crud_result.get_visual_result_from_result(db=self.db, result_id=result.result_id)
+        result = await crud_result.get_result(db=db, result_uuid=uuid.UUID(semcache_response.result_uuid))
+        visual_result = await crud_result.get_visual_result_from_result(db=db, result_id=result.result_id)
         self.query_result = sch.MessageQueryResult.from_orm(result)
         if visual_result:
             self.query_result.visual_result_uuid = visual_result.visual_result_uuid
@@ -89,15 +91,9 @@ class SemanticMemory:
             )
         else:
             # Refresh the results
-            refresher = ResultRefresher(
-                db=self.db,
-                prompt_metadata=self.prompt_metadata,
-                service_context=self.service_context,
-                conn_params=self.conn_params,
-                result_store=self.result_store,
-                query_result=self.query_result,
+            query_result = await refresh_results(
+                sql_tool=sql_tool, vis_tool=vis_tool, result=result, visual_result=visual_result
             )
-            query_result = await refresher.refresh_results(result=result, visual_result=visual_result)
             # Get the response using SQL query results
             new_prompt_base = prompts.sql_result_prompt_basic(query_result=query_result)
             prompt = (
@@ -107,7 +103,9 @@ class SemanticMemory:
             )
             return sch.MessagePair(prompt=sch.ChatPrompt(prompt=prompt))
 
-    async def check_cache(self, prompt, conn_uuids: set[str], db_uuids: set[str]) -> Optional[sch.MessagePair]:
+    async def check_cache(
+        self, sql_tool: SQLTool, vis_tool: VisTool, db: AsyncSession, prompt, conn_uuids: set[str], db_uuids: set[str]
+    ) -> Optional[sch.MessagePair]:
         # See if a similar prompt has been cached
         semcache_response_raw = await self.get_cached_prompt(
             prompt=prompt, distance_threshold=constants.REDIS_SEMCACHE_EXACT_DISTANCE, db_uuids=db_uuids
@@ -137,4 +135,6 @@ class SemanticMemory:
             return None
 
         # Get the response
-        return await self.get_cached_response(semcache_response=semcache_response)
+        return await self.get_cached_response(
+            db=db, sql_tool=sql_tool, vis_tool=vis_tool, semcache_response=semcache_response
+        )
