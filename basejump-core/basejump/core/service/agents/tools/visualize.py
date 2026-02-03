@@ -1,17 +1,18 @@
 import json
 import uuid
-from typing import TYPE_CHECKING, Optional
 
 import pandas as pd
 from chat2plot import chat2plot as cp
 from llama_index.core import Document, VectorStoreIndex
-from llama_index.core.llms import LLM
+from llama_index.core.llms.function_calling import FunctionCallingLLM
 from llama_index.core.retrievers import VectorIndexRetriever
 from llama_index.core.tools import FunctionTool
 from llama_index.core.tools.function_tool import create_tool_metadata
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.crud import crud_result
+from basejump.core.database.result import store
 from basejump.core.models import constants, enums, errors, models
 from basejump.core.models import schemas as sch
 from basejump.core.models.ai import formats as fmt
@@ -19,10 +20,6 @@ from basejump.core.models.ai import formatter
 from basejump.core.models.ai.catalog import AICatalog
 from basejump.core.service.agents.tools import tool_utils
 from basejump.core.service.agents.tools.base import BaseTool
-
-if TYPE_CHECKING:
-    # TODO: Update to avoid passing agents into the tools themselves
-    from basejump.core.service.agents.simple import SimpleAgent
 
 bucket_name = "datasetsfromchat"
 
@@ -34,10 +31,21 @@ TIMEOUT = 60 * 3
 class VisTool(BaseTool):
     def __init__(
         self,
-        agent: "SimpleAgent",
-        llm: Optional[LLM] = None,
+        db: AsyncSession,
+        agent: FunctionCallingLLM,
+        query_result: sch.MessageQueryResult,
+        service_context: sch.ServiceContext,
+        prompt_metadata: sch.PromptMetadata,
+        chat_metadata: sch.ChatMetadata,
+        result_store: store.ResultStore,
     ):
+        self.query_result = query_result
+        self.service_context = service_context
         self.agent = agent
+        self.prompt_metadata = prompt_metadata
+        self.chat_metadata = chat_metadata
+        self.db = db
+        self.result_store = result_store
 
     async def get_tools(self) -> list[FunctionTool]:
         return [self.get_plot_tool()]
@@ -69,7 +77,7 @@ shown to the user to provide more insight into their data.""",
         # Build index
         # TODO: Add a callback manager to track token usage
         ai_catalog = AICatalog()
-        embed_model = ai_catalog.get_embedding_model(model_info=self.agent.service_context.embedding_model_info)
+        embed_model = ai_catalog.get_embedding_model(model_info=self.service_context.embedding_model_info)
         index = VectorStoreIndex.from_documents(documents, embed_model=embed_model)
 
         # Configure retriever
@@ -91,7 +99,7 @@ shown to the user to provide more insight into their data.""",
         f = formatter.DateFormatter(
             response=date_prompt,
             pydantic_format=fmt.DateData,
-            small_model_info=self.agent.service_context.small_model_info,
+            small_model_info=self.service_context.small_model_info,
         )
         return await f.format()
 
@@ -99,7 +107,7 @@ shown to the user to provide more insight into their data.""",
         await tool_utils.update_agent_tokens(agent=self.agent)
         # Get the result
         result = await crud_result.get_result_filtered(
-            db=self.agent.db, result_uuid=result_uuid, user_uuid=self.agent.prompt_metadata.user_uuid
+            db=self.db, result_uuid=result_uuid, user_uuid=self.prompt_metadata.user_uuid
         )
         if not result:
             logger.error(errors.RESULT_UUID_NOT_FOUND)
@@ -108,7 +116,7 @@ result_uuid is incorrect or the originally created data has been deleted."""
 
         # Retrieve the result
         try:
-            result_manager = self.agent.result_store.get_result_manager(result_file_path=result.result_file_path)
+            result_manager = self.result_store.get_result_manager(result_file_path=result.result_file_path)
             df = await result_manager.aget_result(max_file_size=5)
         except errors.FileSizeError:
             return """File size is larger than 5 MB. Make sure to aggregate the data using SQL \
@@ -117,36 +125,34 @@ before attempting to visualize."""
         if dates:
             formatted = await self.format_date(cols=df[dates])
             df[dates] = pd.DataFrame(formatted.dates)
-        c2p = cp(df, chat=self.agent.agent_llm)
+        c2p = cp(df, chat=self.agent)
         visual = c2p(prompt)
         # Save and send back to the user
         # TODO: Sometimes visual is None
         # Add some error handling for this
         visual_json = visual.figure.to_json()
         visual_result_uuid = uuid.uuid4()
-        if not self.agent.query_result:
-            self.agent.query_result = sch.MessageQueryResult()
-        self.agent.query_result.visual_result_uuid = visual_result_uuid
-        self.agent.query_result.visual_json = json.loads(visual_json)
-        self.agent.query_result.visual_explanation = visual.explanation
-        if not self.agent.query_result.result_uuid:
-            self.agent.query_result.result_uuid = result.result_uuid
-            self.agent.query_result.sql_query = result.sql_query
-            self.agent.query_result.result_type = enums.ResultType(result.result_type)
+        if not self.query_result:
+            self.query_result = sch.MessageQueryResult()
+        self.query_result.visual_result_uuid = visual_result_uuid
+        self.query_result.visual_json = json.loads(visual_json)
+        self.query_result.visual_explanation = visual.explanation
+        if not self.query_result.result_uuid:
+            self.query_result.result_uuid = result.result_uuid
+            self.query_result.sql_query = result.sql_query
+            self.query_result.result_type = enums.ResultType(result.result_type)
         # Create VisualResultHistory table
-        from basejump.core.service.agents.chat import ChatAgent
-
         visual_result_hist = models.VisualResultHistory(
             client_id=result.client_id,
             visual_result_uuid=visual_result_uuid,
-            parent_msg_uuid=(self.agent.chat_metadata.parent_msg_uuid if isinstance(self.agent, ChatAgent) else None),
+            parent_msg_uuid=(self.chat_metadata.parent_msg_uuid),
             result_id=result.result_id,
             result_uuid=result.result_uuid,
             visual_json=visual_json,
             visual_explanation=visual.explanation,
         )
-        self.agent.db.add(visual_result_hist)
-        await self.agent.db.commit()
+        self.db.add(visual_result_hist)
+        await self.db.commit()
         prompt = """
 Either use another tool or complete your current line of thinking by responding to the user. \
 If you decide to respond to the user, follow these instructions:

@@ -109,7 +109,7 @@ will be ignored; using memory's chat history instead."""
         await self.db.commit()  # NOTE: Closing transaction to avoid idle in transaction
         for sql_tool_context in self.sql_tool_contexts:
             self.sql_tool = sql.SQLTool(
-                agent=self,
+                agent=self.agent_llm,
                 db=self.db,
                 db_conn_params=self.db_conn_params,
                 sql_tool_context=sql_tool_context,
@@ -120,8 +120,13 @@ will be ignored; using memory's chat history instead."""
             )
             tools += await self.sql_tool.get_tools()
         self.vis_tool = visualize.VisTool(
-            agent=self,
-            llm=self.agent_llm,
+            agent=self.agent_llm,
+            db=self.db,
+            query_result=self.query_result,
+            service_context=self.service_context,
+            prompt_metadata=self.prompt_metadata,
+            chat_metadata=self.chat_metadata,
+            result_store=self.result_store,
         )
         tools += await self.vis_tool.get_tools()
         return tools
