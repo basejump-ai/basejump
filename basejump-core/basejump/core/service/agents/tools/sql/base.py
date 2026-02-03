@@ -1,7 +1,6 @@
 """An agent tool for running SQL queries as well as other functions for managing the query results"""
 
-from typing import TYPE_CHECKING
-
+from llama_index.core.llms.function_calling import FunctionCallingLLM
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
@@ -10,10 +9,6 @@ from basejump.core.models import schemas as sch
 from basejump.core.service.agents.tools.base import BaseTool
 from basejump.core.service.agents.tools.sql import retriever, runner
 
-# TODO: Update code to avoid passing agent into the tools themselves
-if TYPE_CHECKING:
-    from basejump.core.service.agents.chat import ChatAgent
-
 logger = set_logging(handler_option="stream", name=__name__)
 
 
@@ -21,10 +16,12 @@ class SQLTool(BaseTool):
     def __init__(
         self,
         db: AsyncSession,
-        agent: ChatAgent,
+        agent: FunctionCallingLLM,
         sql_tool_context: sch.SQLToolContext,
         db_conn_params: sch.SQLDBSchema,
         result_store: store.ResultStore,
+        prompt_metadata: sch.PromptMetadata,
+        chat_metadata: sch.ChatMetadata,
         select_sample_values: bool = False,
     ):
         self.db = db
@@ -45,6 +42,8 @@ class SQLTool(BaseTool):
             result_store=self.result_store,
             db_conn_params=self.db_conn_params,
             select_sample_values=self.select_sample_values,
+            prompt_metadata=prompt_metadata,
+            chat_metadata=chat_metadata,
         )
 
     async def get_tools(self):

@@ -58,7 +58,6 @@ will be ignored; using memory's chat history instead."""
                 service_context=service_context,
                 prompt_metadata=prompt_metadata,
                 chat_metadata=chat_metadata,
-                conn_params=db_conn_params,
                 chat_history=chat_history,
             )
         super().__init__(
@@ -116,6 +115,8 @@ will be ignored; using memory's chat history instead."""
                 sql_tool_context=sql_tool_context,
                 select_sample_values=self.select_sample_values,
                 result_store=self.result_store,
+                prompt_metadata=self.prompt_metadata,
+                chat_metadata=self.chat_metadata,
             )
             tools += await self.sql_tool.get_tools()
         self.vis_tool = visualize.VisTool(

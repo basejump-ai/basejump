@@ -50,6 +50,8 @@ class SemanticMemory:
             distance_threshold=distance_threshold,
             num_results=num_results,
         )
+        if not semcache_response_raw:
+            return None
         metadata = semcache_response_raw[0]["metadata"]
         semcache_response = sch.SemCacheResponse(
             response=semcache_response_raw[0]["response"],

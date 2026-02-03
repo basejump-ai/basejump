@@ -1,6 +1,7 @@
 import asyncio
 from typing import Optional
 
+from llama_index.core.llms.function_calling import FunctionCallingLLM
 from llama_index.core.tools import FunctionTool
 from llama_index.core.tools.function_tool import create_tool_metadata
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,7 +17,6 @@ from basejump.core.models.ai import formats as fmt
 from basejump.core.models.ai import formatter
 from basejump.core.models.ai.formatter import get_title_description
 from basejump.core.models.prompts import get_sql_result_prompt
-from basejump.core.service.agents.chat import ChatAgent
 from basejump.core.service.agents.message import ChatMessageHandler
 from basejump.core.service.agents.tools import tool_utils
 from basejump.core.service.agents.tools.base import BaseTool
@@ -33,10 +33,12 @@ class SQLRunnerTool(BaseTool):
     def __init__(
         self,
         db: AsyncSession,
-        agent: ChatAgent,
+        agent: FunctionCallingLLM,
         sql_tool_context: sch.SQLToolContext,
         result_store: store.ResultStore,
         db_conn_params: sch.SQLDBSchema,
+        prompt_metadata: sch.PromptMetadata,
+        chat_metadata: sch.ChatMetadata,
         select_sample_values: bool = False,
     ):
         # Set passed variables
@@ -66,8 +68,9 @@ class SQLRunnerTool(BaseTool):
             schemas=self.schemas,
             verbose=self.verbose,
             conn_params=self.client_conn_params,
-            agent=self.agent,
             service_context=self.service_context,
+            chat_metadata=chat_metadata,
+            prompt_metadata=prompt_metadata,
         )
 
     async def get_tools(self) -> list[FunctionTool]:

@@ -6,6 +6,7 @@ import redis
 from llama_index.core import VectorStoreIndex
 from llama_index.core.chat_engine import SimpleChatEngine
 from llama_index.core.indices.struct_store.sql_retriever import SQLTableRetriever
+from llama_index.core.llms.function_calling import FunctionCallingLLM
 from llama_index.core.objects import SQLTableNodeMapping, base
 from llama_index.core.schema import QueryBundle
 from llama_index.core.tools import FunctionTool
@@ -28,7 +29,6 @@ from basejump.core.models.ai import formats as fmt
 from basejump.core.models.ai import formatter
 from basejump.core.models.ai.catalog import AICatalog
 from basejump.core.models.prompts import DB_METADATA_PROMPT
-from basejump.core.service.agents.chat import ChatAgent
 from basejump.core.service.agents.tools import tool_utils
 from basejump.core.service.agents.tools.base import BaseTool
 
@@ -43,7 +43,7 @@ class TableRetrieverTool(BaseTool):
     def __init__(
         self,
         db: AsyncSession,
-        agent: ChatAgent,
+        agent: FunctionCallingLLM,
         sql_tool_context: sch.SQLToolContext,
     ):
         self.db = db
@@ -118,7 +118,7 @@ Here is a description of the SQL database connection: """
         vector_schema = sch.VectorDBSchema.model_validate(vector_db)
         ai_catalog = AICatalog()
         settings = ai_catalog.get_settings(
-            llm=self.agent.agent_llm, embedding_model_info=self.service_context.embedding_model_info
+            llm=self.agent, embedding_model_info=self.service_context.embedding_model_info
         )
         table_index = get_vector_idx(
             client_id=client_id,

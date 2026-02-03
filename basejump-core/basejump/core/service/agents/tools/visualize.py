@@ -34,7 +34,7 @@ TIMEOUT = 60 * 3
 class VisTool(BaseTool):
     def __init__(
         self,
-        agent: SimpleAgent,
+        agent: "SimpleAgent",
         llm: Optional[LLM] = None,
     ):
         self.agent = agent

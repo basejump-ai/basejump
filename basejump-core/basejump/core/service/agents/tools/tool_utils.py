@@ -1,22 +1,20 @@
+from llama_index.core.llms.function_calling import FunctionCallingLLM
+
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.connector import Connector
 from basejump.core.models import models
 from basejump.core.models import schemas as sch
-from basejump.core.service.agents.base import BaseAgent
 
 logger = set_logging(handler_option="stream", name=__name__)
 
 
-async def update_agent_tokens(agent: BaseAgent, max_tokens: int = 500):
+async def update_agent_tokens(agent: FunctionCallingLLM, max_tokens: int = 500):
     """Used to change the max tokens for the agent"""
     # Simple agent doesn't use prompt_agent, which is where the agent is set
     # TODO: Update agent to be optional
-    from basejump.core.service.agents.simple import SimpleAgent
-
-    if not isinstance(agent, SimpleAgent):
-        agent.agent.memory.token_limit = agent.agent.memory.get_llm_token_limit(llm=agent.agent_llm)  # type: ignore
-        agent.agent.agent_worker._llm.max_tokens = max_tokens  # type: ignore
-        logger.debug("Updated the agent to max_tokens = %s", max_tokens)
+    agent.memory.token_limit = agent.memory.get_llm_token_limit(llm=agent.agent_llm)  # type: ignore
+    agent.agent_worker._llm.max_tokens = max_tokens  # type: ignore
+    logger.debug("Updated the agent to max_tokens = %s", max_tokens)
 
 
 async def get_sql_tool_context(service_context: sch.ServiceContext, conn: models.DBConn) -> sch.SQLToolContext:
