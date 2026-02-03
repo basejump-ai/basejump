@@ -1,4 +1,4 @@
-"""Configure the SQL tool"""
+"""An agent tool for running SQL queries as well as other functions for managing the query results"""
 
 from datetime import datetime
 from typing import Optional
@@ -13,13 +13,13 @@ from basejump.core.database.result import store
 from basejump.core.models import models
 from basejump.core.models import schemas as sch
 from basejump.core.service.agents.base import BaseChatAgent
-from basejump.core.service.agents.tools.base import BaseTool
+from basejump.core.service.agents.tools.base import ResultTool
 from basejump.core.service.agents.tools.sql import retriever, runner
 
 logger = set_logging(handler_option="stream", name=__name__)
 
 
-class SQLTool(BaseTool):
+class SQLTool(ResultTool):
     def __init__(
         self,
         db: AsyncSession,

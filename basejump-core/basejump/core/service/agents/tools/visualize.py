@@ -162,21 +162,6 @@ Talk as if you are showing them the chart in person."""
         """Refresh the visualization result"""
         # Create the prompt that includes the axis from the prior chart
         visual_info = extract_visual_info(visual_json=json.loads(result.visual_json))  # type: ignore
-        # TODO: This was part of the logic for inferring the chart type to provide to the LLM to improve charting
-        # Need to revisit this
-        # match = re.search(r"type\s*=\s*(\w+)", visual_info)
-        # if match:
-        #     chart_type_base = match.group(1)
-        #     try:
-        #         chart_type_obj = sch.ChartType(chart_type=chart_type_base)
-        #         chart_type = chart_type_obj.chart_type
-        #     except Exception as e:
-        #         logger.error(f"{chart_type_base} is not a valid chart type. Here is the error: {str(e)}")
-        #     logger.info(f"Chart type: {chart_type}")
-        # else:
-        #     msg = "No chart type found"
-        #     logger.error(msg)
-        #     raise Exception(msg)
         prompt = f"""You are refreshing a plot you previously created. You need to use the same axis titles as \
     well as the same/similar axis ranges and/or format. Here is the visual information from the previous plot:
     {visual_info}
