@@ -189,8 +189,8 @@ Here is a description of the SQL database connection: """
         # Ask the agent to classify the prompt
         # TODO: Add a callback manager to track token usage here
         ai_catalog = AICatalog()
-        agent_llm = ai_catalog.get_llm(model_info=self.service_context.large_model_info)
-        agent = SimpleChatEngine.from_defaults(llm=agent_llm)
+        llm = ai_catalog.get_llm(model_info=self.service_context.large_model_info)
+        agent = SimpleChatEngine.from_defaults(llm=llm)
         agent_prompt = f"""\
 Return True if the following is True, otherwise return False. If you consider the following prompt to be \
 multiple questions in one, uses many commas, requests many things which likely will require using multiple tables, or \
@@ -201,7 +201,7 @@ is in general considered to be complex, return True. Otherwise return False. Her
         format_json_response = formatter.JSONResponseFormatter(
             response=agent_output.response,
             pydantic_format=fmt.TrueFalseBool,
-            llm=agent_llm,  # NOTE: GPT 4o-mini selects sub-questions too often
+            llm=llm,  # NOTE: GPT 4o-mini selects sub-questions too often
             small_model_info=self.service_context.small_model_info,
         )
         extract = await format_json_response.format()
@@ -228,7 +228,7 @@ Here is the prompt that needs to be broken out: \n\n\
         format_json_response = formatter.JSONResponseFormatter(
             response=agent_output.response,
             pydantic_format=fmt.SubPrompts,
-            llm=agent_llm,  # NOTE: GPT 4o-mini selects sub-questions too often
+            llm=llm,  # NOTE: GPT 4o-mini selects sub-questions too often
             small_model_info=self.service_context.small_model_info,
         )
         extract = await format_json_response.format()

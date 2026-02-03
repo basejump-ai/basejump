@@ -335,7 +335,7 @@ async def setup_mermaid_agent(
     # Set up the agent
     service_context.large_model_info.max_tokens = 4096
     ai_catalog = AICatalog()
-    agent_llm = ai_catalog.get_llm(model_info=service_context.large_model_info)
+    llm = ai_catalog.get_llm(model_info=service_context.large_model_info)
 
     # Set up the mermaid agent
     memory = SimpleAgentMemory(
@@ -353,7 +353,7 @@ async def setup_mermaid_agent(
         prompt_metadata=agent_setup.prompt_metadata,
         memory=memory,
         max_iterations=8,
-        agent_llm=agent_llm,
+        llm=llm,
         service_context=service_context,
     )
     return mermaid_agent
@@ -432,12 +432,12 @@ async def chat(
 
     # Prompt the agent
     ai_catalog = AICatalog()
-    agent_llm = ai_catalog.get_llm(model_info=service_context.large_model_info)
+    llm = ai_catalog.get_llm(model_info=service_context.large_model_info)
     agent = DataChatAgent(
         db_conn_params=settings.conn_params,
         prompt_metadata=agent_setup.prompt_metadata,
         chat_metadata=chat_metadata,
-        agent_llm=agent_llm,
+        llm=llm,
         service_context=service_context,
         conn_id=connection.conn_id if connection else None,
         chat_history=chat_history,

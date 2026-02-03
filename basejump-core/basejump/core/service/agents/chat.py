@@ -25,14 +25,14 @@ class ChatAgent(SimpleAgent):
         service_context: sch.ServiceContext,
         memory: AgentMemory,
         result_store: Optional[store.ResultStore] = None,
-        agent_llm: Optional[FunctionCallingLLM] = None,
+        llm: Optional[FunctionCallingLLM] = None,
         max_iterations: int = constants.MAX_ITERATIONS,
         verbose: bool = False,
     ):
         super().__init__(
             prompt_metadata=prompt_metadata,
             memory=memory,
-            agent_llm=agent_llm,
+            llm=llm,
             max_iterations=max_iterations,
             service_context=service_context,
             result_store=result_store,

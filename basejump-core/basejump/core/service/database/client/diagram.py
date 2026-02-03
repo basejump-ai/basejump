@@ -129,7 +129,7 @@ the AI to process them in chunks"""
             format_json_response = formatter.JSONResponseFormatter(
                 response=final_diagram,
                 pydantic_format=fmt.MermaidJSFormat,
-                llm=self.mermaid_agent.agent_llm,
+                llm=self.mermaid_agent.llm,
                 small_model_info=self.small_model_info,
             )
             extract = await format_json_response.format()

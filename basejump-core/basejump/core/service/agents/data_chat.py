@@ -41,7 +41,7 @@ class DataChatAgent(ChatAgent):
         chat_history: Optional[list[ChatMessage]] = None,
         memory: Optional[AgentMemory] = None,
         max_iterations: int = constants.MAX_ITERATIONS,
-        agent_llm: Optional[FunctionCallingLLM] = None,
+        llm: Optional[FunctionCallingLLM] = None,
         select_sample_values: bool = False,
         use_semantic_cache: bool = False,
         result_store: Optional[store.ResultStore] = None,
@@ -65,7 +65,7 @@ will be ignored; using memory's chat history instead."""
             chat_metadata=chat_metadata,
             memory=memory,
             max_iterations=max_iterations,
-            agent_llm=agent_llm,
+            llm=llm,
             service_context=service_context,
             verbose=verbose,
             result_store=result_store,
@@ -109,7 +109,7 @@ will be ignored; using memory's chat history instead."""
         await self.db.commit()  # NOTE: Closing transaction to avoid idle in transaction
         for sql_tool_context in self.sql_tool_contexts:
             self.sql_tool = sql.SQLTool(
-                agent=self.agent_llm,
+                agent=self.llm,
                 db=self.db,
                 db_conn_params=self.db_conn_params,
                 sql_tool_context=sql_tool_context,
@@ -120,7 +120,7 @@ will be ignored; using memory's chat history instead."""
             )
             tools += await self.sql_tool.get_tools()
         self.vis_tool = visualize.VisTool(
-            agent=self.agent_llm,
+            agent=self.llm,
             db=self.db,
             query_result=self.query_result,
             service_context=self.service_context,

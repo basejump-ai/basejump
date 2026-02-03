@@ -22,7 +22,7 @@ class SimpleAgent(BaseAgent):
         service_context: sch.ServiceContext,
         result_store: Optional[store.ResultStore] = None,
         memory: Optional[SimpleAgentMemory] = None,
-        agent_llm: Optional[FunctionCallingLLM] = None,
+        llm: Optional[FunctionCallingLLM] = None,
         max_iterations: int = 10,
         verbose: bool = False,
     ):
@@ -35,7 +35,7 @@ class SimpleAgent(BaseAgent):
             prompt_metadata=prompt_metadata,
             memory=memory,
             max_iterations=max_iterations,
-            agent_llm=agent_llm,
+            llm=llm,
             service_context=service_context,
             verbose=verbose,
         )

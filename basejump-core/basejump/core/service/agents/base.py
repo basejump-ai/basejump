@@ -59,7 +59,7 @@ class BaseAgent(ABC):
         prompt_metadata: sch.PromptMetadata,
         service_context: sch.ServiceContext,
         memory: BaseAgentMemory,
-        agent_llm: Optional[FunctionCallingLLM] = None,
+        llm: Optional[FunctionCallingLLM] = None,
         max_iterations: int = constants.MAX_ITERATIONS,
         verbose: bool = False,
     ):
@@ -67,10 +67,8 @@ class BaseAgent(ABC):
         self.service_context = service_context
         self.query_result: Optional[sch.MessageQueryResult] = None
         ai_catalog = AICatalog(callback_manager=prompt_metadata.callback_manager)
-        self.agent_llm: FunctionCallingLLM = agent_llm or ai_catalog.get_llm(
-            model_info=self.service_context.large_model_info
-        )
-        self.memory_buffer = ChatMemoryBuffer.from_defaults(chat_history=memory.chat_history, llm=self.agent_llm)
+        self.llm: FunctionCallingLLM = llm or ai_catalog.get_llm(model_info=self.service_context.large_model_info)
+        self.memory_buffer = ChatMemoryBuffer.from_defaults(chat_history=memory.chat_history, llm=self.llm)
         self.memory = memory
         self.max_iterations = max_iterations  # NOTE: This only works with streaming off
         self.sql_engine = self.service_context.sql_engine
@@ -124,19 +122,19 @@ instructions for the expected output format: \n{EXPECTED_OUTPUT_INSTRUCTIONS}\
         # If no tools, then create a simple chat engine
         if not tools:
             agent = SimpleChatEngine.from_defaults(
-                llm=self.agent_llm,
+                llm=self.llm,
                 memory=self.memory_buffer,
-                callback_manager=self.agent_llm.callback_manager,
+                callback_manager=self.llm.callback_manager,
             )
         else:
             logger.debug("Here are the tools: %s", tools)
             agent = FunctionCallingAgent.from_tools(  # type: ignore
                 tools,  # type: ignore
-                llm=self.agent_llm,
+                llm=self.llm,
                 verbose=self.verbose,
                 memory=self.memory_buffer,
                 max_function_calls=self.max_iterations,
-                callback_manager=self.agent_llm.callback_manager,
+                callback_manager=self.llm.callback_manager,
                 response_hook=self._get_response_hook(),
                 # NOTE: If not set to False, then the same result UUID can be applied to 2 SQL results
                 allow_parallel_tool_calls=False,

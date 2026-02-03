@@ -24,7 +24,7 @@ class MermaidAgent(BaseAgent):
         service_context: sch.ServiceContext,
         memory: Optional[SimpleAgentMemory] = None,
         chat_history: Optional[list[ChatMessage]] = None,
-        agent_llm: Optional[FunctionCallingLLM] = None,
+        llm: Optional[FunctionCallingLLM] = None,
         max_iterations: int = 10,
     ):
         if memory and chat_history:
@@ -41,7 +41,7 @@ will be ignored; using memory's chat history instead."""
         super().__init__(
             prompt_metadata=prompt_metadata,
             max_iterations=max_iterations,
-            agent_llm=agent_llm,
+            llm=llm,
             service_context=service_context,
             memory=memory,
         )
