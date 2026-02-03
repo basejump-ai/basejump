@@ -9,7 +9,6 @@ from llama_index.core.base.llms.types import ChatMessage
 from llama_index.core.llms import MessageRole
 from llama_index.core.llms.function_calling import FunctionCallingLLM
 from llama_index.core.tools.types import AsyncBaseTool
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database import auth
@@ -107,7 +106,7 @@ will be ignored; using memory's chat history instead."""
         for conn in connections:
             assert isinstance(conn, models.DBConn)
             sql_tool_context = await tool_utils.get_sql_tool_context(service_context=self.service_context, conn=conn)
-            self.connections.append(sql_tool_context)
+            self.sql_tool_contexts.append(sql_tool_context)
         await self.db.commit()  # NOTE: Closing transaction to avoid idle in transaction
         for sql_tool_context in self.sql_tool_contexts:
             self.sql_tool = sql.SQLTool(
@@ -158,7 +157,7 @@ will be ignored; using memory's chat history instead."""
         await handler.save_message(message=handler.message)
         # Prompt the AI
         # Modify the prompt if needed
-        if not self.connections:
+        if not self.sql_tool_contexts:
             prompt = prompts.NO_DB_ACCESS_PROMPT.format(prompt=prompt)
         elif self.use_semantic_cache:
             if message_pair := await self.check_semantic_memory(prompt=prompt):
@@ -169,12 +168,9 @@ will be ignored; using memory's chat history instead."""
         return await self._chat_base(prompt=prompt)
 
     async def check_semantic_memory(self, prompt: str) -> Optional[sch.MessagePair]:
-        conn_uuids = {str(connection.conn_uuid) for connection in self.connections}
-        db_uuids = {str(connection.db_uuid) for connection in self.connections}
+        conn_uuids = {str(conn_context.conn_uuid) for conn_context in self.sql_tool_contexts}
+        db_uuids = {str(conn_context.db_uuid) for conn_context in self.sql_tool_contexts}
         if message_pair := await self.check_cache(
-            db=self.db,
-            sql_tool=self.sql_tool,
-            vis_tool=self.vis_tool,
             prompt=prompt,
             conn_uuids=conn_uuids,
             db_uuids=db_uuids,
@@ -217,12 +213,7 @@ will be ignored; using memory's chat history instead."""
             )
         else:
             # Refresh the results
-            client_user = sch.ClientUserInfo(
-                client_id=self.prompt_metadata.client_id,
-                client_uuid=self.prompt_metadata.client_uuid,
-                user_id=self.prompt_metadata.user_id,
-                user_uuid=self.prompt_metadata.user_uuid,
-            )
+            client_user = sch.ClientUserInfo.model_validate(self.prompt_metadata)
             query_result = await agent_utils.refresh_results(
                 db=self.db,
                 result=result,
@@ -241,9 +232,7 @@ will be ignored; using memory's chat history instead."""
             )
             return sch.MessagePair(prompt=sch.ChatPrompt(prompt=prompt))
 
-    async def check_cache(
-        self, db: AsyncSession, prompt, conn_uuids: set[str], db_uuids: set[str]
-    ) -> Optional[sch.MessagePair]:
+    async def check_cache(self, prompt, conn_uuids: set[str], db_uuids: set[str]) -> Optional[sch.MessagePair]:
         # See if a similar prompt has been cached
         semantic_memory = SemanticMemory(
             redis_client_async=self.service_context.redis_client_async,

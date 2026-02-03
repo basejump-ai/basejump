@@ -14,8 +14,9 @@ from basejump.core.database.db_utils import extract_visual_info
 from basejump.core.database.result import store
 from basejump.core.models import constants, enums, models
 from basejump.core.models import schemas as sch
+from basejump.core.service.agents.setup import AgentSetup
+from basejump.core.service.agents.simple import SimpleAgent
 from basejump.core.service.agents.tools.visualize import VisTool
-from basejump.core.service.base import AgentSetup, SimpleAgent
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -50,10 +51,10 @@ async def create_prompt_base(
 
 async def refresh_result(
     db: AsyncSession,
-    result_store: store.ResultStore,
-    result: models.ResultHistory,
     service_context: sch.ServiceContext,
     client_user: sch.ClientUserInfo,
+    result_store: store.ResultStore,
+    result: models.ResultHistory,
     # HACK: Fix this
     commit: bool = True,
 ) -> Optional[models.ResultHistory]:
@@ -122,22 +123,16 @@ well as the same/similar axis ranges and/or format. Here is the visual informati
         return_visual_json=True,
     )
     agent_setup = AgentSetup.load_from_prompt_metadata(prompt_metadata_base=prompt_metadata_base)
-    base_agent = SimpleAgent(
+    simple_agent = SimpleAgent(
         prompt_metadata=agent_setup.prompt_metadata,
         service_context=service_context,
     )
-    vis_tool = VisTool(
-        db=db,
-        agent=base_agent,
-        small_model_info=service_context.small_model_info,
-        embedding_model_info=service_context.embedding_model_info,
-        result_store=result_store,
-    )
+    vis_tool = VisTool(agent=simple_agent)
     await vis_tool.get_plot(result_uuid=result_uuid, prompt=prompt)
     # Return the new visual result
-    assert base_agent.query_result, "There should be a query result - check your code"
-    assert base_agent.query_result.visual_result_uuid
-    return await crud_result.get_visual_result(db=db, visual_result_uuid=base_agent.query_result.visual_result_uuid)
+    assert simple_agent.query_result, "There should be a query result - check your code"
+    assert simple_agent.query_result.visual_result_uuid
+    return await crud_result.get_visual_result(db=db, visual_result_uuid=simple_agent.query_result.visual_result_uuid)
 
 
 async def refresh_results(
@@ -153,8 +148,8 @@ async def refresh_results(
         db=db,
         result_store=result_store,
         result=result,
-        small_model_info=service_context.small_model_info,
-        client_id=client_user.client_id,
+        service_context=service_context,
+        client_user=client_user,
         commit=False,
     )
     result_manager = result_store.get_result_manager(result.result_file_path)

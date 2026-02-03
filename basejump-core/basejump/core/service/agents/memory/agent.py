@@ -49,7 +49,7 @@ class SimpleAgentMemory(BaseAgentMemory):
         )
 
 
-class AgentMemory(BaseAgentMemory):
+class AgentMemory(SimpleAgentMemory):
     """Manages retrieval of chat history as well as the semantic cache."""
 
     def __init__(

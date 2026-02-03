@@ -27,6 +27,6 @@ async def get_sql_tool_context(service_context: sch.ServiceContext, conn: models
         conn_uuid=str(conn.conn_uuid),
         db_id=conn.db_id,
         db_uuid=str(conn.database_params.db_uuid),
-        vector_id=conn.vector_id,
+        vector_id=conn.database_params.vector_id,
         service_context=service_context,
     )

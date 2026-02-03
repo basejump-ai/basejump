@@ -1,9 +1,10 @@
-from typing import Optional
+from typing import Optional, Sequence
 
 from llama_index.core.llms.function_calling import FunctionCallingLLM
 from llama_index.core.tools.types import AsyncBaseTool
 
 from basejump.core.common.config.logconfig import set_logging
+from basejump.core.database.result import store
 from basejump.core.models import enums
 from basejump.core.models import schemas as sch
 from basejump.core.service.agents.base import BaseAgent
@@ -19,6 +20,7 @@ class SimpleAgent(BaseAgent):
         self,
         prompt_metadata: sch.PromptMetadata,
         service_context: sch.ServiceContext,
+        result_store: Optional[store.ResultStore] = None,
         memory: Optional[SimpleAgentMemory] = None,
         agent_llm: Optional[FunctionCallingLLM] = None,
         max_iterations: int = 10,
@@ -37,12 +39,13 @@ class SimpleAgent(BaseAgent):
             service_context=service_context,
             verbose=verbose,
         )
+        self.result_store = result_store or store.LocalResultStore(client_id=self.prompt_metadata.client_id)
 
     @staticmethod
     def get_llm_type() -> enums.LLMType:
         return enums.LLMType.SIMPLE_AGENT
 
-    async def setup_tools(self) -> list[AsyncBaseTool]:
+    async def setup_tools(self) -> Sequence[AsyncBaseTool]:
         return []
 
     async def _chat(self, prompt: str) -> sch.Message:

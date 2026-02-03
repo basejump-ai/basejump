@@ -8,13 +8,14 @@ from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.result import store
 from basejump.core.models import constants, enums, errors
 from basejump.core.models import schemas as sch
-from basejump.core.service.agents.base import BaseAgent, BaseAgentMemory
+from basejump.core.service.agents.memory.agent import AgentMemory
 from basejump.core.service.agents.message import ChatMessageHandler
+from basejump.core.service.agents.simple import SimpleAgent
 
 logger = set_logging(handler_option="stream", name=__name__)
 
 
-class ChatAgent(BaseAgent):
+class ChatAgent(SimpleAgent):
     """An agent intended for chat with a human in the loop"""
 
     def __init__(
@@ -22,7 +23,7 @@ class ChatAgent(BaseAgent):
         prompt_metadata: sch.PromptMetadata,
         chat_metadata: sch.ChatMetadata,
         service_context: sch.ServiceContext,
-        memory: BaseAgentMemory,
+        memory: AgentMemory,
         result_store: Optional[store.ResultStore] = None,
         agent_llm: Optional[FunctionCallingLLM] = None,
         max_iterations: int = constants.MAX_ITERATIONS,
@@ -34,9 +35,9 @@ class ChatAgent(BaseAgent):
             agent_llm=agent_llm,
             max_iterations=max_iterations,
             service_context=service_context,
+            result_store=result_store,
             verbose=verbose,
         )
-        self.result_store = result_store or store.LocalResultStore(client_id=self.prompt_metadata.client_id)
         self.chat_metadata = chat_metadata
         self.redis_client_async = service_context.redis_client_async
 
