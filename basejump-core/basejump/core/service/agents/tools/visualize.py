@@ -1,6 +1,6 @@
 import json
 import uuid
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import pandas as pd
 from chat2plot import chat2plot as cp
@@ -17,10 +17,12 @@ from basejump.core.models import schemas as sch
 from basejump.core.models.ai import formats as fmt
 from basejump.core.models.ai import formatter
 from basejump.core.models.ai.catalog import AICatalog
-from basejump.core.service.agents.chat import ChatAgent
-from basejump.core.service.agents.simple import SimpleAgent
 from basejump.core.service.agents.tools import tool_utils
 from basejump.core.service.agents.tools.base import BaseTool
+
+if TYPE_CHECKING:
+    # TODO: Update to avoid passing agents into the tools themselves
+    from basejump.core.service.agents.simple import SimpleAgent
 
 bucket_name = "datasetsfromchat"
 
@@ -132,6 +134,8 @@ before attempting to visualize."""
             self.agent.query_result.sql_query = result.sql_query
             self.agent.query_result.result_type = enums.ResultType(result.result_type)
         # Create VisualResultHistory table
+        from basejump.core.service.agents.chat import ChatAgent
+
         visual_result_hist = models.VisualResultHistory(
             client_id=result.client_id,
             visual_result_uuid=visual_result_uuid,

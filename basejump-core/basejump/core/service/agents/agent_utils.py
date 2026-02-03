@@ -14,9 +14,6 @@ from basejump.core.database.db_utils import extract_visual_info
 from basejump.core.database.result import store
 from basejump.core.models import constants, enums, models
 from basejump.core.models import schemas as sch
-from basejump.core.service.agents.setup import AgentSetup
-from basejump.core.service.agents.simple import SimpleAgent
-from basejump.core.service.agents.tools.visualize import VisTool
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -122,6 +119,11 @@ well as the same/similar axis ranges and/or format. Here is the visual informati
         model_name=service_context.large_model_info.model_name,
         return_visual_json=True,
     )
+    # NOTE: Avoiding circular imports
+    from basejump.core.service.agents.setup import AgentSetup
+    from basejump.core.service.agents.simple import SimpleAgent
+    from basejump.core.service.agents.tools.visualize import VisTool
+
     agent_setup = AgentSetup.load_from_prompt_metadata(prompt_metadata_base=prompt_metadata_base)
     simple_agent = SimpleAgent(
         prompt_metadata=agent_setup.prompt_metadata,

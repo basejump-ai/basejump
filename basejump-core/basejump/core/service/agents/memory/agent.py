@@ -57,7 +57,6 @@ class AgentMemory(SimpleAgentMemory):
         service_context: sch.ServiceContext,
         prompt_metadata: sch.PromptMetadata,
         chat_metadata: sch.ChatMetadata,
-        conn_params: sch.SQLDBSchema,
         chat_history: Optional[list[ChatMessage]] = None,
         query_result: Optional[sch.MessageQueryResult] = None,
         result_store: Optional[store.ResultStore] = None,
@@ -71,7 +70,6 @@ class AgentMemory(SimpleAgentMemory):
             result_store=result_store,
         )
         self.chat_metadata = chat_metadata
-        self.conn_params = conn_params
         self.semantic_memory = semantic_memory or self.load_semantic_memory()
 
     def load_semantic_memory(self) -> SemanticMemory:

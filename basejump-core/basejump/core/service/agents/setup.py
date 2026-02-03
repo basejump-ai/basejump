@@ -1,5 +1,3 @@
-from typing import Optional
-
 from redis.asyncio import Redis as RedisAsync
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -46,7 +44,6 @@ class ChatAgentSetup(AgentSetup):
         prompt_metadata: sch.PromptMetadata,
         chat_metadata: sch.ChatMetadata,
         redis_client_async: RedisAsync,
-        system_prompt: Optional[str] = None,
     ):
         """
         Setup methods for chat agents
@@ -66,7 +63,6 @@ class ChatAgentSetup(AgentSetup):
         chat_metadata: sch.ChatMetadata,
         redis_client_async: RedisAsync,
         embedding_model_info: sch.AzureModelInfo,
-        team_info: sch.TeamFields,
     ):
         prompt_metadata = cls._load_from_prompt_metadata(prompt_metadata_base=prompt_metadata_base)
         cls.chat_metadata = chat_metadata

@@ -1,13 +1,18 @@
 """An agent tool for running SQL queries as well as other functions for managing the query results"""
 
+from typing import TYPE_CHECKING
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.result import store
 from basejump.core.models import schemas as sch
-from basejump.core.service.agents.chat import ChatAgent
 from basejump.core.service.agents.tools.base import BaseTool
 from basejump.core.service.agents.tools.sql import retriever, runner
+
+# TODO: Update code to avoid passing agent into the tools themselves
+if TYPE_CHECKING:
+    from basejump.core.service.agents.chat import ChatAgent
 
 logger = set_logging(handler_option="stream", name=__name__)
 
