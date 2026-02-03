@@ -12,11 +12,11 @@ from llama_index.core.tools.types import AsyncBaseTool
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database import auth
+from basejump.core.database.client import refresh_results
 from basejump.core.database.crud import crud_chat, crud_connection, crud_result
 from basejump.core.database.result import store
 from basejump.core.models import constants, enums, errors, models, prompts
 from basejump.core.models import schemas as sch
-from basejump.core.service.agents import agent_utils
 from basejump.core.service.agents.chat import ChatAgent
 from basejump.core.service.agents.memory.agent import AgentMemory
 from basejump.core.service.agents.memory.semantic import SemanticMemory
@@ -221,7 +221,7 @@ will be ignored; using memory's chat history instead."""
         else:
             # Refresh the results
             client_user = sch.ClientUserInfo.model_validate(self.prompt_metadata)
-            query_result = await agent_utils.refresh_results(
+            query_result = await refresh_results(
                 db=self.db,
                 result=result,
                 result_store=self.result_store,
