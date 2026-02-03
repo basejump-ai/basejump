@@ -146,30 +146,6 @@ will be ignored; using memory's chat history instead."""
         tools += await self.vis_tool.get_tools()
         return tools
 
-    async def check_semantic_memory(self, prompt: str) -> Optional[sch.MessagePair]:
-        conn_uuids = {str(connection.conn_uuid) for connection in self.connections}
-        db_uuids = {str(connection.db_uuid) for connection in self.connections}
-        semantic_memory = SemanticMemory(
-            redis_client_async=self.service_context.redis_client_async,
-        )
-        if message_pair := await semantic_memory.check_cache(
-            db=self.db,
-            sql_tool=self.sql_tool,
-            vis_tool=self.vis_tool,
-            prompt=prompt,
-            conn_uuids=conn_uuids,
-            db_uuids=db_uuids,
-        ):
-            if message_pair.response:
-                # Update the prompt ID for token cost calcs to just use previous cost
-                assert message_pair.response.metadata, "Missing ChatResponse metadata"
-                prompt_hist = await crud_chat.get_prompt_history(
-                    db=self.db, prompt_uuid=uuid.UUID(message_pair.response.metadata.prompt_uuid)
-                )
-                assert prompt_hist
-                self.prompt_metadata.prompt_id = prompt_hist.prompt_id
-        return message_pair
-
     async def _chat(self, prompt: str) -> sch.Message:
         """Prompt the AI"""
         intros = [
@@ -211,6 +187,27 @@ will be ignored; using memory's chat history instead."""
                 prompt = message_pair.prompt.prompt
 
         return await self._chat_base(prompt=prompt)
+
+    async def check_semantic_memory(self, prompt: str) -> Optional[sch.MessagePair]:
+        conn_uuids = {str(connection.conn_uuid) for connection in self.connections}
+        db_uuids = {str(connection.db_uuid) for connection in self.connections}
+        if message_pair := await self.check_cache(
+            db=self.db,
+            sql_tool=self.sql_tool,
+            vis_tool=self.vis_tool,
+            prompt=prompt,
+            conn_uuids=conn_uuids,
+            db_uuids=db_uuids,
+        ):
+            if message_pair.response:
+                # Update the prompt ID for token cost calcs to just use previous cost
+                assert message_pair.response.metadata, "Missing ChatResponse metadata"
+                prompt_hist = await crud_chat.get_prompt_history(
+                    db=self.db, prompt_uuid=uuid.UUID(message_pair.response.metadata.prompt_uuid)
+                )
+                assert prompt_hist
+                self.prompt_metadata.prompt_id = prompt_hist.prompt_id
+        return message_pair
 
     async def _get_cached_response(self, semcache_response: sch.SemCacheResponse) -> sch.MessagePair:
         # Get query result
@@ -256,7 +253,10 @@ will be ignored; using memory's chat history instead."""
         self, sql_tool: SQLTool, vis_tool: VisTool, db: AsyncSession, prompt, conn_uuids: set[str], db_uuids: set[str]
     ) -> Optional[sch.MessagePair]:
         # See if a similar prompt has been cached
-        semcache_response = await self.get_cached_prompt(
+        semantic_memory = SemanticMemory(
+            redis_client_async=self.service_context.redis_client_async,
+        )
+        semcache_response = await semantic_memory.get_cached_prompt(
             prompt=prompt,
             client_id=sql_tool.agent.prompt_metadata.client_id,
             distance_threshold=constants.REDIS_SEMCACHE_EXACT_DISTANCE,
@@ -279,6 +279,4 @@ will be ignored; using memory's chat history instead."""
             return None
 
         # Get the response
-        return await self.get_cached_response(
-            db=db, sql_tool=sql_tool, vis_tool=vis_tool, semcache_response=semcache_response
-        )
+        return await self._get_cached_response(semcache_response=semcache_response)
