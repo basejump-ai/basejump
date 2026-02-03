@@ -100,7 +100,7 @@ https://go.microsoft.com/fwlink/?linkid=2198766"""
         handler = ChatMessageHandler(
             prompt_metadata=self.prompt_metadata,
             chat_metadata=self.chat_metadata,
-            query_result=self.query_result,
+            query_result=self.memory.query_result,
             redis_client_async=self.redis_client_async,
             verbose=self.verbose,
         )

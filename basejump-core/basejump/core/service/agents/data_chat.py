@@ -12,7 +12,7 @@ from llama_index.core.tools.types import AsyncBaseTool
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database import auth
-from basejump.core.database.client import refresh_results
+from basejump.core.database.client.refresh import refresh_results
 from basejump.core.database.crud import crud_chat, crud_connection, crud_result
 from basejump.core.database.result import store
 from basejump.core.models import constants, enums, errors, models, prompts
@@ -109,7 +109,7 @@ will be ignored; using memory's chat history instead."""
         await self.db.commit()  # NOTE: Closing transaction to avoid idle in transaction
         for sql_tool_context in self.sql_tool_contexts:
             self.sql_tool = sql.SQLTool(
-                agent=self.llm,
+                llm=self.llm,
                 db=self.db,
                 db_conn_params=self.db_conn_params,
                 sql_tool_context=sql_tool_context,
@@ -117,13 +117,13 @@ will be ignored; using memory's chat history instead."""
                 result_store=self.result_store,
                 prompt_metadata=self.prompt_metadata,
                 chat_metadata=self.chat_metadata,
-                query_result=self.query_result,
+                query_result=self.memory.query_result,
             )
             tools += await self.sql_tool.get_tools()
         self.vis_tool = visualize.VisTool(
-            agent=self.llm,
+            llm=self.llm,
             db=self.db,
-            query_result=self.query_result,
+            query_result=self.memory.query_result,
             service_context=self.service_context,
             user_uuid=self.prompt_metadata.user_uuid,
             parent_msg_uuid=self.chat_metadata.parent_msg_uuid,
@@ -196,11 +196,11 @@ will be ignored; using memory's chat history instead."""
         # Get query result
         result = await crud_result.get_result(db=self.db, result_uuid=uuid.UUID(semcache_response.result_uuid))
         visual_result = await crud_result.get_visual_result_from_result(db=self.db, result_id=result.result_id)
-        self.sql_tool.agent.query_result = sch.MessageQueryResult.from_orm(result)
+        self.memory.query_result = sch.MessageQueryResult.from_orm(result)
         if visual_result:
-            self.sql_tool.agent.query_result.visual_result_uuid = visual_result.visual_result_uuid
-            self.sql_tool.agent.query_result.visual_json = visual_result.visual_json
-            self.sql_tool.agent.query_result.visual_explanation = visual_result.visual_explanation
+            self.memory.query_result.visual_result_uuid = visual_result.visual_result_uuid
+            self.memory.query_result.visual_json = visual_result.visual_json
+            self.memory.query_result.visual_explanation = visual_result.visual_explanation
 
         # Return recent response
         cached_response_timestamp = datetime.strptime(semcache_response.timestamp, "%Y-%m-%d %H:%M:%S.%f%z")
@@ -214,7 +214,7 @@ will be ignored; using memory's chat history instead."""
                 prompt=sch.ChatPrompt(prompt=semcache_response.prompt),
                 response=sch.ChatResponse(
                     response=semcache_response.response,
-                    query_result=self.sql_tool.agent.query_result,
+                    query_result=self.memory.query_result,
                     metadata=sch.ResponseMetadata.parse_obj(semcache_response),
                 ),
             )
@@ -223,18 +223,20 @@ will be ignored; using memory's chat history instead."""
             client_user = sch.ClientUserInfo.model_validate(self.prompt_metadata)
             query_result = await refresh_results(
                 db=self.db,
+                llm=self.llm,
                 result=result,
                 result_store=self.result_store,
                 service_context=self.service_context,
                 client_user=client_user,
                 visual_result=visual_result,
             )
-            self.query_result = query_result.message_query_result
+            assert query_result.message_query_result, "Need query result"
+            self.memory.query_result = query_result.message_query_result
             # Get the response using SQL query results
             new_prompt_base = prompts.sql_result_prompt_basic(query_result=query_result)
             prompt = (
-                f"""The user asked this question: {self.sql_tool.agent.prompt_metadata.initial_prompt}. \
-    This SQL query has been ran for you: {self.sql_tool.agent.query_result.sql_query}. """
+                f"""The user asked this question: {self.prompt_metadata.initial_prompt}. \
+    This SQL query has been ran for you: {self.memory.query_result.sql_query}. """
                 + new_prompt_base
             )
             return sch.MessagePair(prompt=sch.ChatPrompt(prompt=prompt))
@@ -246,7 +248,7 @@ will be ignored; using memory's chat history instead."""
         )
         semcache_response = await semantic_memory.get_cached_prompt(
             prompt=prompt,
-            client_id=self.sql_tool.agent.prompt_metadata.client_id,
+            client_id=self.prompt_metadata.client_id,
             distance_threshold=constants.REDIS_SEMCACHE_EXACT_DISTANCE,
             db_uuids=db_uuids,
         )
@@ -257,10 +259,10 @@ will be ignored; using memory's chat history instead."""
         logger.info("Semantic similarity distance: %s", semcache_response.vector_dist)
         can_verify = auth.check_can_verify(
             required_role=enums.UserRoles(semcache_response.verified_user_role),
-            user_role=enums.UserRoles(self.sql_tool.agent.prompt_metadata.user_role),
+            user_role=enums.UserRoles(self.prompt_metadata.user_role),
         )
         semcache_response.can_verify = can_verify
-        self.sql_tool.agent.chat_metadata.semcache_response = semcache_response  # save for later use in SQL query tool
+        self.chat_metadata.semcache_response = semcache_response  # save for later use in SQL query tool
 
         # Confirm permissions
         if semcache_response.conn_uuid not in conn_uuids:

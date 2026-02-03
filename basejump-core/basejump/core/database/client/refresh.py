@@ -1,4 +1,5 @@
 import json
+import uuid
 from datetime import datetime
 from typing import Optional
 
@@ -74,6 +75,7 @@ async def refresh_visual_result(
     visual_result: models.VisualResultHistory,
     client_user: sch.ClientUserInfo,
     result_store: store.ResultStore,
+    user_uuid: uuid.UUID,
     query_result: Optional[sch.MessageQueryResult] = None,
 ) -> models.VisualResultHistory:
     """Refresh the visualization result"""
@@ -88,13 +90,14 @@ well as the same/similar axis ranges and/or format. Here is the visual informati
 """
     logger.debug("Refresh visual result prompt: %s", visual_info)
     # Query the VisTool
+    assert visual_result.parent_msg_uuid, "Missing parent msg UUID"
     result_uuid = visual_result.result_uuid
     vis_tool = VisTool(
         llm=llm,
         db=db,
         query_result=query_result,
         service_context=service_context,
-        user_uuid=visual_result.author_user_uuid,
+        user_uuid=user_uuid,
         parent_msg_uuid=visual_result.parent_msg_uuid,
         result_store=result_store,
     )
@@ -108,6 +111,7 @@ well as the same/similar axis ranges and/or format. Here is the visual informati
 
 async def refresh_results(
     db: AsyncSession,
+    llm: FunctionCallingLLM,
     result: models.ResultHistory,
     result_store: store.ResultStore,
     service_context: sch.ServiceContext,
@@ -147,10 +151,12 @@ async def refresh_results(
     if visual_result:
         visual_result = await refresh_visual_result(
             db=db,
+            llm=llm,
             service_context=service_context,
             visual_result=visual_result,
             client_user=client_user,
             result_store=result_store,
+            user_uuid=client_user.user_uuid,
         )
         message_query_result.visual_result_uuid = visual_result.visual_result_uuid
         message_query_result.visual_json = visual_result.visual_json

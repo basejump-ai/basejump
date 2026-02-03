@@ -349,6 +349,8 @@ Connection timed out. Please try again."""
             query_result=query_result,
         )
         # If no result, then don't save a report
+        if not query_result.sql_query:
+            query_result.sql_query = sql_query
         if not query_result:
             self.query_result = sch.MessageQueryResult(sql_query=sql_query)
         else:

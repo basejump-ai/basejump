@@ -41,7 +41,7 @@ class BaseAgentMemory(ABC):
         self.service_context = service_context
         self.prompt_metadata = prompt_metadata
         self.chat_history = chat_history or []
-        self.query_result = query_result
+        self.query_result = query_result or sch.MessageQueryResult()
         self.result_store = result_store or store.LocalResultStore(client_id=self.prompt_metadata.client_id)
 
 
@@ -65,7 +65,6 @@ class BaseAgent(ABC):
     ):
         self.prompt_metadata = prompt_metadata
         self.service_context = service_context
-        self.query_result: Optional[sch.MessageQueryResult] = None
         ai_catalog = AICatalog(callback_manager=prompt_metadata.callback_manager)
         self.llm: FunctionCallingLLM = llm or ai_catalog.get_llm(model_info=self.service_context.large_model_info)
         self.memory_buffer = ChatMemoryBuffer.from_defaults(chat_history=memory.chat_history, llm=self.llm)
@@ -173,7 +172,7 @@ instructions for the expected output format: \n{EXPECTED_OUTPUT_INSTRUCTIONS}\
             raise errors.PromptingAIError
 
     async def _get_message(self, response: str) -> sch.Message:
-        handler = MessageHandler(prompt_metadata=self.prompt_metadata, query_result=self.query_result)
+        handler = MessageHandler(prompt_metadata=self.prompt_metadata, query_result=self.memory.query_result)
         try:
             handler.create_message(
                 role=MessageRole.ASSISTANT,
