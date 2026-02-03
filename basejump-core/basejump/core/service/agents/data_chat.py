@@ -17,14 +17,12 @@ from basejump.core.database.crud import crud_chat, crud_connection, crud_result
 from basejump.core.database.result import store
 from basejump.core.models import constants, enums, errors, models, prompts
 from basejump.core.models import schemas as sch
-from basejump.core.service.agents.base import ChatAgent
+from basejump.core.service.agents.chat import ChatAgent
 from basejump.core.service.agents.memory.agent import AgentMemory
 from basejump.core.service.agents.memory.semantic import SemanticMemory
 from basejump.core.service.agents.message import ChatMessageHandler
 from basejump.core.service.agents.setup import ChatAgentSetup
 from basejump.core.service.agents.tools import sql, tool_utils, visualize
-from basejump.core.service.agents.tools.sql.base import SQLTool
-from basejump.core.service.agents.tools.visualize import VisTool
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -231,7 +229,7 @@ will be ignored; using memory's chat history instead."""
             return sch.MessagePair(prompt=sch.ChatPrompt(prompt=prompt))
 
     async def check_cache(
-        self, sql_tool: SQLTool, vis_tool: VisTool, db: AsyncSession, prompt, conn_uuids: set[str], db_uuids: set[str]
+        self, db: AsyncSession, prompt, conn_uuids: set[str], db_uuids: set[str]
     ) -> Optional[sch.MessagePair]:
         # See if a similar prompt has been cached
         semantic_memory = SemanticMemory(
@@ -239,7 +237,7 @@ will be ignored; using memory's chat history instead."""
         )
         semcache_response = await semantic_memory.get_cached_prompt(
             prompt=prompt,
-            client_id=sql_tool.agent.prompt_metadata.client_id,
+            client_id=self.sql_tool.agent.prompt_metadata.client_id,
             distance_threshold=constants.REDIS_SEMCACHE_EXACT_DISTANCE,
             db_uuids=db_uuids,
         )
@@ -250,10 +248,10 @@ will be ignored; using memory's chat history instead."""
         logger.info("Semantic similarity distance: %s", semcache_response.vector_dist)
         can_verify = auth.check_can_verify(
             required_role=enums.UserRoles(semcache_response.verified_user_role),
-            user_role=enums.UserRoles(sql_tool.agent.prompt_metadata.user_role),
+            user_role=enums.UserRoles(self.sql_tool.agent.prompt_metadata.user_role),
         )
         semcache_response.can_verify = can_verify
-        sql_tool.agent.chat_metadata.semcache_response = semcache_response  # save for later use in SQL query tool
+        self.sql_tool.agent.chat_metadata.semcache_response = semcache_response  # save for later use in SQL query tool
 
         # Confirm permissions
         if semcache_response.conn_uuid not in conn_uuids:
