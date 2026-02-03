@@ -28,7 +28,7 @@ from basejump.core.models.ai import formats as fmt
 from basejump.core.models.ai import formatter
 from basejump.core.models.ai.catalog import AICatalog
 from basejump.core.models.prompts import DB_METADATA_PROMPT
-from basejump.core.service.agents.base import BaseChatAgent
+from basejump.core.service.agents.chat import ChatAgent
 from basejump.core.service.agents.tools import tool_utils
 from basejump.core.service.agents.tools.base import BaseTool
 
@@ -43,7 +43,7 @@ class TableRetrieverTool(BaseTool):
     def __init__(
         self,
         db: AsyncSession,
-        agent: BaseChatAgent,
+        agent: ChatAgent,
         sql_tool_context: sch.SQLToolContext,
     ):
         self.db = db
@@ -52,7 +52,7 @@ class TableRetrieverTool(BaseTool):
         self.client_conn_params = sql_tool_context.client_conn_params
         self.conn_id = sql_tool_context.conn_id
         self.vector_id = sql_tool_context.vector_id
-        self.prompt_metadata = sql_tool_context.prompt_metadata
+        self.prompt_metadata = agent.prompt_metadata
         self.db_uuid = sql_tool_context.db_uuid
         self.schemas = sql_tool_context.client_conn_params.schemas or []
         self.verbose = sql_tool_context.verbose

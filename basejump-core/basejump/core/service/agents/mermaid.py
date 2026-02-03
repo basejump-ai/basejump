@@ -2,6 +2,7 @@
 
 from typing import Optional
 
+from llama_index.core.base.llms.types import ChatMessage
 from llama_index.core.llms.function_calling import FunctionCallingLLM
 from llama_index.core.tools.types import AsyncBaseTool
 
@@ -21,10 +22,22 @@ class MermaidAgent(BaseAgent):
         self,
         prompt_metadata: sch.PromptMetadata,
         service_context: sch.ServiceContext,
-        memory: SimpleAgentMemory,
+        memory: Optional[SimpleAgentMemory] = None,
+        chat_history: Optional[list[ChatMessage]] = None,
         agent_llm: Optional[FunctionCallingLLM] = None,
         max_iterations: int = 10,
     ):
+        if memory and chat_history:
+            logger.warning(
+                """Both 'memory' and 'chat_history' were provided. The 'chat_history' parameter \
+will be ignored; using memory's chat history instead."""
+            )
+        if not memory:
+            memory = SimpleAgentMemory(
+                service_context=service_context,
+                prompt_metadata=prompt_metadata,
+                chat_history=chat_history,
+            )
         super().__init__(
             prompt_metadata=prompt_metadata,
             max_iterations=max_iterations,

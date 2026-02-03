@@ -16,7 +16,7 @@ from basejump.core.models.ai import formats as fmt
 from basejump.core.models.ai import formatter
 from basejump.core.models.ai.formatter import get_title_description
 from basejump.core.models.prompts import get_sql_result_prompt
-from basejump.core.service.agents.base import BaseChatAgent
+from basejump.core.service.agents.chat import ChatAgent
 from basejump.core.service.agents.message import ChatMessageHandler
 from basejump.core.service.agents.tools import tool_utils
 from basejump.core.service.agents.tools.base import BaseTool
@@ -33,7 +33,7 @@ class SQLRunnerTool(BaseTool):
     def __init__(
         self,
         db: AsyncSession,
-        agent: BaseChatAgent,
+        agent: ChatAgent,
         sql_tool_context: sch.SQLToolContext,
         result_store: store.ResultStore,
         db_conn_params: sch.SQLDBSchema,
@@ -41,7 +41,7 @@ class SQLRunnerTool(BaseTool):
     ):
         # Set passed variables
         self.db = db
-        self.prompt_metadata = sql_tool_context.prompt_metadata
+        self.prompt_metadata = agent.prompt_metadata
         self.service_context = sql_tool_context.service_context
         self.result_store = result_store
         self.agent = agent

@@ -759,7 +759,6 @@ class ClientStorageConnEncrypted(BaseModel):
 
 class SQLToolContext(BaseModel):
     service_context: ServiceContext
-    prompt_metadata: PromptMetadata
     client_conn_params: SQLDBSchema
     conn_id: int
     conn_uuid: uuid.UUID

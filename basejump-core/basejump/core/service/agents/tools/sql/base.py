@@ -12,7 +12,7 @@ from basejump.core.database.crud import crud_chat, crud_connection
 from basejump.core.database.result import store
 from basejump.core.models import models
 from basejump.core.models import schemas as sch
-from basejump.core.service.agents.base import BaseChatAgent
+from basejump.core.service.agents.chat import ChatAgent
 from basejump.core.service.agents.tools.base import ResultTool
 from basejump.core.service.agents.tools.sql import retriever, runner
 
@@ -23,7 +23,7 @@ class SQLTool(ResultTool):
     def __init__(
         self,
         db: AsyncSession,
-        agent: BaseChatAgent,
+        agent: ChatAgent,
         sql_tool_context: sch.SQLToolContext,
         db_conn_params: sch.SQLDBSchema,
         result_store: store.ResultStore,

@@ -18,7 +18,7 @@ from basejump.core.models import schemas as sch
 from basejump.core.models.ai import formats as fmt
 from basejump.core.models.ai import formatter
 from basejump.core.models.ai.catalog import AICatalog
-from basejump.core.service.agents.base import BaseChatAgent
+from basejump.core.service.agents.chat import ChatAgent
 from basejump.core.service.agents.tools import tool_utils
 from basejump.core.service.agents.tools.base import ResultTool
 
@@ -32,7 +32,7 @@ TIMEOUT = 60 * 3
 class VisTool(ResultTool):
     def __init__(
         self,
-        agent: BaseChatAgent,
+        agent: ChatAgent,
         llm: Optional[LLM] = None,
     ):
         self.agent = agent
@@ -135,9 +135,7 @@ before attempting to visualize."""
         visual_result_hist = models.VisualResultHistory(
             client_id=result.client_id,
             visual_result_uuid=visual_result_uuid,
-            parent_msg_uuid=(
-                self.agent.chat_metadata.parent_msg_uuid if isinstance(self.agent, BaseChatAgent) else None
-            ),
+            parent_msg_uuid=(self.agent.chat_metadata.parent_msg_uuid if isinstance(self.agent, ChatAgent) else None),
             result_id=result.result_id,
             result_uuid=result.result_uuid,
             visual_json=visual_json,

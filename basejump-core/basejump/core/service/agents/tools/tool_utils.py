@@ -1,6 +1,7 @@
 from typing import Optional
 
 from basejump.core.common.config.logconfig import set_logging
+from basejump.core.database.connector import Connector
 from basejump.core.models import constants, models
 from basejump.core.models import schemas as sch
 from basejump.core.service.agents.base import BaseAgent
@@ -58,3 +59,16 @@ async def refresh_results(
         sql_tool.agent.query_result.visual_json = visual_result.visual_json
         sql_tool.agent.query_result.visual_explanation = visual_result.visual_explanation
     return query_res
+
+
+async def get_sql_tool_context(service_context: sch.ServiceContext, conn: models.DBConn) -> sch.SQLToolContext:
+    conn_db = await Connector.get_db_conn(db_conn=conn, db_params=conn.database_params)
+    return sch.SQLToolContext(
+        client_conn_params=conn_db.conn_params,
+        conn_id=conn.conn_id,
+        conn_uuid=str(conn.conn_uuid),
+        db_id=conn.db_id,
+        db_uuid=str(conn.database_params.db_uuid),
+        vector_id=conn.vector_id,
+        service_context=service_context,
+    )

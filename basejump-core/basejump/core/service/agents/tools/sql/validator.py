@@ -14,7 +14,7 @@ from basejump.core.database.manager import TableManager
 from basejump.core.models import enums, errors
 from basejump.core.models import schemas as sch
 from basejump.core.models.prompts import ZERO_ROW_PROMPT
-from basejump.core.service.agents.base import BaseChatAgent
+from basejump.core.service.agents.chat import ChatAgent
 from basejump.core.service.agents.message import ChatMessageHandler
 from basejump.core.service.agents.tools.sql.parser import SQLParser
 
@@ -30,7 +30,7 @@ class SQLValidator:
         schemas: list[sch.DBSchema],
         verbose: bool,
         conn_params: sch.SQLDBSchema,
-        agent: BaseChatAgent,
+        agent: ChatAgent,
         service_context: sch.ServiceContext,
     ):
         self.db = db

@@ -13,12 +13,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database import auth
-from basejump.core.database.connector import Connector
 from basejump.core.database.crud import crud_chat, crud_connection, crud_result
 from basejump.core.database.result import store
 from basejump.core.models import constants, enums, errors, models, prompts
 from basejump.core.models import schemas as sch
-from basejump.core.service.agents.base import BaseChatAgent
+from basejump.core.service.agents.base import ChatAgent
 from basejump.core.service.agents.memory.agent import AgentMemory
 from basejump.core.service.agents.memory.semantic import SemanticMemory
 from basejump.core.service.agents.message import ChatMessageHandler
@@ -30,7 +29,7 @@ from basejump.core.service.agents.tools.visualize import VisTool
 logger = set_logging(handler_option="stream", name=__name__)
 
 
-class DataChatAgent(BaseChatAgent):
+class DataChatAgent(ChatAgent):
     """
     An AI Agent used for chatting with data in relational or unstructured formats
     """
@@ -105,31 +104,13 @@ will be ignored; using memory's chat history instead."""
             )
         if not connections:
             raise errors.NotFoundError("No connections found")
-        self.connections = []
+        self.sql_tool_contexts = []
         for conn in connections:
             assert isinstance(conn, models.DBConn)
-            conn_db = await Connector.get_db_conn(db_conn=conn, db_params=conn.database_params)
-            conn_schema = sch.SQLConnSchema(
-                conn_params=conn_db.conn_params,
-                conn_id=conn.conn_id,
-                conn_uuid=str(conn.conn_uuid),
-                db_id=conn.db_id,
-                vector_id=conn.database_params.vector_id,
-                db_uuid=str(conn.database_params.db_uuid),
-            )
-            self.connections.append(conn_schema)
+            sql_tool_context = await tool_utils.get_sql_tool_context(service_context=self.service_context, conn=conn)
+            self.connections.append(sql_tool_context)
         await self.db.commit()  # NOTE: Closing transaction to avoid idle in transaction
-        for connection in self.connections:
-            sql_tool_context = sch.SQLToolContext(
-                client_conn_params=connection.conn_params,
-                conn_id=connection.conn_id,
-                conn_uuid=connection.conn_uuid,
-                db_id=connection.db_id,
-                db_uuid=connection.db_uuid,
-                vector_id=connection.vector_id,
-                prompt_metadata=self.prompt_metadata,
-                service_context=self.service_context,
-            )
+        for sql_tool_context in self.sql_tool_contexts:
             self.sql_tool = sql.SQLTool(
                 agent=self,
                 db=self.db,
