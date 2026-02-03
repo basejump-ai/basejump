@@ -117,6 +117,7 @@ will be ignored; using memory's chat history instead."""
                 result_store=self.result_store,
                 prompt_metadata=self.prompt_metadata,
                 chat_metadata=self.chat_metadata,
+                query_result=self.query_result,
             )
             tools += await self.sql_tool.get_tools()
         self.vis_tool = visualize.VisTool(
@@ -124,8 +125,8 @@ will be ignored; using memory's chat history instead."""
             db=self.db,
             query_result=self.query_result,
             service_context=self.service_context,
-            prompt_metadata=self.prompt_metadata,
-            chat_metadata=self.chat_metadata,
+            user_uuid=self.prompt_metadata.user_uuid,
+            parent_msg_uuid=self.chat_metadata.parent_msg_uuid,
             result_store=self.result_store,
         )
         tools += await self.vis_tool.get_tools()

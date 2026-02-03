@@ -43,16 +43,17 @@ class TableRetrieverTool(BaseTool):
     def __init__(
         self,
         db: AsyncSession,
-        agent: FunctionCallingLLM,
+        llm: FunctionCallingLLM,
         sql_tool_context: sch.SQLToolContext,
+        prompt_metadata: sch.PromptMetadata,
     ):
         self.db = db
-        self.agent = agent
+        self.llm = llm
         self.service_context = sql_tool_context.service_context
         self.client_conn_params = sql_tool_context.client_conn_params
         self.conn_id = sql_tool_context.conn_id
         self.vector_id = sql_tool_context.vector_id
-        self.prompt_metadata = agent.prompt_metadata
+        self.prompt_metadata = prompt_metadata
         self.db_uuid = sql_tool_context.db_uuid
         self.schemas = sql_tool_context.client_conn_params.schemas or []
         self.verbose = sql_tool_context.verbose
@@ -118,7 +119,7 @@ Here is a description of the SQL database connection: """
         vector_schema = sch.VectorDBSchema.model_validate(vector_db)
         ai_catalog = AICatalog()
         settings = ai_catalog.get_settings(
-            llm=self.agent, embedding_model_info=self.service_context.embedding_model_info
+            llm=self.llm, embedding_model_info=self.service_context.embedding_model_info
         )
         table_index = get_vector_idx(
             client_id=client_id,
@@ -245,7 +246,7 @@ Here is the prompt that needs to be broken out: \n\n\
     async def get_sql_tables(self, inquiry):
         """Retrieve SQL tables to use in the SQL query"""
         # Need more tokens for large SQL queries
-        await tool_utils.update_agent_tokens(agent=self.agent, max_tokens=1000)
+        await tool_utils.update_llm_tokens(llm=self.llm, max_tokens=1000)
         try:
             tables = await self.use_sub_questions(prompt=inquiry)
         except Exception as e:

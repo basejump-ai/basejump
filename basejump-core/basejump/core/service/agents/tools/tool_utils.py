@@ -8,12 +8,12 @@ from basejump.core.models import schemas as sch
 logger = set_logging(handler_option="stream", name=__name__)
 
 
-async def update_agent_tokens(agent: FunctionCallingLLM, max_tokens: int = 500):
+async def update_llm_tokens(llm: FunctionCallingLLM, max_tokens: int = 500):
     """Used to change the max tokens for the agent"""
     # Simple agent doesn't use prompt_agent, which is where the agent is set
     # TODO: Update agent to be optional
-    agent.memory.token_limit = agent.memory.get_llm_token_limit(llm=agent.llm)  # type: ignore
-    agent.agent_worker._llm.max_tokens = max_tokens  # type: ignore
+    llm.memory.token_limit = llm.memory.get_llm_token_limit(llm=llm)  # type: ignore
+    llm.agent_worker._llm.max_tokens = max_tokens  # type: ignore
     logger.debug("Updated the agent to max_tokens = %s", max_tokens)
 
 

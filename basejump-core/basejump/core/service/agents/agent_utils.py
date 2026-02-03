@@ -4,6 +4,7 @@ import json
 from datetime import datetime
 from typing import Optional
 
+from llama_index.core.llms.function_calling import FunctionCallingLLM
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
@@ -14,6 +15,7 @@ from basejump.core.database.db_utils import extract_visual_info
 from basejump.core.database.result import store
 from basejump.core.models import constants, enums, models
 from basejump.core.models import schemas as sch
+from basejump.core.service.agents.tools.visualize import VisTool
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -97,12 +99,17 @@ async def refresh_result(
 
 async def refresh_visual_result(
     db: AsyncSession,
+    llm: FunctionCallingLLM,
     service_context: sch.ServiceContext,
     visual_result: models.VisualResultHistory,
     client_user: sch.ClientUserInfo,
     result_store: store.ResultStore,
+    query_result: Optional[sch.MessageQueryResult] = None,
 ) -> models.VisualResultHistory:
     """Refresh the visualization result"""
+
+    if not query_result:
+        query_result = sch.MessageQueryResult()
     # Create the prompt that includes the axis from the prior chart
     visual_info = extract_visual_info(visual_json=json.loads(visual_result.visual_json))  # type: ignore
     prompt = f"""You are refreshing a plot you previously created. You need to use the same axis titles as \
@@ -112,29 +119,21 @@ well as the same/similar axis ranges and/or format. Here is the visual informati
     logger.debug("Refresh visual result prompt: %s", visual_info)
     # Query the VisTool
     result_uuid = visual_result.result_uuid
-    prompt_metadata_base = await create_prompt_base(
+    vis_tool = VisTool(
+        llm=llm,
         db=db,
-        client_user=client_user,
-        prompt=prompt,
-        model_name=service_context.large_model_info.model_name,
-        return_visual_json=True,
-    )
-    # NOTE: Avoiding circular imports
-    from basejump.core.service.agents.setup import AgentSetup
-    from basejump.core.service.agents.simple import SimpleAgent
-    from basejump.core.service.agents.tools.visualize import VisTool
-
-    agent_setup = AgentSetup.load_from_prompt_metadata(prompt_metadata_base=prompt_metadata_base)
-    simple_agent = SimpleAgent(
-        prompt_metadata=agent_setup.prompt_metadata,
+        query_result=query_result,
         service_context=service_context,
+        user_uuid=visual_result.author_user_uuid,
+        parent_msg_uuid=visual_result.parent_msg_uuid,
+        result_store=result_store,
     )
-    vis_tool = VisTool(agent=simple_agent)
+
     await vis_tool.get_plot(result_uuid=result_uuid, prompt=prompt)
     # Return the new visual result
-    assert simple_agent.query_result, "There should be a query result - check your code"
-    assert simple_agent.query_result.visual_result_uuid
-    return await crud_result.get_visual_result(db=db, visual_result_uuid=simple_agent.query_result.visual_result_uuid)
+    assert query_result, "There should be a query result - check your code"
+    assert query_result.visual_result_uuid
+    return await crud_result.get_visual_result(db=db, visual_result_uuid=query_result.visual_result_uuid)
 
 
 async def refresh_results(

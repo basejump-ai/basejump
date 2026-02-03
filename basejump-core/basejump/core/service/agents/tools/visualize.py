@@ -32,18 +32,18 @@ class VisTool(BaseTool):
     def __init__(
         self,
         db: AsyncSession,
-        agent: FunctionCallingLLM,
+        llm: FunctionCallingLLM,
         query_result: sch.MessageQueryResult,
         service_context: sch.ServiceContext,
-        prompt_metadata: sch.PromptMetadata,
-        chat_metadata: sch.ChatMetadata,
+        user_uuid: uuid.UUID,
+        parent_msg_uuid: uuid.UUID,
         result_store: store.ResultStore,
     ):
         self.query_result = query_result
         self.service_context = service_context
-        self.agent = agent
-        self.prompt_metadata = prompt_metadata
-        self.chat_metadata = chat_metadata
+        self.llm = llm
+        self.user_uuid = user_uuid
+        self.parent_msg_uuid = parent_msg_uuid
         self.db = db
         self.result_store = result_store
 
@@ -104,11 +104,9 @@ shown to the user to provide more insight into their data.""",
         return await f.format()
 
     async def get_plot(self, result_uuid: uuid.UUID, prompt: str):
-        await tool_utils.update_agent_tokens(agent=self.agent)
+        await tool_utils.update_llm_tokens(llm=self.llm)
         # Get the result
-        result = await crud_result.get_result_filtered(
-            db=self.db, result_uuid=result_uuid, user_uuid=self.prompt_metadata.user_uuid
-        )
+        result = await crud_result.get_result_filtered(db=self.db, result_uuid=result_uuid, user_uuid=self.user_uuid)
         if not result:
             logger.error(errors.RESULT_UUID_NOT_FOUND)
             return f"""result_uuid {result_uuid} was not found. Unable to create a visualization since either the \
@@ -125,7 +123,7 @@ before attempting to visualize."""
         if dates:
             formatted = await self.format_date(cols=df[dates])
             df[dates] = pd.DataFrame(formatted.dates)
-        c2p = cp(df, chat=self.agent)
+        c2p = cp(df, chat=self.llm)
         visual = c2p(prompt)
         # Save and send back to the user
         # TODO: Sometimes visual is None
@@ -145,7 +143,7 @@ before attempting to visualize."""
         visual_result_hist = models.VisualResultHistory(
             client_id=result.client_id,
             visual_result_uuid=visual_result_uuid,
-            parent_msg_uuid=(self.chat_metadata.parent_msg_uuid),
+            parent_msg_uuid=self.parent_msg_uuid,
             result_id=result.result_id,
             result_uuid=result.result_uuid,
             visual_json=visual_json,

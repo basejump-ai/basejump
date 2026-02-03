@@ -33,7 +33,8 @@ class SQLRunnerTool(BaseTool):
     def __init__(
         self,
         db: AsyncSession,
-        agent: FunctionCallingLLM,
+        llm: FunctionCallingLLM,
+        query_result: sch.MessageQueryResult,
         sql_tool_context: sch.SQLToolContext,
         result_store: store.ResultStore,
         db_conn_params: sch.SQLDBSchema,
@@ -43,15 +44,16 @@ class SQLRunnerTool(BaseTool):
     ):
         # Set passed variables
         self.db = db
-        self.prompt_metadata = agent.prompt_metadata
         self.service_context = sql_tool_context.service_context
         self.result_store = result_store
-        self.agent = agent
+        self.llm = llm
         self.client_conn_params = sql_tool_context.client_conn_params
         self.db_conn_params = db_conn_params
         self.conn_id = sql_tool_context.conn_id
         self.select_sample_values = select_sample_values
         self.verbose = sql_tool_context.verbose
+        self.chat_metadata = chat_metadata
+        self.prompt_metadata = prompt_metadata
 
         # Set variables
         self.sqlglot_dialect = enums.DB_TYPE_TO_SQLGLOT_DIALECT_LKUP[self.client_conn_params.database_type]
@@ -90,7 +92,7 @@ class SQLRunnerTool(BaseTool):
     def check_strict_mode(self):
         user_role = enums.USER_ROLES_LVL_LKUP[self.prompt_metadata.user_role]
         admin_role = enums.USER_ROLES_LVL_LKUP[enums.UserRoles.ADMIN.value]
-        if self.agent.chat_metadata.verify_mode == enums.VerifyMode.STRICT and user_role < admin_role:
+        if self.chat_metadata.verify_mode == enums.VerifyMode.STRICT and user_role < admin_role:
             raise errors.StrictModeFlagged
 
     async def create_sql_query(self, initial_sql_query: str):
@@ -198,11 +200,11 @@ After reviewing, run this tool again to run your original or updated SQL query."
                 logger.warning("where clause sample values failed with this error: %s", str(e))
 
     async def _check_semantic_cache(self, sql_query: str):
-        if self.agent.chat_metadata.semcache_response:
+        if self.chat_metadata.semcache_response:
             await self.validator.check_query_where_clause(
-                self.agent.chat_metadata.semcache_response.sql_query, query2=sql_query
+                self.chat_metadata.semcache_response.sql_query, query2=sql_query
             )
-            if self.agent.chat_metadata.semcache_response:  # check again after checking the query where clause
+            if self.chat_metadata.semcache_response:  # check again after checking the query where clause
                 self.check_strict_mode()
         else:
             self.check_strict_mode()
@@ -212,7 +214,7 @@ After reviewing, run this tool again to run your original or updated SQL query."
         msg = await self._check_hallucinations(sql_query)
         if msg:
             return msg
-        await tool_utils.update_agent_tokens(agent=self.agent, max_tokens=1000)
+        await tool_utils.update_llm_tokens(llm=self.llm, max_tokens=1000)
 
         # Check if SQL query has been previously used
         await self._check_prior_sql(sql_query)
@@ -299,7 +301,7 @@ Connection timed out. Please try again."""
     async def run_ai_sql_query(self, sql_query: str) -> str:
         handler = ChatMessageHandler(
             prompt_metadata=self.prompt_metadata,
-            chat_metadata=self.agent.chat_metadata,
+            chat_metadata=self.chat_metadata,
             redis_client_async=self.service_context.redis_client_async,
             verbose=self.verbose,
         )
@@ -314,7 +316,7 @@ Connection timed out. Please try again."""
             msg_type=enums.MessageType.THOUGHT,
         )
         await handler.send_api_message()
-        if self.agent.chat_metadata.return_sql_in_thoughts:
+        if self.chat_metadata.return_sql_in_thoughts:
             await handler.create_message(
                 db=self.db,
                 role=sch.MessageRole.ASSISTANT,
@@ -348,7 +350,7 @@ Connection timed out. Please try again."""
         )
         # If no result, then don't save a report
         if not query_result:
-            self.agent.query_result = sch.MessageQueryResult(sql_query=sql_query)
+            self.query_result = sch.MessageQueryResult(sql_query=sql_query)
         else:
             await self.save_query_results(
                 query_result=query_result,
@@ -374,14 +376,14 @@ Connection timed out. Please try again."""
         # Save to the DB
         result_history = await crud_result.save_result_history(
             db=self.db,
-            chat_id=self.agent.chat_metadata.chat_id,
+            chat_id=self.chat_metadata.chat_id,
             query_result=query_result,
             title=extract.title,
             subtitle=extract.subtitle,
             description=extract.description,
             conn_id=self.conn_id,
             prompt_metadata=self.prompt_metadata,
-            chat_metadata=self.agent.chat_metadata,
+            chat_metadata=self.chat_metadata,
         )
-        self.agent.query_result = sch.MessageQueryResult.from_orm(result_history)
+        self.query_result = sch.MessageQueryResult.from_orm(result_history)
         await self.db.commit()  # NOTE: Calling commit again to avoid idle in transaction
