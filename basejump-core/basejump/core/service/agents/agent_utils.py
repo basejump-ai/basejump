@@ -4,8 +4,7 @@ import json
 from datetime import datetime
 from typing import Optional
 
-from redis.asyncio import Redis as RedisAsync
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.client import query
@@ -53,8 +52,8 @@ async def refresh_result(
     db: AsyncSession,
     result_store: store.ResultStore,
     result: models.ResultHistory,
-    small_model_info: sch.ModelInfo,
-    client_id: int,
+    service_context: sch.ServiceContext,
+    client_user: sch.ClientUserInfo,
     # HACK: Fix this
     commit: bool = True,
 ) -> Optional[models.ResultHistory]:
@@ -72,8 +71,8 @@ async def refresh_result(
         client_conn_params=conn_db.conn_params,
         sql_query=result.sql_query,
         initial_prompt=initial_prompt,
-        client_id=client_id,
-        small_model_info=small_model_info,
+        client_id=client_user.client_id,
+        small_model_info=service_context.small_model_info,
         result_store=result_store,
     ) as query_recorder:
         query_result = await query_recorder.astore_query_result()
@@ -100,11 +99,7 @@ async def refresh_result(
 
 async def refresh_visual_result(
     db: AsyncSession,
-    sql_engine: AsyncEngine,
-    small_model_info: sch.ModelInfo,
-    large_model_info: sch.ModelInfo,
-    embedding_model_info: sch.AzureModelInfo,
-    redis_client_async: RedisAsync,
+    service_context: sch.ServiceContext,
     visual_result: models.VisualResultHistory,
     client_user: sch.ClientUserInfo,
     result_store: store.ResultStore,
@@ -120,20 +115,22 @@ well as the same/similar axis ranges and/or format. Here is the visual informati
     # Query the VisTool
     result_uuid = visual_result.result_uuid
     prompt_metadata_base = await create_prompt_base(
-        db=db, client_user=client_user, prompt=prompt, model_name=large_model_info.model_name, return_visual_json=True
+        db=db,
+        client_user=client_user,
+        prompt=prompt,
+        model_name=service_context.large_model_info.model_name,
+        return_visual_json=True,
     )
     agent_setup = AgentSetup.load_from_prompt_metadata(prompt_metadata_base=prompt_metadata_base)
     base_agent = SimpleAgent(
         prompt_metadata=agent_setup.prompt_metadata,
-        sql_engine=sql_engine,
-        large_model_info=large_model_info,
-        redis_client_async=redis_client_async,
+        service_context=service_context,
     )
     vis_tool = VisTool(
         db=db,
         agent=base_agent,
-        small_model_info=small_model_info,
-        embedding_model_info=embedding_model_info,
+        small_model_info=service_context.small_model_info,
+        embedding_model_info=service_context.embedding_model_info,
         result_store=result_store,
     )
     await vis_tool.get_plot(result_uuid=result_uuid, prompt=prompt)
@@ -147,8 +144,8 @@ async def refresh_results(
     db: AsyncSession,
     result: models.ResultHistory,
     result_store: store.ResultStore,
-    small_model_info: sch.ModelInfo,
-    client_id: int,
+    service_context: sch.ServiceContext,
+    client_user: sch.ClientUserInfo,
     visual_result: Optional[models.VisualResultHistory] = None,
 ) -> sch.QueryResult:
     """Refreshes results for both visual and SQL sources"""
@@ -156,8 +153,8 @@ async def refresh_results(
         db=db,
         result_store=result_store,
         result=result,
-        small_model_info=small_model_info,
-        client_id=client_id,
+        small_model_info=service_context.small_model_info,
+        client_id=client_user.client_id,
         commit=False,
     )
     result_manager = result_store.get_result_manager(result.result_file_path)
@@ -165,6 +162,7 @@ async def refresh_results(
     stream_gen = file_gen_func()
     rows_base = next(stream_gen)
     rows = [tuple(row.split(",")) for row in rows_base.decode("utf-8").splitlines()]
+    message_query_result = sch.MessageQueryResult.from_orm(result)
     query_res = sch.QueryResult(
         query_result=rows[: constants.AI_RESULT_PREVIEW_CT],
         preview_row_ct=constants.AI_RESULT_PREVIEW_CT,
@@ -177,11 +175,18 @@ async def refresh_results(
         ai_preview_row_ct=constants.AI_RESULT_PREVIEW_CT,
         result_file_path=result.result_file_path,
         preview_file_path=result.preview_file_path,
+        message_query_result=message_query_result,
     )
-    query_result = sch.MessageQueryResult.from_orm(result)
+
     if visual_result:
-        visual_result = await refresh_visual_result(result=visual_result)
-        query_result.visual_result_uuid = visual_result.visual_result_uuid
-        query_result.visual_json = visual_result.visual_json
-        query_result.visual_explanation = visual_result.visual_explanation
+        visual_result = await refresh_visual_result(
+            db=db,
+            service_context=service_context,
+            visual_result=visual_result,
+            client_user=client_user,
+            result_store=result_store,
+        )
+        message_query_result.visual_result_uuid = visual_result.visual_result_uuid
+        message_query_result.visual_json = visual_result.visual_json
+        message_query_result.visual_explanation = visual_result.visual_explanation
     return query_res

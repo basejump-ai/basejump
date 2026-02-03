@@ -18,6 +18,7 @@ from basejump.core.models.ai import formats as fmt
 from basejump.core.models.ai import formatter
 from basejump.core.models.ai.catalog import AICatalog
 from basejump.core.service.agents.chat import ChatAgent
+from basejump.core.service.agents.simple import SimpleAgent
 from basejump.core.service.agents.tools import tool_utils
 from basejump.core.service.agents.tools.base import BaseTool
 
@@ -31,7 +32,7 @@ TIMEOUT = 60 * 3
 class VisTool(BaseTool):
     def __init__(
         self,
-        agent: ChatAgent,
+        agent: SimpleAgent,
         llm: Optional[LLM] = None,
     ):
         self.agent = agent

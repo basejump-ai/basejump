@@ -17,6 +17,7 @@ from basejump.core.database.crud import crud_chat, crud_connection, crud_result
 from basejump.core.database.result import store
 from basejump.core.models import constants, enums, errors, models, prompts
 from basejump.core.models import schemas as sch
+from basejump.core.service.agents import agent_utils
 from basejump.core.service.agents.chat import ChatAgent
 from basejump.core.service.agents.memory.agent import AgentMemory
 from basejump.core.service.agents.memory.semantic import SemanticMemory
@@ -216,9 +217,21 @@ will be ignored; using memory's chat history instead."""
             )
         else:
             # Refresh the results
-            query_result = await tool_utils.refresh_results(
-                sql_tool=self.sql_tool, vis_tool=self.vis_tool, result=result, visual_result=visual_result
+            client_user = sch.ClientUserInfo(
+                client_id=self.prompt_metadata.client_id,
+                client_uuid=self.prompt_metadata.client_uuid,
+                user_id=self.prompt_metadata.user_id,
+                user_uuid=self.prompt_metadata.user_uuid,
             )
+            query_result = await agent_utils.refresh_results(
+                db=self.db,
+                result=result,
+                result_store=self.result_store,
+                service_context=self.service_context,
+                client_user=client_user,
+                visual_result=visual_result,
+            )
+            self.query_result = query_result.message_query_result
             # Get the response using SQL query results
             new_prompt_base = prompts.sql_result_prompt_basic(query_result=query_result)
             prompt = (
