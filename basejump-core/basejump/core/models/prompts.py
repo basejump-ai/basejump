@@ -216,8 +216,7 @@ Don't structure your output with the keywords and keyphrases since they're only 
 """
 
 
-CREATE_SQL_QUERY_PROMPT = """
-Before executing a SQL query, you need to make a plan. Do the following:
+CREATE_SQL_QUERY_PROMPT = """Before executing a SQL query, you need to make a plan. Do the following:
 - Identify the filters for the query based on the initial user prompt: {prompt}. \
 A filter is anything that is going to be put into the where clause. List each filter using a dash instead of \
 numbering them.

@@ -27,12 +27,17 @@ class SemanticMemory:
         self.cache: Optional[AsyncSemanticCache] = None
 
     async def get_cached_prompts(
-        self, prompt: str, client_id: int, distance_threshold: float, db_uuids: set[str], num_results=1
+        self,
+        prompt: str,
+        client_id: int,
+        db_uuid: str,
+        num_results=1,
+        distance_threshold: Optional[float] = None,
     ) -> list[sch.SemCacheResponse]:
         if not self.cache:
             try:
                 # TODO: Determine why the semantic cache has issues initializing sometimes
-                semcache_init_timeout = 10
+                semcache_init_timeout = 60
                 async with asyncio.timeout(semcache_init_timeout):
                     self.cache = await init_semcache(
                         client_id=client_id,
@@ -42,7 +47,7 @@ class SemanticMemory:
                 logger.warning(f"Connection to the semcache timed out after {semcache_init_timeout} seconds")
                 return []
         client_id_filter = Tag("client_id") == str(client_id)
-        db_uuid_filter = Tag("db_uuid") == db_uuids
+        db_uuid_filter = Tag("db_uuid") == db_uuid
         complex_filter = db_uuid_filter & client_id_filter
         semcache_responses = await self.cache.acheck(
             prompt=prompt,
@@ -55,14 +60,14 @@ class SemanticMemory:
         return_semcache_responses = []
         for semcache_response in semcache_responses:
             metadata = semcache_response["metadata"]
-            semcache_response = sch.SemCacheResponse(
+            semcache_obj = sch.SemCacheResponse(
                 response=semcache_response["response"],
                 prompt=semcache_response["prompt"],
                 vector_dist=semcache_response["vector_distance"],
                 verified=True,
                 **metadata,
             )
-            return_semcache_responses.append(semcache_response)
+            return_semcache_responses.append(semcache_obj)
         return return_semcache_responses
 
     async def store(

@@ -171,7 +171,6 @@ will be ignored; using memory's chat history instead."""
                 if message_pair.response:
                     return await self._get_message(response=message_pair.response.response)
                 prompt = message_pair.prompt.prompt
-
         return await self._chat_base(prompt=prompt)
 
     async def check_semantic_memory(self, prompt: str) -> Optional[sch.MessagePair]:
@@ -246,17 +245,20 @@ will be ignored; using memory's chat history instead."""
         semantic_memory = SemanticMemory(
             redis_client_async=self.service_context.redis_client_async,
         )
-        semcache_responses = await semantic_memory.get_cached_prompts(
-            prompt=prompt,
-            client_id=self.prompt_metadata.client_id,
-            distance_threshold=constants.REDIS_SEMCACHE_EXACT_DISTANCE,
-            db_uuids=db_uuids,
-        )
+        semcache_responses = []
+        for db_uuid in db_uuids:
+            semcache_responses += await semantic_memory.get_cached_prompts(
+                prompt=prompt,
+                client_id=self.prompt_metadata.client_id,
+                distance_threshold=constants.REDIS_SEMCACHE_EXACT_DISTANCE,
+                db_uuid=db_uuid,
+            )
+
         if not semcache_responses:
             return None
 
         # Load cached response
-        semcache_response = semcache_responses[0]
+        semcache_response = semcache_responses[0]  # HACK: Choose the lowest instead of the initial one
         logger.info("Semantic similarity distance: %s", semcache_response.vector_dist)
         can_verify = auth.check_can_verify(
             required_role=enums.UserRoles(semcache_response.verified_user_role),

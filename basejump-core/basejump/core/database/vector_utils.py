@@ -273,14 +273,15 @@ async def delete_semcache_result(
 
 
 async def init_semcache(
-    client_id: int, redis_client_async: RedisAsync, idx_name: Optional[str] = None
+    client_id: int,
+    redis_client_async: RedisAsync,
+    idx_name: Optional[str] = None,
 ) -> AsyncSemanticCache:
     if not idx_name:
         idx_name = get_semcache_index_name(client_id=client_id)
     llmcache = await AsyncSemanticCache.setup(
         name=idx_name,
         redis_client=redis_client_async,
-        distance_threshold=constants.REDIS_SEMCACHE_SIMILAR_DISTANCE,
         filterable_fields=[
             {"name": "client_id", "type": "tag"},
             {"name": "result_uuid", "type": "tag"},
@@ -311,7 +312,9 @@ async def update_verified_result_vectors(
     elif verified:
         # Save to the Redis semantic cache
         llmcache = await init_semcache(
-            client_id=client_user.client_id, idx_name=semcache_idx_nm, redis_client_async=redis_client_async
+            client_id=client_user.client_id,
+            idx_name=semcache_idx_nm,
+            redis_client_async=redis_client_async,
         )
         # Get the response from the result
         # Store the response in the cache
@@ -334,6 +337,7 @@ async def update_verified_result_vectors(
                 "db_uuid": str(db_uuid),
             },
         )
+        logger.info("Stored prompt in semantic cache: %s", result.initial_prompt)
 
 
 def get_redis_index(index_name: str, settings: Settings, redis_client_async: RedisAsync) -> BaseIndex:  # type:ignore

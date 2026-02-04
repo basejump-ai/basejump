@@ -16,7 +16,7 @@ from basejump.core.models import schemas as sch
 from basejump.core.models.ai import formats as fmt
 from basejump.core.models.ai import formatter
 from basejump.core.models.ai.formatter import get_title_description
-from basejump.core.models.prompts import get_sql_result_prompt
+from basejump.core.models.prompts import CREATE_SQL_QUERY_PROMPT, get_sql_result_prompt
 from basejump.core.service.agents.memory.semantic import SemanticMemory
 from basejump.core.service.agents.message import ChatMessageHandler
 from basejump.core.service.agents.tools import tool_utils
@@ -42,6 +42,7 @@ class SQLRunnerTool(BaseTool):
         prompt_metadata: sch.PromptMetadata,
         chat_metadata: sch.ChatMetadata,
         select_sample_values: bool = False,
+        use_sql_examples: bool = True,
     ):
         # Set passed variables
         self.db = db
@@ -51,7 +52,9 @@ class SQLRunnerTool(BaseTool):
         self.client_conn_params = sql_tool_context.client_conn_params
         self.db_conn_params = db_conn_params
         self.conn_id = sql_tool_context.conn_id
+        self.db_uuid = sql_tool_context.db_uuid
         self.select_sample_values = select_sample_values
+        self.use_sql_examples = use_sql_examples
         self.verbose = sql_tool_context.verbose
         self.chat_metadata = chat_metadata
         self.prompt_metadata = prompt_metadata
@@ -97,42 +100,57 @@ class SQLRunnerTool(BaseTool):
         if self.chat_metadata.verify_mode == enums.VerifyMode.STRICT and user_role < admin_role:
             raise errors.StrictModeFlagged
 
-    async def create_sql_query(self, initial_sql_query: str):
-        """This function is used to create a plan to create a correct SQL query."""
-        logger.info("Here is the initial SQL query: %s", initial_sql_query)
-        self.sql_query_created = True
-        # Explain plan
+    async def _get_sql_examples(self) -> str:
         semantic_memory = SemanticMemory(
             redis_client_async=self.service_context.redis_client_async,
         )
         semcache_responses = await semantic_memory.get_cached_prompts(
             prompt=self.prompt_metadata.initial_prompt,
             client_id=self.prompt_metadata.client_id,
-            distance_threshold=constants.REDIS_SEMCACHE_APPROXIMATE_DISTANCE,
-            db_uuids=set(self.db_uuid),
+            distance_threshold=constants.REDIS_SEMCACHE_SIMILAR_DISTANCE,
+            db_uuid=str(self.db_uuid),
+            num_results=constants.SQL_QUERY_EXAMPLE_CT,
         )
         if not semcache_responses:
-            sql_query_example_prompt = ""
+            logger.debug("No semantically similar response found")
+            return ""
         else:
             sql_query_example_prompt = """Here are some examples of prior prompts and the SQL queries that were \
 used previously and that users marked as correct. If you reuse one of these, make sure to update the schemas to \
-be correct."""
-            single_sql_query_example = """\n\
-    Prompt: {prompt}
-    SQL Query Answer: {sql_query}
-            """
-            for semcache_response in semcache_responses[: constants.SQL_QUERY_EXAMPLE_CT]:
+be correct:"""
+            single_sql_query_example = """\
+\nPrompt: {prompt}
+SQL Query Answer: {sql_query}\n
+                """
+            for semcache_response in semcache_responses:
                 sql_query_example_prompt += single_sql_query_example.format(
                     prompt=semcache_response.prompt, sql_query=semcache_response.sql_query
                 )
-            initial_instructions = constants.CREATE_SQL_QUERY_PROMPT.format(prompt=self.prompt_metadata.initial_prompt)
+            return sql_query_example_prompt
+
+    async def create_sql_query(self, initial_sql_query: str):
+        """This function is used to create a plan to create a correct SQL query."""
+        logger.info("Here is the initial SQL query: %s", initial_sql_query)
+        self.sql_query_created = True
+
+        # Set variables
+        sql_query_example_prompt = ""
         intermediate_instructions = ""
+
+        # Get initial instructions
+        initial_instructions = CREATE_SQL_QUERY_PROMPT.format(prompt=self.prompt_metadata.initial_prompt)
+
+        # Get SQL examples
+        if self.use_sql_examples:
+            sql_query_example_prompt = await self._get_sql_examples()
+        # Get sample values
         if self.select_sample_values:
             sampler = SQLSampler(sqlglot_dialect=self.sqlglot_dialect, conn_params=self.client_conn_params)
             columns, sample_values = await sampler.get_select_sample_values(sql_query=initial_sql_query)
             if sample_values and columns:
                 intermediate_instructions = f"""\n- Here are some sample values for the columns selected \
-    in your query: {sample_values}\n"""
+in your query: {sample_values}\n"""
+        # Get final instructions
         final_instructions = """\n
 After stating your plan, do one of the following:
 - Option 1: Ask the user a clarifying question.
