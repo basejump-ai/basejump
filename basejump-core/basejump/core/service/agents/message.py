@@ -185,7 +185,7 @@ class ChatMessageHandler(MessageHandler):
             # If no webhook URL, then skip sending the API message
             pass
 
-    def process_query_result(self, query_result) -> dict:
+    def process_query_result(self, query_result: sch.MessageQueryResult) -> dict:
         if self.prompt_metadata.return_visual_json and query_result:
             if isinstance(query_result.visual_json, str):
                 visual_json = json.loads(query_result.visual_json)

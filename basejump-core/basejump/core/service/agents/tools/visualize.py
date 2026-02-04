@@ -130,8 +130,6 @@ before attempting to visualize."""
         # Add some error handling for this
         visual_json = visual.figure.to_json()
         visual_result_uuid = uuid.uuid4()
-        if not self.query_result:
-            self.query_result = sch.MessageQueryResult()
         self.query_result.visual_result_uuid = visual_result_uuid
         self.query_result.visual_json = json.loads(visual_json)
         self.query_result.visual_explanation = visual.explanation

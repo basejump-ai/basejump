@@ -54,6 +54,8 @@ class SQLRunnerTool(BaseTool):
         self.verbose = sql_tool_context.verbose
         self.chat_metadata = chat_metadata
         self.prompt_metadata = prompt_metadata
+        breakpoint()
+        self.query_result = query_result
 
         # Set variables
         self.sqlglot_dialect = enums.DB_TYPE_TO_SQLGLOT_DIALECT_LKUP[self.client_conn_params.database_type]
@@ -349,8 +351,6 @@ Connection timed out. Please try again."""
             query_result=query_result,
         )
         # If no result, then don't save a report
-        if not query_result.sql_query:
-            query_result.sql_query = sql_query
         if not query_result:
             self.query_result = sch.MessageQueryResult(sql_query=sql_query)
         else:
@@ -387,5 +387,11 @@ Connection timed out. Please try again."""
             prompt_metadata=self.prompt_metadata,
             chat_metadata=self.chat_metadata,
         )
-        self.query_result = sch.MessageQueryResult.from_orm(result_history)
+        # Get the new values
+        new_values = sch.MessageQueryResult.from_orm(result_history)
+
+        # Update existing object fields in-place
+        for field_name in new_values.__fields__:
+            setattr(self.query_result, field_name, getattr(new_values, field_name))
+        breakpoint()
         await self.db.commit()  # NOTE: Calling commit again to avoid idle in transaction

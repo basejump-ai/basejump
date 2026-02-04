@@ -14,7 +14,6 @@ from llama_index.core.chat_engine import SimpleChatEngine
 from llama_index.core.chat_engine.types import BaseChatEngine
 from llama_index.core.llms import ChatMessage, MessageRole
 from llama_index.core.llms.function_calling import FunctionCallingLLM
-from llama_index.core.memory.chat_memory_buffer import ChatMemoryBuffer
 from llama_index.core.tools.types import AsyncBaseTool
 
 from basejump.core.common.config.logconfig import set_logging
@@ -67,7 +66,6 @@ class BaseAgent(ABC):
         self.service_context = service_context
         ai_catalog = AICatalog(callback_manager=prompt_metadata.callback_manager)
         self.llm: FunctionCallingLLM = llm or ai_catalog.get_llm(model_info=self.service_context.large_model_info)
-        self.memory_buffer = ChatMemoryBuffer.from_defaults(chat_history=memory.chat_history, llm=self.llm)
         self.memory = memory
         self.max_iterations = max_iterations  # NOTE: This only works with streaming off
         self.sql_engine = self.service_context.sql_engine
@@ -122,7 +120,6 @@ instructions for the expected output format: \n{EXPECTED_OUTPUT_INSTRUCTIONS}\
         if not tools:
             agent = SimpleChatEngine.from_defaults(
                 llm=self.llm,
-                memory=self.memory_buffer,
                 callback_manager=self.llm.callback_manager,
             )
         else:
@@ -131,7 +128,6 @@ instructions for the expected output format: \n{EXPECTED_OUTPUT_INSTRUCTIONS}\
                 tools,  # type: ignore
                 llm=self.llm,
                 verbose=self.verbose,
-                memory=self.memory_buffer,
                 max_function_calls=self.max_iterations,
                 callback_manager=self.llm.callback_manager,
                 response_hook=self._get_response_hook(),
