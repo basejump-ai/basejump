@@ -15,8 +15,8 @@ from basejump.core.models import enums, prompts
 from basejump.core.models import schemas as sch
 from basejump.core.models.ai import formats as fmt
 from basejump.core.models.ai import formatter
-from basejump.core.service.agents.mermaid import MermaidAgent
 from basejump.core.service.agents.setup import AgentSetup
+from basejump.core.service.agents.types.mermaid import MermaidAgent
 
 logger = set_logging(handler_option="stream", name=__name__)
 

@@ -33,6 +33,9 @@ class SQLTool(BaseTool):
         self.select_sample_values = select_sample_values
         self.result_store = result_store
         self.query_result = query_result
+        self.prompt_metadata = prompt_metadata
+        self.chat_metadata = chat_metadata
+
         # Create tools
         self.table_retriever_tool = retriever.TableRetrieverTool(
             db=self.db, llm=self.llm, sql_tool_context=self.sql_tool_context, prompt_metadata=prompt_metadata

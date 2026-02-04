@@ -9,8 +9,8 @@ from llama_index.core.tools.types import AsyncBaseTool
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.models import enums
 from basejump.core.models import schemas as sch
-from basejump.core.service.agents.base import BaseAgent
 from basejump.core.service.agents.memory.agent import SimpleAgentMemory
+from basejump.core.service.agents.types.base import BaseAgent
 
 logger = set_logging(handler_option="stream", name=__name__)
 

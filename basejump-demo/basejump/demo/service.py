@@ -21,10 +21,10 @@ from basejump.core.models import enums, errors, models, prompts
 from basejump.core.models import schemas as sch
 from basejump.core.models.ai.catalog import AICatalog
 from basejump.core.service.agents import agent_utils
-from basejump.core.service.agents.data_chat import DataChatAgent
 from basejump.core.service.agents.memory.agent import AgentMemory, SimpleAgentMemory
-from basejump.core.service.agents.mermaid import MermaidAgent
 from basejump.core.service.agents.setup import AgentSetup, ChatAgentSetup
+from basejump.core.service.agents.types.data_chat import DataChatAgent
+from basejump.core.service.agents.types.mermaid import MermaidAgent
 from basejump.core.service.database.client import utils
 from basejump.demo import crud, schemas, settings
 

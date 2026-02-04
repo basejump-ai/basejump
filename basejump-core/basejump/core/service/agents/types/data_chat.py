@@ -12,17 +12,17 @@ from llama_index.core.tools.types import AsyncBaseTool
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database import auth
-from basejump.core.database.client.refresh import refresh_results
 from basejump.core.database.crud import crud_chat, crud_connection, crud_result
 from basejump.core.database.result import store
 from basejump.core.models import constants, enums, errors, models, prompts
 from basejump.core.models import schemas as sch
-from basejump.core.service.agents.chat import ChatAgent
 from basejump.core.service.agents.memory.agent import AgentMemory
 from basejump.core.service.agents.memory.semantic import SemanticMemory
 from basejump.core.service.agents.message import ChatMessageHandler
 from basejump.core.service.agents.setup import ChatAgentSetup
 from basejump.core.service.agents.tools import sql, tool_utils, visualize
+from basejump.core.service.agents.types.chat import ChatAgent
+from basejump.core.service.agents.types.utils import refresh_results
 
 logger = set_logging(handler_option="stream", name=__name__)
 

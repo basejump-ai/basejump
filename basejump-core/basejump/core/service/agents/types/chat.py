@@ -10,7 +10,7 @@ from basejump.core.models import constants, enums, errors
 from basejump.core.models import schemas as sch
 from basejump.core.service.agents.memory.agent import AgentMemory
 from basejump.core.service.agents.message import ChatMessageHandler
-from basejump.core.service.agents.simple import SimpleAgent
+from basejump.core.service.agents.types.simple import SimpleAgent
 
 logger = set_logging(handler_option="stream", name=__name__)
 
