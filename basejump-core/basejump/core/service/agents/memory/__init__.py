@@ -1,3 +1,3 @@
-from . import agent, semantic
+from . import agent, base, semantic
 
-__all__ = ["agent", "semantic"]
+__all__ = ["agent", "base", "semantic"]

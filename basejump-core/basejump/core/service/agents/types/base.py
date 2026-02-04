@@ -18,30 +18,14 @@ from llama_index.core.tools.types import AsyncBaseTool
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.crud import crud_chat
-from basejump.core.database.result import store
 from basejump.core.database.session import LocalSession
 from basejump.core.models import constants, enums, errors
 from basejump.core.models import schemas as sch
 from basejump.core.models.ai.catalog import AICatalog
+from basejump.core.service.agents.memory.base import BaseAgentMemory
 from basejump.core.service.agents.message import MessageHandler
 
 logger = set_logging(handler_option="stream", name=__name__)
-
-
-class BaseAgentMemory(ABC):
-    def __init__(
-        self,
-        service_context: sch.ServiceContext,
-        prompt_metadata: sch.PromptMetadata,
-        chat_history: Optional[list[ChatMessage]] = None,
-        query_result: Optional[sch.MessageQueryResult] = None,
-        result_store: Optional[store.ResultStore] = None,
-    ):
-        self.service_context = service_context
-        self.prompt_metadata = prompt_metadata
-        self.chat_history = chat_history or []
-        self.query_result = query_result or sch.MessageQueryResult()
-        self.result_store = result_store or store.LocalResultStore(client_id=self.prompt_metadata.client_id)
 
 
 class BaseAgent(ABC):

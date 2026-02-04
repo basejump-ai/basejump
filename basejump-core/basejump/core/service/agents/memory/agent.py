@@ -25,8 +25,8 @@ from basejump.core.database.result import store
 from basejump.core.models import constants, enums, errors, models, prompts
 from basejump.core.models import schemas as sch
 from basejump.core.models.ai.catalog import AICatalog
+from basejump.core.service.agents.memory.base import BaseAgentMemory
 from basejump.core.service.agents.memory.semantic import SemanticMemory
-from basejump.core.service.agents.types.base import BaseAgentMemory
 
 logger = set_logging(handler_option="stream", name=__name__)
 
