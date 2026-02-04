@@ -21,6 +21,7 @@ MAX_CHAT_HISTORY_DAYS = 365
 REDIS_SEMCACHE_SIMILAR_DISTANCE = 0.3
 # This distance is close enough that it is assumed it's the exact same question
 REDIS_SEMCACHE_EXACT_DISTANCE = 0.04
+REDIS_SEMCACHE_APPROXIMATE_DISTANCE = 0.1
 SEMCACHE_TIMESTAMP = "timestamp"
 TEST_PROMPT = "give me a report of all clients"
 REINDEXING_DB_ERROR_MSG = "Currently re-indexing database metadata. Please wait a few minutes and try again."
@@ -87,3 +88,4 @@ TEAM_DESC = "A description of the team. This is provided to the AI as context."
 ATHENA_STAGING_DIR_NAME = "s3_staging_dir"
 MAX_FILE_SIZE = 100
 AWS_ROLE_ARN_NAME = "aws_role_arn"
+SQL_QUERY_EXAMPLE_CT = 3

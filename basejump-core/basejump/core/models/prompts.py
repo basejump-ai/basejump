@@ -214,3 +214,15 @@ to the dataset generated for the chat response.
 that was generated for this chat response.
 Don't structure your output with the keywords and keyphrases since they're only meant to provide you with more context
 """
+
+
+CREATE_SQL_QUERY_PROMPT = """
+Before executing a SQL query, you need to make a plan. Do the following:
+- Identify the filters for the query based on the initial user prompt: {prompt}. \
+A filter is anything that is going to be put into the where clause. List each filter using a dash instead of \
+numbering them.
+- Determine if you have enough information or if you need to ask the user clarifying questions. This means that for \
+every filter the user has given enough context and defined it clearly. If you are unsure what column the filter \
+may be referring to, ask the user a clarifying question before proceeding. Do not ask the user for the column name.
+- The plan should be formatted with each step using this for preceding each bullet point >>
+- Do not include this plan reasoning in the final output."""

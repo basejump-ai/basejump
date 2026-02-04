@@ -17,6 +17,7 @@ from basejump.core.models.ai import formats as fmt
 from basejump.core.models.ai import formatter
 from basejump.core.models.ai.formatter import get_title_description
 from basejump.core.models.prompts import get_sql_result_prompt
+from basejump.core.service.agents.memory.semantic import SemanticMemory
 from basejump.core.service.agents.message import ChatMessageHandler
 from basejump.core.service.agents.tools import tool_utils
 from basejump.core.service.agents.tools.base import BaseTool
@@ -101,16 +102,30 @@ class SQLRunnerTool(BaseTool):
         logger.info("Here is the initial SQL query: %s", initial_sql_query)
         self.sql_query_created = True
         # Explain plan
-        initial_instructions = f"""
-Before executing a SQL query, you need to make a plan. Do the following:
-- Identify the filters for the query based on the initial user prompt: {self.prompt_metadata.initial_prompt}. \
-A filter is anything that is going to be put into the where clause. List each filter using a dash instead of \
-numbering them.
-- Determine if you have enough information or if you need to ask the user clarifying questions. This means that for \
-every filter the user has given enough context and defined it clearly. If you are unsure what column the filter \
-may be referring to, ask the user a clarifying question before proceeding. Do not ask the user for the column name.
-- The plan should be formatted with each step using this for preceding each bullet point >>
-- Do not include this plan reasoning in the final output."""
+        semantic_memory = SemanticMemory(
+            redis_client_async=self.service_context.redis_client_async,
+        )
+        semcache_responses = await semantic_memory.get_cached_prompts(
+            prompt=self.prompt_metadata.initial_prompt,
+            client_id=self.prompt_metadata.client_id,
+            distance_threshold=constants.REDIS_SEMCACHE_APPROXIMATE_DISTANCE,
+            db_uuids=set(self.db_uuid),
+        )
+        if not semcache_responses:
+            sql_query_example_prompt = ""
+        else:
+            sql_query_example_prompt = """Here are some examples of prior prompts and the SQL queries that were \
+used previously and that users marked as correct. If you reuse one of these, make sure to update the schemas to \
+be correct."""
+            single_sql_query_example = """\n\
+    Prompt: {prompt}
+    SQL Query Answer: {sql_query}
+            """
+            for semcache_response in semcache_responses[: constants.SQL_QUERY_EXAMPLE_CT]:
+                sql_query_example_prompt += single_sql_query_example.format(
+                    prompt=semcache_response.prompt, sql_query=semcache_response.sql_query
+                )
+            initial_instructions = constants.CREATE_SQL_QUERY_PROMPT.format(prompt=self.prompt_metadata.initial_prompt)
         intermediate_instructions = ""
         if self.select_sample_values:
             sampler = SQLSampler(sqlglot_dialect=self.sqlglot_dialect, conn_params=self.client_conn_params)
@@ -123,7 +138,7 @@ After stating your plan, do one of the following:
 - Option 1: Ask the user a clarifying question.
 - Option 2: Run this tool again to run your original or updated SQL query.
 """
-        return initial_instructions + intermediate_instructions + final_instructions
+        return sql_query_example_prompt + initial_instructions + intermediate_instructions + final_instructions
 
     async def _clean_sql(self, sql_query: str):
         # Clean the SQL query format

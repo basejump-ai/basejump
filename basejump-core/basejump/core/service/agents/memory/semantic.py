@@ -26,9 +26,9 @@ class SemanticMemory:
         self.redis_client_async = redis_client_async
         self.cache: Optional[AsyncSemanticCache] = None
 
-    async def get_cached_prompt(
+    async def get_cached_prompts(
         self, prompt: str, client_id: int, distance_threshold: float, db_uuids: set[str], num_results=1
-    ) -> Optional[sch.SemCacheResponse]:
+    ) -> list[sch.SemCacheResponse]:
         if not self.cache:
             try:
                 # TODO: Determine why the semantic cache has issues initializing sometimes
@@ -40,27 +40,30 @@ class SemanticMemory:
                     )
             except TimeoutError:
                 logger.warning(f"Connection to the semcache timed out after {semcache_init_timeout} seconds")
-                return None
+                return []
         client_id_filter = Tag("client_id") == str(client_id)
         db_uuid_filter = Tag("db_uuid") == db_uuids
         complex_filter = db_uuid_filter & client_id_filter
-        semcache_response_raw = await self.cache.acheck(
+        semcache_responses = await self.cache.acheck(
             prompt=prompt,
             filter_expression=complex_filter,
             distance_threshold=distance_threshold,
             num_results=num_results,
         )
-        if not semcache_response_raw:
-            return None
-        metadata = semcache_response_raw[0]["metadata"]
-        semcache_response = sch.SemCacheResponse(
-            response=semcache_response_raw[0]["response"],
-            prompt=semcache_response_raw[0]["prompt"],
-            vector_dist=semcache_response_raw[0]["vector_distance"],
-            verified=True,
-            **metadata,
-        )
-        return semcache_response
+        if not semcache_responses:
+            return []
+        return_semcache_responses = []
+        for semcache_response in semcache_responses:
+            metadata = semcache_response["metadata"]
+            semcache_response = sch.SemCacheResponse(
+                response=semcache_response["response"],
+                prompt=semcache_response["prompt"],
+                vector_dist=semcache_response["vector_distance"],
+                verified=True,
+                **metadata,
+            )
+            return_semcache_responses.append(semcache_response)
+        return return_semcache_responses
 
     async def store(
         self,

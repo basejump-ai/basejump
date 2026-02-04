@@ -246,16 +246,17 @@ will be ignored; using memory's chat history instead."""
         semantic_memory = SemanticMemory(
             redis_client_async=self.service_context.redis_client_async,
         )
-        semcache_response = await semantic_memory.get_cached_prompt(
+        semcache_responses = await semantic_memory.get_cached_prompts(
             prompt=prompt,
             client_id=self.prompt_metadata.client_id,
             distance_threshold=constants.REDIS_SEMCACHE_EXACT_DISTANCE,
             db_uuids=db_uuids,
         )
-        if not semcache_response:
+        if not semcache_responses:
             return None
 
         # Load cached response
+        semcache_response = semcache_responses[0]
         logger.info("Semantic similarity distance: %s", semcache_response.vector_dist)
         can_verify = auth.check_can_verify(
             required_role=enums.UserRoles(semcache_response.verified_user_role),
