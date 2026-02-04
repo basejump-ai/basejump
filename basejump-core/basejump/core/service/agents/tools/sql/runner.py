@@ -54,7 +54,6 @@ class SQLRunnerTool(BaseTool):
         self.verbose = sql_tool_context.verbose
         self.chat_metadata = chat_metadata
         self.prompt_metadata = prompt_metadata
-        breakpoint()
         self.query_result = query_result
 
         # Set variables
@@ -393,5 +392,4 @@ Connection timed out. Please try again."""
         # Update existing object fields in-place
         for field_name in new_values.__fields__:
             setattr(self.query_result, field_name, getattr(new_values, field_name))
-        breakpoint()
         await self.db.commit()  # NOTE: Calling commit again to avoid idle in transaction

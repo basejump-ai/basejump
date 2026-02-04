@@ -424,7 +424,6 @@ async def chat(
             service_context=service_context,
             chat_metadata=chat_metadata,
             prompt_metadata=agent_setup.prompt_metadata,
-            conn_params=settings.conn_params,
         )
         chat_history = await agent_memory.get_chat_history(
             db=db, chat=retrieved_chat, team_info=sch.TeamFields.model_validate(user_info)

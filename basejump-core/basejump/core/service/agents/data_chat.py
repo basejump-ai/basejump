@@ -108,7 +108,6 @@ will be ignored; using memory's chat history instead."""
             self.sql_tool_contexts.append(sql_tool_context)
         await self.db.commit()  # NOTE: Closing transaction to avoid idle in transaction
         for sql_tool_context in self.sql_tool_contexts:
-            breakpoint()
             self.sql_tool = sql.SQLTool(
                 llm=self.llm,
                 db=self.db,
