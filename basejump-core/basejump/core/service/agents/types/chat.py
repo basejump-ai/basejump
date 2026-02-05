@@ -144,7 +144,7 @@ https://go.microsoft.com/fwlink/?linkid=2198766"""
                 constants.SQL_TABLES_TOOL_NM_PREFIX in sentence
                 or constants.SQL_EXEC_TOOL_NM_PREFIX in sentence
                 or constants.VIS_TOOL_NM in sentence
-                or constants.INTERNAL_DOCS_TOOL_NM in sentence
+                or constants.DOCS_TOOL_NM in sentence
             ):
                 continue
             if "The current language" in sentence:

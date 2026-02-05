@@ -33,6 +33,7 @@ logger = set_logging(handler_option="stream", name=__name__)
 
 REDIS_PARTITION_PREFIX = "basejump_pclient"
 REDIS_SEMCACHE_PREFIX = "semcache_"
+DOCS_INDEX_PREFIX = "docs_"
 # WARNING: Changing this will change the index location.
 # To change this number, add this value to the connect.vector_db table.
 # Then the modulo can be calculated based off of that instead of this constant
@@ -74,6 +75,11 @@ def get_index_name(client_id: int) -> str:
 def get_semcache_index_name(client_id: int) -> str:
     idx_nm = get_index_name(client_id=client_id)
     return REDIS_SEMCACHE_PREFIX + idx_nm
+
+
+def get_docs_index_name(client_id: int, db_uuid: uuid.UUID) -> str:
+    idx_nm = get_index_name(client_id=client_id)
+    return DOCS_INDEX_PREFIX + str(db_uuid).replace("-", "_") + idx_nm
 
 
 async def get_table_info_from_vector_db(

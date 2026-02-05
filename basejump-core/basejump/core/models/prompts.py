@@ -34,7 +34,8 @@ DB_METADATA_PROMPT = (
     "Now do one of the following: \n"
     "- Option 1: Ask the user a clarifying question to have better context for your SQL query if you \
 feel certain filters aren't clear based on their prompt.\n"
-    "- Option 2: Run your SQL query using the following tool: {run_sql_query_tool}"
+    "- Option 2: Search documentation for clarification of the user's question using the following tool: {docs_tool}"
+    "- Option 3: Run your SQL query using the following tool: {run_sql_query_tool}"
 )
 
 MERMAIDJS_SYSTEM_PROMPT = """\
@@ -132,9 +133,10 @@ Finally, they then can try re-phrasing the prompt."""
 
 
 # TODO: Let the AI know how many attempts it has remaining
-def get_sql_result_prompt(conn_id: int, query_result: sch.QueryResult):
+def get_sql_result_prompt(db_id: int, conn_id: int, query_result: sch.QueryResult):
     sql_tbl_tool_nm = constants.get_sql_tables_tool_nm(conn_id=conn_id)
     sql_exec_tool_nm = constants.get_sql_execution_tool_nm(conn_id=conn_id)
+    docs_tool_nm = constants.get_docs_tool_nm(db_id=db_id)
     if query_result.num_rows == 0:
         logger.info("Query returned no rows")
         return """That query returned 0 rows.\n""" + ZERO_ROW_PROMPT
@@ -143,7 +145,8 @@ Do one of the following:
 Option 1. {constants.SQL_OPTION_1}
 Option 2. Use the {sql_tbl_tool_nm} {constants.SQL_OPTION_2_SUFFIX}
 Option 3. Use the {sql_exec_tool_nm} {constants.SQL_OPTION_3_SUFFIX}
-Option 4. Use the {constants.VIS_TOOL_NM} to create a chart based on the users request.\
+Option 4. Use the {docs_tool_nm} to find additional information not available in database metadata. \
+Option 5. Use the {constants.VIS_TOOL_NM} to create a chart based on the users request.\
 The result_uuid to do this is {query_result.result_uuid}"""
     if query_result.result_type == enums.ResultType.DATASET:
         query_result_str = f"""

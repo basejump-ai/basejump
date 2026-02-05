@@ -52,6 +52,7 @@ class TableRetrieverTool(BaseTool):
         self.service_context = sql_tool_context.service_context
         self.client_conn_params = sql_tool_context.client_conn_params
         self.conn_id = sql_tool_context.conn_id
+        self.db_id = sql_tool_context.db_id
         self.vector_id = sql_tool_context.vector_id
         self.prompt_metadata = prompt_metadata
         self.db_uuid = sql_tool_context.db_uuid
@@ -274,6 +275,7 @@ Here is the prompt that needs to be broken out: \n\n\
             schema=tables_str,
             db_type=self.client_conn_params.database_type.value,
             run_sql_query_tool=constants.get_sql_execution_tool_nm(conn_id=self.conn_id),
+            docs_tool=constants.get_docs_tool_nm(db_id=self.db_id),
         )
         return formatted_prompt
         # TODO: Use async task group or async for here to quickly get all tables

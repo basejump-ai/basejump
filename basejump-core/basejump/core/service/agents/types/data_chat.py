@@ -20,7 +20,10 @@ from basejump.core.service.agents.memory.agent import AgentMemory
 from basejump.core.service.agents.memory.semantic import SemanticMemory
 from basejump.core.service.agents.message import ChatMessageHandler
 from basejump.core.service.agents.setup import ChatAgentSetup
-from basejump.core.service.agents.tools import sql, tool_utils, visualize
+from basejump.core.service.agents.tools import tool_utils
+from basejump.core.service.agents.tools.docs import DocsTool
+from basejump.core.service.agents.tools.sql import SQLTool
+from basejump.core.service.agents.tools.visualize import VisTool
 from basejump.core.service.agents.types.chat import ChatAgent
 from basejump.core.service.agents.types.utils import refresh_results
 
@@ -47,6 +50,7 @@ class DataChatAgent(ChatAgent):
         result_store: Optional[store.ResultStore] = None,
         conn_id: Optional[int] = None,
         verbose: bool = False,
+        use_docs_tool: bool = False,
     ):
         if memory and chat_history:
             logger.warning(
@@ -75,6 +79,7 @@ will be ignored; using memory's chat history instead."""
         self.select_sample_values = select_sample_values
         self.use_semantic_cache = use_semantic_cache
         self.conn_id = conn_id
+        self.use_docs_tool = use_docs_tool
         if self.verbose:
             logger.debug("Chat history: %s", self.memory.chat_history)
 
@@ -108,7 +113,7 @@ will be ignored; using memory's chat history instead."""
             self.sql_tool_contexts.append(sql_tool_context)
         await self.db.commit()  # NOTE: Closing transaction to avoid idle in transaction
         for sql_tool_context in self.sql_tool_contexts:
-            self.sql_tool = sql.SQLTool(
+            sql_tool = SQLTool(
                 llm=self.llm,
                 db=self.db,
                 db_conn_params=self.db_conn_params,
@@ -119,8 +124,29 @@ will be ignored; using memory's chat history instead."""
                 chat_metadata=self.chat_metadata,
                 query_result=self.memory.query_result,
             )
-            tools += await self.sql_tool.get_tools()
-        self.vis_tool = visualize.VisTool(
+            tools += await sql_tool.get_tools()
+
+        # Set up the docs tool for each database
+        if self.use_docs_tool:
+            # NOTE: This tool requires that an index was already loaded for each of the databases with the correct name
+            db_pairs = {
+                (sql_tool_context.db_uuid, sql_tool_context.db_id) for sql_tool_context in self.sql_tool_contexts
+            }
+            for db_uuid, db_id in db_pairs:
+                docs_tool = DocsTool(
+                    db=self.db,
+                    client_id=self.prompt_metadata.client_id,
+                    db_uuid=db_uuid,
+                    db_id=db_id,
+                    llm=self.llm,
+                    service_context=self.service_context,
+                    prompt_metadata=self.prompt_metadata,
+                    chat_metadata=self.chat_metadata,
+                )
+                tools += await docs_tool.get_tools()
+
+        # Set up visualization tool
+        vis_tool = VisTool(
             llm=self.llm,
             db=self.db,
             query_result=self.memory.query_result,
@@ -129,7 +155,7 @@ will be ignored; using memory's chat history instead."""
             parent_msg_uuid=self.chat_metadata.parent_msg_uuid,
             result_store=self.result_store,
         )
-        tools += await self.vis_tool.get_tools()
+        tools += await vis_tool.get_tools()
         return tools
 
     async def _chat(self, prompt: str) -> sch.Message:

@@ -1,7 +1,7 @@
 SQL_EXEC_TOOL_NM_PREFIX = "run_sql"
 SQL_TABLES_TOOL_NM_PREFIX = "get_sql_tables"
 VIS_TOOL_NM = "plot_tool"
-INTERNAL_DOCS_TOOL_NM = "internal_docs_tool"
+DOCS_TOOL_NM = "docs_tool"
 SQL_SUB_QUESTIONS = "simplify_user_prompt"
 SQL_OPTION_1 = "Provide an answer to the user's original prompt using the results provided above from the SQL query"
 SQL_OPTION_2_SUFFIX = "to ask a follow-up question to get other available relevant table information"
@@ -58,6 +58,10 @@ def get_sub_questions_tool_nm(conn_id: int) -> str:
 
 def get_sql_execution_tool_nm(conn_id: int) -> str:
     return f"{SQL_EXEC_TOOL_NM_PREFIX}_{conn_id}"
+
+
+def get_docs_tool_nm(db_id: int) -> str:
+    return f"{DOCS_TOOL_NM}_{db_id}"
 
 
 # Descriptions

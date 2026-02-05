@@ -52,6 +52,7 @@ class SQLRunnerTool(BaseTool):
         self.client_conn_params = sql_tool_context.client_conn_params
         self.db_conn_params = db_conn_params
         self.conn_id = sql_tool_context.conn_id
+        self.db_id = sql_tool_context.db_id
         self.db_uuid = sql_tool_context.db_uuid
         self.select_sample_values = select_sample_values
         self.use_sql_examples = use_sql_examples
@@ -143,6 +144,8 @@ SQL Query Answer: {sql_query}\n
         # Get SQL examples
         if self.use_sql_examples:
             sql_query_example_prompt = await self._get_sql_examples()
+            if sql_query_example_prompt:
+                logger.debug("Found the following SQL examples: %s", sql_query_example_prompt)
         # Get sample values
         if self.select_sample_values:
             sampler = SQLSampler(sqlglot_dialect=self.sqlglot_dialect, conn_params=self.client_conn_params)
@@ -379,6 +382,7 @@ Connection timed out. Please try again."""
         # TODO: Consider creating a class with these result handling functions
         assert isinstance(query_result, sch.QueryResult)
         query_result_str = get_sql_result_prompt(
+            db_id=self.db_id,
             conn_id=self.conn_id,
             query_result=query_result,
         )
