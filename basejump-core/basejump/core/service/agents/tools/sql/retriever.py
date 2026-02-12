@@ -245,35 +245,43 @@ Here is the prompt that needs to be broken out: \n\n\
     async def get_sql_tables(self, inquiry):
         """Retrieve SQL tables to use in the SQL query"""
         # Need more tokens for large SQL queries
+        logger.debug("Here is the get SQL tables inquiry: %s", inquiry)
         await tool_utils.update_agent_tokens(agent=self.agent, max_tokens=1000)
         try:
-            tables = await self.use_sub_questions(prompt=inquiry)
+            try:
+                tables = await self.use_sub_questions(prompt=inquiry)
+            except Exception as e:
+                logger.warning(f"Failed to use sub questions: {str(e)}")
+            try:
+                if not tables:
+                    tables = await self.get_sql_tables_helper(inquiry=inquiry, sql_retriever=self.sql_retriever)
+                tables_str = "\n\n".join(tables)
+            except errors.NoRelevantTables as e:
+                logger.warning("The AI was unable to find any relevant tables")
+                return str(e)
+            if self.verbose:
+                logger.debug("Here are the retrieved tables: %s", tables_str)
+            # Resolve jinja
+            tables_str = await TableManager.arender_query_jinja(jinja_str=tables_str, schemas=self.schemas)
+            # If there is unresolved Jinja, then throw an error
+            pattern = r"\{\{\s*.+?\s*\}\}"
+            jinja_detected = re.findall(pattern, tables_str)
+            if jinja_detected:
+                # If there is jinja, then halt and send error to the user
+                raise Exception(constants.UNRESOLVED_JINJA)
+            logger.debug("Here are the schemas: %s", self.schemas)
+            formatted_prompt = DB_METADATA_PROMPT.format(
+                inquiry=inquiry,
+                schema=tables_str,
+                db_type=self.client_conn_params.database_type.value,
+                run_sql_query_tool=constants.get_sql_execution_tool_nm(conn_id=self.conn_id),
+            )
+            logger.debug("Here is the get_sql_tables prompt: %s", formatted_prompt)
         except Exception as e:
-            logger.warning(f"Failed to use sub questions: {str(e)}")
-        try:
-            if not tables:
-                tables = await self.get_sql_tables_helper(inquiry=inquiry, sql_retriever=self.sql_retriever)
-            tables_str = "\n\n".join(tables)
-        except errors.NoRelevantTables as e:
-            logger.warning("The AI was unable to find any relevant tables")
-            return str(e)
-        if self.verbose:
-            logger.debug("Here are the retrieved tables: %s", tables_str)
-        # Resolve jinja
-        tables_str = await TableManager.arender_query_jinja(jinja_str=tables_str, schemas=self.schemas)
-        # If there is unresolved Jinja, then throw an error
-        pattern = r"\{\{\s*.+?\s*\}\}"
-        jinja_detected = re.findall(pattern, tables_str)
-        if jinja_detected:
-            # If there is jinja, then halt and send error to the user
-            raise Exception(constants.UNRESOLVED_JINJA)
-        logger.debug("Here are the schemas: %s", self.schemas)
-        formatted_prompt = DB_METADATA_PROMPT.format(
-            inquiry=inquiry,
-            schema=tables_str,
-            db_type=self.client_conn_params.database_type.value,
-            run_sql_query_tool=constants.get_sql_execution_tool_nm(conn_id=self.conn_id),
-        )
+            logger.warning("Error when getting SQL tables: %s", str(e))
+            formatted_prompt = "No tables found based on that inquiry"
+        if not formatted_prompt or formatted_prompt == "None":
+            formatted_prompt = "No tables found based on that inquiry"
         return formatted_prompt
         # TODO: Use async task group or async for here to quickly get all tables
         # (this is referring to within the _aget_table_context method)
