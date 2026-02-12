@@ -38,7 +38,7 @@ RELEVANCE_THRESHOLD = 0.1
 
 
 class TableRetrieverTool(BaseTool):
-    TABLES_TO_RETRIEVE: int = 12
+    TABLES_TO_RETRIEVE: int = 8
 
     def __init__(
         self,
@@ -246,7 +246,7 @@ Here is the prompt that needs to be broken out: \n\n\
         """Retrieve SQL tables to use in the SQL query"""
         # Need more tokens for large SQL queries
         logger.debug("Here is the get SQL tables inquiry: %s", inquiry)
-        await tool_utils.update_agent_tokens(agent=self.agent, max_tokens=1000)
+        await tool_utils.update_agent_tokens(agent=self.agent, max_tokens=8000)
         try:
             try:
                 tables = await self.use_sub_questions(prompt=inquiry)
@@ -256,9 +256,10 @@ Here is the prompt that needs to be broken out: \n\n\
                 if not tables:
                     tables = await self.get_sql_tables_helper(inquiry=inquiry, sql_retriever=self.sql_retriever)
                 tables_str = "\n\n".join(tables)
-            except errors.NoRelevantTables as e:
+            except errors.NoRelevantTables:
                 logger.warning("The AI was unable to find any relevant tables")
-                return str(e)
+                # TODO: Put this message in the error itself
+                return "No tables found based on that inquiry"
             if self.verbose:
                 logger.debug("Here are the retrieved tables: %s", tables_str)
             # Resolve jinja
