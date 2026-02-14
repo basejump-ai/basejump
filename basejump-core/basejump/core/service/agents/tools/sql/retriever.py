@@ -246,7 +246,7 @@ Here is the prompt that needs to be broken out: \n\n\
         """Retrieve SQL tables to use in the SQL query"""
         # Need more tokens for large SQL queries
         logger.debug("Here is the get SQL tables inquiry: %s", inquiry)
-        await tool_utils.update_agent_tokens(agent=self.agent, max_tokens=8000)
+        await tool_utils.update_agent_tokens(agent=self.agent, max_tokens=10000)
         try:
             try:
                 tables = await self.use_sub_questions(prompt=inquiry)
