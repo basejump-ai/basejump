@@ -116,6 +116,7 @@ class SQLRunnerTool(BaseTool):
             logger.debug("No semantically similar response found")
             return ""
         else:
+            # TODO: Update schemas to the correct connection in the SQL query examples if not the current connection
             sql_query_example_prompt = """Here are some examples of prior prompts and the SQL queries that were \
 used previously and that users marked as correct. If you reuse one of these, make sure to update the schemas to \
 be correct:"""
