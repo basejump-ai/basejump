@@ -113,7 +113,7 @@ will be ignored; using memory's chat history instead."""
             self.sql_tool_contexts.append(sql_tool_context)
         await self.db.commit()  # NOTE: Closing transaction to avoid idle in transaction
         for sql_tool_context in self.sql_tool_contexts:
-            sql_tool = SQLTool(
+            self._sql_tool = SQLTool(
                 llm=self.llm,
                 db=self.db,
                 db_conn_params=self.db_conn_params,
@@ -124,7 +124,7 @@ will be ignored; using memory's chat history instead."""
                 chat_metadata=self.chat_metadata,
                 query_result=self.memory.query_result,
             )
-            tools += await sql_tool.get_tools()
+            tools += await self._sql_tool.get_tools()
 
         # Set up the docs tool for each database
         if self.use_docs_tool:

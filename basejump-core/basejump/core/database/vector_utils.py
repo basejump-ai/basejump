@@ -28,6 +28,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.models import constants, enums, models
 from basejump.core.models import schemas as sch
+from basejump.core.models.ai import formats as fmt
+from basejump.core.models.ai import formatter
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -307,11 +309,39 @@ async def update_verified_result_vectors(
     conn_uuid: uuid.UUID,
     db_uuid: uuid.UUID,
     redis_client_async: RedisAsync,
+    small_model_info: sch.ModelInfo,
+    recent_interactions: list[sch.MessagePair] = [],
 ) -> None:
     """Update a result and indicate if it is verified or not. Verified means that the result
-    has been checked by a human and verified that it is correct."""
+    has been checked by a human and verified that it is correct.
+
+    Parameters
+    ----------
+    recent_interactions
+        If provided, this will summarize the most recent interactions into a
+        single prompt for semantic caching retrieval.
+    """
+    prompt = result.initial_prompt
+
+    # Summarize recent interactions
+    if recent_interactions:
+        interactions = ""
+        for message in recent_interactions:
+            interactions += f"User: {message.prompt.prompt}\n"
+            if not message.response:
+                response = ""
+            else:
+                response = message.response.response
+            interactions += f"AI: {response}\n"
+        format_json_response = formatter.JSONResponseFormatter(
+            small_model_info=small_model_info, response=interactions, pydantic_format=fmt.ContextualizedPromptFormat
+        )
+        extract = await format_json_response.format()
+        prompt = extract.full_context_prompt
+    # Save/delete cached result
     semcache_idx_nm = get_semcache_index_name(client_id=client_user.client_id)
     if not verified:
+        # Delete cached result
         await delete_semcache_result(
             result_uuid=result.result_uuid, semcache_idx_nm=semcache_idx_nm, redis_client_async=redis_client_async
         )
@@ -334,7 +364,7 @@ async def update_verified_result_vectors(
             conn_uuid=str(conn_uuid),
         )
         await llmcache.astore(
-            prompt=result.initial_prompt,
+            prompt=prompt,
             response=content,
             metadata=sem_cache_metadata.model_dump(),
             filters={

@@ -79,6 +79,8 @@ class SemanticMemory:
         client_user: sch.ClientUserInfo,
         conn_uuid: uuid.UUID,
         db_uuid: uuid.UUID,
+        small_model_info: sch.ModelInfo,
+        recent_interactions: list[sch.MessagePair] = [],
     ) -> None:
         await update_verified_result_vectors(
             db=db,
@@ -90,4 +92,6 @@ class SemanticMemory:
             conn_uuid=conn_uuid,
             db_uuid=db_uuid,
             redis_client_async=self.redis_client_async,
+            small_model_info=small_model_info,
+            recent_interactions=recent_interactions,
         )

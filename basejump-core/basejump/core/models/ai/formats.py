@@ -54,3 +54,17 @@ class DateData(BaseModel):
     """A list of date strings formatted in the YYYY-MM-DD format"""
 
     dates: list[str] = Field(description="A list of date strings formatted in the YYYY-MM-DD format")
+
+
+class ContextualizedPromptFormat(BaseModel):
+    """Data model to create a fully contextualized prompt based on interactions between the AI and the user"""
+
+    full_context_prompt: str = Field(
+        description="""Take the past few interactions provided and provided a fully contextualized prompt. \
+This is needed since the AI and user can go back and forth clarifying requirements and context. Only include context \
+relevant to answering the last prompt in the sequence. For example, given the following interaction:
+User: "what are the messages sent in the last 7 days"?
+AI: "Are these for any group in particular?"
+User: "for all users."
+This interaction would be summarized as "what are the messages sent in the last 7 days for all users?"."""
+    )
