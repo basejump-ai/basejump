@@ -1,8 +1,14 @@
 import json
+import os
 import uuid
 from typing import Any, Dict, List, Optional
 
-from llama_index.core import Settings, VectorStoreIndex
+from llama_index.core import (
+    Settings,
+    SimpleDirectoryReader,
+    StorageContext,
+    VectorStoreIndex,
+)
 from llama_index.core.indices.base import BaseIndex
 from llama_index.vector_stores.redis import RedisVectorStore, TokenEscaper
 from redis.asyncio import Redis as RedisAsync
@@ -26,6 +32,8 @@ from redisvl.utils.vectorize import BaseVectorizer, HFTextVectorizer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
+from basejump.core.database.ai_catalog import AICatalog
+from basejump.core.database.vector_connect import redis_client_async
 from basejump.core.models import constants, enums, models
 from basejump.core.models import schemas as sch
 from basejump.core.models.ai import formats as fmt
@@ -418,3 +426,53 @@ def get_vector_idx(
         storage_context=base_index.storage_context,
     )
     return vector_index
+
+
+def find_markdown_files(file_path: str):
+    markdown_files = []
+
+    # Walk through the directory
+    for dirpath, _, filenames in os.walk(file_path):
+        for filename in filenames:
+            if filename.endswith(".md"):
+                # Append the full path of the markdown file
+                markdown_files.append(os.path.join(dirpath, filename))
+
+    return markdown_files
+
+
+def index_database_docs(
+    embedding_model_info: sch.ModelInfo,
+    file_path: str,
+    client_id: int,
+    db_uuid: uuid.UUID,
+):
+    """Indexes all markdown files for a given file path into a vector store for a specific database"""
+    index_name = get_docs_index_name(client_id=client_id, db_uuid=db_uuid)
+    index_docs(embedding_model_info=embedding_model_info, file_path=file_path, index_name=index_name)
+
+
+def index_docs(embedding_model_info: sch.ModelInfo, file_path: str, index_name: str):
+    """Indexes all markdown files for a given file path into a vector store"""
+    # Get the documents
+    md_files = find_markdown_files(file_path)
+    documents = SimpleDirectoryReader(input_files=md_files).load_data()
+
+    # Set up the vector store
+    vector_store = RedisVectorStore(
+        redis_client_async=redis_client_async,
+        index_prefix=index_name,
+        index_name=index_name,
+        overwrite=True,
+    )
+    storage_context = StorageContext.from_defaults(vector_store=vector_store)
+    ai_catalog = AICatalog()
+    embed_model = ai_catalog.get_embedding_model(model_info=embedding_model_info)
+
+    # Index the documents
+    VectorStoreIndex.from_documents(
+        documents=documents,
+        storage_context=storage_context,
+        embed_model=embed_model,
+        show_progress=True,
+    )

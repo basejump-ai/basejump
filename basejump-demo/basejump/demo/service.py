@@ -3,6 +3,7 @@ import secrets
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
+from pathlib import Path
 from typing import AsyncGenerator, Optional
 from zoneinfo import ZoneInfo
 
@@ -16,7 +17,11 @@ from basejump.core.database.client.index import index_db
 from basejump.core.database.crud import crud_connection, crud_main, crud_utils
 from basejump.core.database.result import store
 from basejump.core.database.session import LocalSession
-from basejump.core.database.vector_utils import get_index_name, get_index_schema
+from basejump.core.database.vector_utils import (
+    get_index_name,
+    get_index_schema,
+    index_database_docs,
+)
 from basejump.core.models import enums, errors, models, prompts
 from basejump.core.models import schemas as sch
 from basejump.core.models.ai.catalog import AICatalog
@@ -244,6 +249,7 @@ async def setup_database(
     user_info: sch.UserInfo,
     conn_params: sch.SQLDBSchema,
     verbose: bool = False,
+    index_docs: bool = True,
 ) -> schemas.GetSQLConn:
     """Create a database connection and save it in the database"""
     # Set up the database
@@ -275,6 +281,17 @@ async def setup_database(
         sql_engine=service_context.sql_engine,
         verbose=verbose,
     )
+
+    # Set up the database documentation
+    if index_docs:
+        file_path = Path(__file__).parent / "docs"
+        index_database_docs(
+            embedding_model_info=service_context.embedding_model_info,
+            file_path=file_path.as_posix(),
+            client_id=user_info.client_id,
+            db_uuid=sql_conn.db_uuid,
+        )
+
     return get_sql_conn
 
 
@@ -367,6 +384,7 @@ async def chat(
     connection: Optional[schemas.GetSQLConn] = None,
     chat: Optional[schemas.GetChat] = None,
     get_chat_history: bool = False,
+    use_docs: bool = True,
 ) -> sch.Message:
     # Create a chat
     if not chat:
@@ -440,6 +458,7 @@ async def chat(
         service_context=service_context,
         conn_id=connection.conn_id if connection else None,
         chat_history=chat_history,
+        use_docs_tool=use_docs,
     )
     message = await agent.prompt_agent()
     return message
