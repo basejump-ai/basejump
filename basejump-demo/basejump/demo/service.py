@@ -40,8 +40,11 @@ logger = set_logging(handler_option="stream", name=__name__)
 async def run_session(client_id: Optional[int] = None) -> AsyncGenerator:
     session = LocalSession(client_id=client_id or 0, engine=settings.sql_engine)
     db = await session.open()
+    redis_client = settings.get_redis_client_instance()
     redis_client_async = settings.get_redis_client_async_instance()
-    core_session = sch.CoreSession(redis_client_async=redis_client_async, sql_engine=settings.sql_engine)
+    core_session = sch.CoreSession(
+        redis_client_async=redis_client_async, redis_client=redis_client, sql_engine=settings.sql_engine
+    )
     try:
         yield core_session, db
     except Exception as e:
@@ -249,7 +252,7 @@ async def setup_database(
     user_info: sch.UserInfo,
     conn_params: sch.SQLDBSchema,
     verbose: bool = False,
-    index_docs: bool = True,
+    index_docs: bool = False,
 ) -> schemas.GetSQLConn:
     """Create a database connection and save it in the database"""
     # Set up the database
@@ -286,6 +289,8 @@ async def setup_database(
     if index_docs:
         file_path = Path(__file__).parent / "docs"
         index_database_docs(
+            redis_client=service_context.redis_client,
+            redis_client_async=service_context.redis_client_async,
             embedding_model_info=service_context.embedding_model_info,
             file_path=file_path.as_posix(),
             client_id=user_info.client_id,
@@ -384,7 +389,7 @@ async def chat(
     connection: Optional[schemas.GetSQLConn] = None,
     chat: Optional[schemas.GetChat] = None,
     get_chat_history: bool = False,
-    use_docs: bool = True,
+    use_docs: bool = False,
 ) -> sch.Message:
     # Create a chat
     if not chat:
@@ -468,6 +473,7 @@ def create_service_context(core_session: sch.CoreSession) -> sch.ServiceContext:
     return sch.ServiceContext(
         sql_engine=core_session.sql_engine,
         redis_client_async=core_session.redis_client_async,
+        redis_client=core_session.redis_client,
         large_model_info=settings.large_model_info,
         small_model_info=settings.small_model_info,
         embedding_model_info=settings.embedding_model_info,

@@ -3,12 +3,14 @@ import os
 import uuid
 from typing import Any, Dict, List, Optional
 
+import redis
 from llama_index.core import (
     Settings,
     SimpleDirectoryReader,
     StorageContext,
     VectorStoreIndex,
 )
+from llama_index.core.base.embeddings.base import BaseEmbedding
 from llama_index.core.indices.base import BaseIndex
 from llama_index.vector_stores.redis import RedisVectorStore, TokenEscaper
 from redis.asyncio import Redis as RedisAsync
@@ -32,12 +34,11 @@ from redisvl.utils.vectorize import BaseVectorizer, HFTextVectorizer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database.ai_catalog import AICatalog
-from basejump.core.database.vector_connect import redis_client_async
 from basejump.core.models import constants, enums, models
 from basejump.core.models import schemas as sch
 from basejump.core.models.ai import formats as fmt
 from basejump.core.models.ai import formatter
+from basejump.core.models.ai.catalog import AICatalog
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -384,7 +385,14 @@ async def update_verified_result_vectors(
         logger.info("Stored prompt in semantic cache: %s", result.initial_prompt)
 
 
-def get_redis_index(index_name: str, settings: Settings, redis_client_async: RedisAsync) -> BaseIndex:  # type:ignore
+def get_redis_vector_store(
+    index_name: str,
+    redis_client_async: RedisAsync,
+    # HACK: Including redis_client since when using the from_documents method of VectorStoreIndex,
+    # it uses _redis_client instead of the async redis client
+    redis_client: Optional[redis.Redis] = None,
+    overwrite: bool = False,
+) -> RedisVectorStore:
     schema = IndexSchema.from_dict(
         {
             "index": {"name": index_name, "prefix": index_name + "/vector"},
@@ -398,9 +406,27 @@ def get_redis_index(index_name: str, settings: Settings, redis_client_async: Red
             ],
         }
     )
-    vector_store = RedisVectorStore(redis_client_async=redis_client_async, schema=schema, legacy_filters=True)
+    return RedisVectorStore(
+        redis_client=redis_client,
+        redis_client_async=redis_client_async,
+        schema=schema,
+        legacy_filters=True,
+        overwrite=overwrite,
+    )
+
+
+def get_redis_index(
+    index_name: str,
+    embed_model: BaseEmbedding,
+    redis_client_async: RedisAsync,
+    redis_client: Optional[redis.Redis] = None,
+    overwrite: bool = False,
+) -> BaseIndex:  # type:ignore
+    vector_store = get_redis_vector_store(
+        index_name=index_name, redis_client_async=redis_client_async, redis_client=redis_client, overwrite=overwrite
+    )
     vector_index = VectorStoreIndex.from_vector_store(
-        vector_store=vector_store, embed_model=settings.embed_model  # type: ignore
+        vector_store=vector_store, embed_model=embed_model  # type: ignore
     )
     return vector_index
 
@@ -415,7 +441,9 @@ def get_vector_idx(
         index_name = vector_schema.index_name
 
     if vector_schema.vector_database_vendor == enums.VectorVendorType.REDIS:
-        base_index = get_redis_index(index_name=index_name, settings=settings, redis_client_async=redis_client_async)
+        base_index = get_redis_index(
+            index_name=index_name, embed_model=settings.embed_model, redis_client_async=redis_client_async
+        )
     else:
         raise NotImplementedError
     # TODO: Need else here so there isn't error for no base_index
@@ -442,6 +470,8 @@ def find_markdown_files(file_path: str):
 
 
 def index_database_docs(
+    redis_client_async: RedisAsync,
+    redis_client: redis.Redis,
     embedding_model_info: sch.ModelInfo,
     file_path: str,
     client_id: int,
@@ -449,30 +479,41 @@ def index_database_docs(
 ):
     """Indexes all markdown files for a given file path into a vector store for a specific database"""
     index_name = get_docs_index_name(client_id=client_id, db_uuid=db_uuid)
-    index_docs(embedding_model_info=embedding_model_info, file_path=file_path, index_name=index_name)
+    index_docs(
+        redis_client_async=redis_client_async,
+        redis_client=redis_client,
+        embedding_model_info=embedding_model_info,
+        file_path=file_path,
+        index_name=index_name,
+    )
 
 
-def index_docs(embedding_model_info: sch.ModelInfo, file_path: str, index_name: str):
+def index_docs(
+    redis_client_async: RedisAsync,
+    redis_client: redis.Redis,
+    embedding_model_info: sch.ModelInfo,
+    file_path: str,
+    index_name: str,
+):
     """Indexes all markdown files for a given file path into a vector store"""
     # Get the documents
     md_files = find_markdown_files(file_path)
     documents = SimpleDirectoryReader(input_files=md_files).load_data()
 
     # Set up the vector store
-    vector_store = RedisVectorStore(
-        redis_client_async=redis_client_async,
-        index_prefix=index_name,
-        index_name=index_name,
-        overwrite=True,
+    vector_store = get_redis_vector_store(
+        index_name=index_name, redis_client_async=redis_client_async, redis_client=redis_client
     )
     storage_context = StorageContext.from_defaults(vector_store=vector_store)
     ai_catalog = AICatalog()
     embed_model = ai_catalog.get_embedding_model(model_info=embedding_model_info)
 
     # Index the documents
+    logger.info("Indexing database documents using the following index name: %s", index_name)
     VectorStoreIndex.from_documents(
         documents=documents,
         storage_context=storage_context,
         embed_model=embed_model,
         show_progress=True,
     )
+    logger.info("Database document index completed for: %s", index_name)

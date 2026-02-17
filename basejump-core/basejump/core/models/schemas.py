@@ -6,6 +6,7 @@ from decimal import Decimal
 from typing import Any, Callable, Dict, Literal, Optional, Union
 
 import pandas as pd
+import redis
 import sqlalchemy as sa
 from llama_index.core.callbacks import (
     CallbackManager,
@@ -711,6 +712,7 @@ class UploadTable(BaseModel):
 class CoreSession(BaseModel):
     sql_engine: AsyncEngine = Field(description="The SQL engine for the application, not the client database.")
     redis_client_async: RedisAsync
+    redis_client: Optional[redis.Redis] = None
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 

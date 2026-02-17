@@ -1,5 +1,6 @@
 import os
 
+import redis
 import redis.asyncio as redis_async
 from redis.asyncio import Redis as RedisAsync
 
@@ -35,6 +36,15 @@ client_conn_params.drivername = enums.DBDriverName.POSTGRES
 
 def get_redis_client_async_instance() -> RedisAsync:
     return redis_async.Redis(
+        host=settings.redis_host,
+        port=settings.redis_port,
+        decode_responses=False,
+        ssl=False,
+    )
+
+
+def get_redis_client_instance() -> redis.Redis:
+    return redis.Redis(
         host=settings.redis_host,
         port=settings.redis_port,
         decode_responses=False,
