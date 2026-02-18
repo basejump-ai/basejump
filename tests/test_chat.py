@@ -100,7 +100,7 @@ async def test_save_sql_query(chat_session):
         sql_query="select * from account.client",
         client_user=chat_session.client_user,
         prompt="Get me a list of all clients",
-        db_uuid=chat_session.client_user,
+        db_uuid=chat_session.db_uuid,
         redis_client_async=chat_session.redis_client_async,
         small_model_info=chat_session.service_context.small_model_info,
     )

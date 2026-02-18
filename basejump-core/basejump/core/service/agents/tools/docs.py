@@ -14,7 +14,7 @@ from basejump.core.service.agents.message import ChatMessageHandler
 from basejump.core.service.agents.tools import tool_utils
 from basejump.core.service.agents.tools.base import BaseTool
 
-SCORE_THRESHOLD = 0.4
+SCORE_THRESHOLD = 0.35
 TOP_K = 8
 INDEX_NAME = "basejump_internal_docs"
 DELIMITER = "<--->"
