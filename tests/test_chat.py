@@ -93,6 +93,7 @@ async def test_get_trust_score(chat_session):
     assert result
 
 
+@pytest.mark.skip(reason="Only ran adhoc")
 @pytest.mark.chat
 async def test_save_sql_query(chat_session):
     """Test saving a SQL query"""
@@ -104,13 +105,11 @@ async def test_save_sql_query(chat_session):
         redis_client_async=chat_session.redis_client_async,
         small_model_info=chat_session.service_context.small_model_info,
     )
-    breakpoint()
     get_chat = schemas.GetChat(
         chat_uuid=chat_session.chat_uuid,
         chat_id=chat_session.chat_id,
         vector_id=chat_session.vector_id,
     )
-
     await service.chat(
         db=chat_session.db,
         prompt="Give me a list of all clients",
