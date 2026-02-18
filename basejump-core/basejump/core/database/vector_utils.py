@@ -31,19 +31,15 @@ from redisvl.index import AsyncSearchIndex, SearchIndex
 from redisvl.schema import IndexSchema
 from redisvl.utils.utils import validate_vector_dims
 from redisvl.utils.vectorize import BaseVectorizer, HFTextVectorizer
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.models import constants, enums, models
+from basejump.core.models import constants, enums
 from basejump.core.models import schemas as sch
-from basejump.core.models.ai import formats as fmt
-from basejump.core.models.ai import formatter
 from basejump.core.models.ai.catalog import AICatalog
 
 logger = set_logging(handler_option="stream", name=__name__)
 
 REDIS_PARTITION_PREFIX = "basejump_pclient"
-REDIS_SEMCACHE_PREFIX = "semcache_"
 DOCS_INDEX_PREFIX = "docs_"
 # WARNING: Changing this will change the index location.
 # To change this number, add this value to the connect.vector_db table.
@@ -81,11 +77,6 @@ def get_index_name(client_id: int) -> str:
     # index_name = (str(vector_uuid) + vector_datasource_type.value).lower()
     modulo_result = int(client_id) % int(REDIS_INDEX_CT)
     return REDIS_PARTITION_PREFIX + str(modulo_result)
-
-
-def get_semcache_index_name(client_id: int) -> str:
-    idx_nm = get_index_name(client_id=client_id)
-    return REDIS_SEMCACHE_PREFIX + idx_nm
 
 
 def get_docs_index_name(client_id: int, db_uuid: uuid.UUID) -> str:
@@ -270,119 +261,6 @@ class AsyncSemanticCache(SemanticCache):
             cls._aindex.schema.fields[CACHE_VECTOR_FIELD_NAME].attrs.dims,
         )
         return cls(ttl=ttl, vectorizer=vectorizer, distance_threshold=distance_threshold)
-
-
-async def delete_semcache_result(
-    result_uuid: uuid.UUID,
-    semcache_idx_nm: str,
-    redis_client_async: RedisAsync,
-):
-    token_escaper = TokenEscaper()
-    result_uuid_esc = token_escaper.escape(str(result_uuid))
-    search_str = f"@result_uuid:{{{result_uuid_esc}}}"
-    try:
-        idx_result = await redis_client_async.ft(semcache_idx_nm).search(Query(search_str))
-        doc_id = idx_result.docs[0].id
-        await redis_client_async.delete(doc_id)
-        logger.info("Deleted sem cache for result: %s", str(result_uuid))
-    except Exception:
-        logger.debug(f"No sem cache result found for {str(result_uuid)}, skipping")
-
-
-async def init_semcache(
-    client_id: int,
-    redis_client_async: RedisAsync,
-    idx_name: Optional[str] = None,
-) -> AsyncSemanticCache:
-    if not idx_name:
-        idx_name = get_semcache_index_name(client_id=client_id)
-    llmcache = await AsyncSemanticCache.setup(
-        name=idx_name,
-        redis_client=redis_client_async,
-        filterable_fields=[
-            {"name": "client_id", "type": "tag"},
-            {"name": "result_uuid", "type": "tag"},
-            {"name": "db_uuid", "type": "tag"},
-        ],
-    )
-    return llmcache
-
-
-async def update_verified_result_vectors(
-    db: AsyncSession,
-    result: models.ResultHistory,
-    prompt_uuid: uuid.UUID,
-    content: str,
-    verified: bool,
-    client_user: sch.ClientUserInfo,
-    conn_uuid: uuid.UUID,
-    db_uuid: uuid.UUID,
-    redis_client_async: RedisAsync,
-    small_model_info: sch.ModelInfo,
-    recent_interactions: list[sch.MessagePair] = [],
-) -> None:
-    """Update a result and indicate if it is verified or not. Verified means that the result
-    has been checked by a human and verified that it is correct.
-
-    Parameters
-    ----------
-    recent_interactions
-        If provided, this will summarize the most recent interactions into a
-        single prompt for semantic caching retrieval.
-    """
-    prompt = result.initial_prompt
-
-    # Summarize recent interactions
-    if recent_interactions:
-        interactions = ""
-        for message in recent_interactions:
-            interactions += f"User: {message.prompt.prompt}\n"
-            if not message.response:
-                response = ""
-            else:
-                response = message.response.response
-            interactions += f"AI: {response}\n"
-        format_json_response = formatter.JSONResponseFormatter(
-            small_model_info=small_model_info, response=interactions, pydantic_format=fmt.ContextualizedPromptFormat
-        )
-        extract = await format_json_response.format()
-        prompt = extract.full_context_prompt
-    # Save/delete cached result
-    semcache_idx_nm = get_semcache_index_name(client_id=client_user.client_id)
-    if not verified:
-        # Delete cached result
-        await delete_semcache_result(
-            result_uuid=result.result_uuid, semcache_idx_nm=semcache_idx_nm, redis_client_async=redis_client_async
-        )
-    elif verified:
-        # Save to the Redis semantic cache
-        llmcache = await init_semcache(
-            client_id=client_user.client_id,
-            idx_name=semcache_idx_nm,
-            redis_client_async=redis_client_async,
-        )
-        # Get the response from the result
-        # Store the response in the cache
-        sem_cache_metadata = sch.SemCacheMetadata(
-            result_uuid=str(result.result_uuid),
-            prompt_uuid=str(prompt_uuid),
-            verified_user_role=client_user.user_role,
-            verified_user_uuid=str(client_user.user_uuid),
-            sql_query=result.sql_query,
-            timestamp=str(result.timestamp),
-            conn_uuid=str(conn_uuid),
-        )
-        await llmcache.astore(
-            prompt=prompt,
-            response=content,
-            metadata=sem_cache_metadata.model_dump(),
-            filters={
-                "client_id": str(client_user.client_id),
-                "result_uuid": str(result.result_uuid),
-                "db_uuid": str(db_uuid),
-            },
-        )
-        logger.info("Stored prompt in semantic cache: %s", result.initial_prompt)
 
 
 def get_redis_vector_store(

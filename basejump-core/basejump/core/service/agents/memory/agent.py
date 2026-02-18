@@ -74,7 +74,7 @@ class AgentMemory(SimpleAgentMemory):
 
     def load_semantic_memory(self) -> SemanticMemory:
         return SemanticMemory(
-            redis_client_async=self.service_context.redis_client_async,
+            redis_client_async=self.service_context.redis_client_async, client_id=self.prompt_metadata.client_id
         )
 
     async def get_chat_history(

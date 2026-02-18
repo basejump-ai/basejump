@@ -122,3 +122,33 @@ SQL Results: {query_result}\n
         response=prompt, pydantic_format=fmt.DescriptionFormat, small_model_info=small_model_info
     )
     return await format_json_response.format()
+
+
+async def contextualize_prompt(
+    recent_interactions: list[sch.MessagePair],
+    small_model_info: sch.ModelInfo,
+) -> str:
+    """Condense multiple prompts into a single contextualized prompt
+
+    Parameters
+    ----------
+    recent_interactions
+        If provided, this will summarize the most recent interactions into a
+        single prompt for semantic caching retrieval.
+    """
+    interactions = ""
+    for message in recent_interactions:
+        interactions += f"User: {message.prompt.prompt}\n"
+        if not message.response:
+            response = ""
+        else:
+            response = message.response.response
+        interactions += f"AI: {response}\n"
+    format_json_response = JSONResponseFormatter(
+        small_model_info=small_model_info,
+        response=interactions,
+        pydantic_format=fmt.ContextualizedPromptFormat,
+    )
+    extract = await format_json_response.format()
+    prompt = extract.full_context_prompt
+    return prompt

@@ -2,29 +2,48 @@ import asyncio
 import uuid
 from typing import Optional
 
+from llama_index.vector_stores.redis import TokenEscaper
 from redis.asyncio import Redis as RedisAsync
+from redis.commands.search.query import Query
 from redisvl.query.filter import Tag
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database.vector_utils import (
-    AsyncSemanticCache,
-    init_semcache,
-    update_verified_result_vectors,
-)
-from basejump.core.models import models
+from basejump.core.database.vector_utils import AsyncSemanticCache, get_index_name
 from basejump.core.models import schemas as sch
 
 logger = set_logging(handler_option="stream", name=__name__)
+REDIS_SEMCACHE_PREFIX = "semcache_"
 
 
 class SemanticMemory:
     def __init__(
         self,
+        client_id: int,
         redis_client_async: RedisAsync,
     ):
         self.redis_client_async = redis_client_async
+        self.client_id = client_id
         self.cache: Optional[AsyncSemanticCache] = None
+
+    def get_index_name(self) -> str:
+        idx_nm = get_index_name(client_id=self.client_id)
+        return REDIS_SEMCACHE_PREFIX + idx_nm
+
+    @property
+    def index_name(self) -> str:
+        self.get_index_name(client_id=self.client_id)
+
+    async def setup(self) -> AsyncSemanticCache:
+        llmcache = await AsyncSemanticCache.setup(
+            name=self.index_name,
+            redis_client=self.redis_client_async,
+            filterable_fields=[
+                {"name": "client_id", "type": "tag"},
+                {"name": "result_uuid", "type": "tag"},
+                {"name": "db_uuid", "type": "tag"},
+            ],
+        )
+        return llmcache
 
     async def get_cached_prompts(
         self,
@@ -39,10 +58,7 @@ class SemanticMemory:
                 # TODO: Determine why the semantic cache has issues initializing sometimes
                 semcache_init_timeout = 60
                 async with asyncio.timeout(semcache_init_timeout):
-                    self.cache = await init_semcache(
-                        client_id=client_id,
-                        redis_client_async=self.redis_client_async,
-                    )
+                    self.cache = await self.setup()
             except TimeoutError:
                 logger.warning(f"Connection to the semcache timed out after {semcache_init_timeout} seconds")
                 return []
@@ -72,26 +88,32 @@ class SemanticMemory:
 
     async def store(
         self,
-        db: AsyncSession,
-        prompt_uuid: uuid.UUID,
-        result: models.ResultHistory,
+        prompt: str,
         response: str,
-        client_user: sch.ClientUserInfo,
-        conn_uuid: uuid.UUID,
+        metadata: sch.SemCacheMetadata,
         db_uuid: uuid.UUID,
-        small_model_info: sch.ModelInfo,
-        recent_interactions: list[sch.MessagePair] = [],
     ) -> None:
-        await update_verified_result_vectors(
-            db=db,
-            result=result,
-            prompt_uuid=prompt_uuid,
-            content=response,
-            verified=True,
-            client_user=client_user,
-            conn_uuid=conn_uuid,
-            db_uuid=db_uuid,
-            redis_client_async=self.redis_client_async,
-            small_model_info=small_model_info,
-            recent_interactions=recent_interactions,
+        llmcache = await self.setup()
+        await llmcache.astore(
+            prompt=prompt,
+            response=response,
+            metadata=metadata.model_dump(),
+            filters={
+                "client_id": str(self.client_id),
+                "result_uuid": str(metadata.result_uuid),
+                "db_uuid": str(db_uuid),
+            },
         )
+        logger.info("Stored prompt in semantic cache: %s", prompt)
+
+    async def delete(self, result_uuid: uuid.UUID):
+        token_escaper = TokenEscaper()
+        result_uuid_esc = token_escaper.escape(str(result_uuid))
+        search_str = f"@result_uuid:{{{result_uuid_esc}}}"
+        try:
+            idx_result = await self.redis_client_async.ft(self.index_name).search(Query(search_str))
+            doc_id = idx_result.docs[0].id
+            await self.redis_client_async.delete(doc_id)
+            logger.info("Deleted sem cache for result: %s", str(result_uuid))
+        except Exception:
+            logger.debug(f"No sem cache result found for {str(result_uuid)}, skipping")

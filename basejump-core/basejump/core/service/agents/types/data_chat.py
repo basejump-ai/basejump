@@ -269,7 +269,7 @@ will be ignored; using memory's chat history instead."""
     async def check_cache(self, prompt, conn_uuids: set[str], db_uuids: set[str]) -> Optional[sch.MessagePair]:
         # See if a similar prompt has been cached
         semantic_memory = SemanticMemory(
-            redis_client_async=self.service_context.redis_client_async,
+            redis_client_async=self.service_context.redis_client_async, client_id=self.prompt_metadata.client_id
         )
         semcache_responses = []
         for db_uuid in db_uuids:

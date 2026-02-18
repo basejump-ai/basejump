@@ -103,7 +103,7 @@ class SQLRunnerTool(BaseTool):
 
     async def _get_sql_examples(self) -> str:
         semantic_memory = SemanticMemory(
-            redis_client_async=self.service_context.redis_client_async,
+            redis_client_async=self.service_context.redis_client_async, client_id=self.prompt_metadata.client_id
         )
         semcache_responses = await semantic_memory.get_cached_prompts(
             prompt=self.prompt_metadata.initial_prompt,
