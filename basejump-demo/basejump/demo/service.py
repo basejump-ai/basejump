@@ -17,15 +17,12 @@ from basejump.core.database.client.index import index_db
 from basejump.core.database.crud import crud_connection, crud_main, crud_utils
 from basejump.core.database.result import store
 from basejump.core.database.session import LocalSession
-from basejump.core.database.vector_utils import (
-    get_index_name,
-    get_index_schema,
-    index_database_docs,
-)
+from basejump.core.database.vector_utils import get_index_name, get_index_schema
 from basejump.core.models import enums, errors, models, prompts
 from basejump.core.models import schemas as sch
 from basejump.core.models.ai.catalog import AICatalog
 from basejump.core.service.agents import agent_utils
+from basejump.core.service.agents.context.utils import index_database_docs
 from basejump.core.service.agents.memory.agent import AgentMemory, SimpleAgentMemory
 from basejump.core.service.agents.setup import AgentSetup, ChatAgentSetup
 from basejump.core.service.agents.types.data_chat import DataChatAgent
@@ -288,6 +285,7 @@ async def setup_database(
     # Set up the database documentation
     if index_docs:
         file_path = Path(__file__).parent / "docs"
+        assert service_context.redis_client, "Redis client is necessary to index docs"
         index_database_docs(
             redis_client=service_context.redis_client,
             redis_client_async=service_context.redis_client_async,
