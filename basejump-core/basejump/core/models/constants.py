@@ -17,8 +17,7 @@ MSG_TIMED_OUT = "Message timed out. Please try again."
 AI_RESULT_PREVIEW_CT = 10
 MAX_ITERATIONS = 15
 MAX_CHAT_HISTORY_DAYS = 365
-# This distance is close enough that is likely only affects the SQL where clause
-REDIS_SEMCACHE_SIMILAR_DISTANCE = 0.35
+REDIS_SEMCACHE_SIMILAR_DISTANCE = 0.3
 # This distance is close enough that it is assumed it's the exact same question
 REDIS_SEMCACHE_EXACT_DISTANCE = 0.04
 # The distance is
