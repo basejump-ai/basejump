@@ -112,6 +112,7 @@ class SQLRunnerTool(BaseTool):
             db_uuid=str(self.db_uuid),
             num_results=constants.SQL_QUERY_EXAMPLE_CT,
         )
+        breakpoint()
         if not semcache_responses:
             logger.debug("No semantically similar response found")
             return ""

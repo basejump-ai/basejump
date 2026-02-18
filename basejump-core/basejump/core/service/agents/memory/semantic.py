@@ -31,7 +31,7 @@ class SemanticMemory:
 
     @property
     def index_name(self) -> str:
-        self.get_index_name(client_id=self.client_id)
+        return self.get_index_name()
 
     async def setup(self) -> AsyncSemanticCache:
         llmcache = await AsyncSemanticCache.setup(

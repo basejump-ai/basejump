@@ -76,13 +76,11 @@ to the organization in charge of the database.""",
         )
         await handler.send_api_message()
         ai_catalog = AICatalog()
-        settings = ai_catalog.get_settings(
-            llm=self.llm, embedding_model_info=self.service_context.embedding_model_info
-        )
+        embed_model = ai_catalog.get_embedding_model(model_info=self.service_context.embedding_model_info)
         index_name = vector_utils.get_docs_index_name(client_id=self.client_id, db_uuid=self.db_uuid)
         vector_index = vector_utils.get_redis_index(
             index_name=index_name,
-            embed_model=settings.embed_model,
+            embed_model=embed_model,
             redis_client_async=self.service_context.redis_client_async,
             redis_client=self.service_context.redis_client,
         )

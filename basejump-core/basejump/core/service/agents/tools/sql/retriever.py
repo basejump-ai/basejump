@@ -119,13 +119,11 @@ Here is a description of the SQL database connection: """
         # Initialize the environment
         vector_schema = sch.VectorDBSchema.model_validate(vector_db)
         ai_catalog = AICatalog()
-        settings = ai_catalog.get_settings(
-            llm=self.llm, embedding_model_info=self.service_context.embedding_model_info
-        )
+        embed_model = ai_catalog.get_embedding_model(model_info=self.service_context.embedding_model_info)
         table_index = get_vector_idx(
             client_id=client_id,
             vector_schema=vector_schema,
-            settings=settings,
+            embed_model=embed_model,
             redis_client_async=self.service_context.redis_client_async,
         )
 
