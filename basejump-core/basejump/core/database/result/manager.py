@@ -11,7 +11,7 @@ import boto3
 import pandas as pd
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database.result import result_utils
+from basejump.core.database.result import utils as result_utils
 from basejump.core.models import constants, errors
 from basejump.core.models import schemas as sch
 

@@ -4,9 +4,12 @@ import redis
 from llama_index.core import SimpleDirectoryReader, StorageContext, VectorStoreIndex
 from redis.asyncio import Redis as RedisAsync
 
-from basejump.core.common.common_utils import find_markdown_files
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database.utils import get_docs_index_name, get_redis_vector_store
+from basejump.core.common.utils import find_markdown_files
+from basejump.core.database.vector.utils import (
+    get_docs_index_name,
+    get_redis_vector_store,
+)
 from basejump.core.models import schemas as sch
 from basejump.core.models.ai.catalog import AICatalog
 from basejump.core.service.agents.memory.semantic import SemanticMemory

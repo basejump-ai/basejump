@@ -18,7 +18,7 @@ from basejump.core.models.ai import formatter
 from basejump.core.models.prompts import CREATE_SQL_QUERY_PROMPT, get_sql_result_prompt
 from basejump.core.service.agents.memory.semantic import SemanticMemory
 from basejump.core.service.agents.message import ChatMessageHandler
-from basejump.core.service.agents.tools import tool_utils
+from basejump.core.service.agents.tools import utils as tool_utils
 from basejump.core.service.agents.tools.base import BaseTool
 from basejump.core.service.agents.tools.sql.parser import SQLParser
 from basejump.core.service.agents.tools.sql.sampler import SQLSampler

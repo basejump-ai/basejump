@@ -29,7 +29,7 @@ from basejump.core.models.ai import formats as fmt
 from basejump.core.models.ai import formatter
 from basejump.core.models.ai.catalog import AICatalog
 from basejump.core.models.prompts import retrieved_sql_tables_prompt
-from basejump.core.service.agents.tools import tool_utils
+from basejump.core.service.agents.tools import utils as tool_utils
 from basejump.core.service.agents.tools.base import BaseTool
 
 logger = set_logging(handler_option="stream", name=__name__)

@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import load_only, selectinload
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database.crud import crud_utils
+from basejump.core.database.crud import utils as crud_utils
 from basejump.core.database.manager import TableManager
 from basejump.core.models import constants
 from basejump.core.models import schemas as sch

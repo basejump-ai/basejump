@@ -11,7 +11,7 @@ from redisvl.schema import IndexSchema
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database import db_utils
+from basejump.core.database import utils as db_utils
 from basejump.core.database.crud import crud_connection, crud_table
 from basejump.core.database.manager import TableManager
 from basejump.core.database.session import LocalSession

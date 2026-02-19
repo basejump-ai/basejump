@@ -7,7 +7,7 @@ from sqlglot import exp, parse_one
 from sqlglot.dialects.dialect import Dialects
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database import db_utils
+from basejump.core.database import utils as db_utils
 from basejump.core.database.client import query
 from basejump.core.database.crud import crud_table
 from basejump.core.database.manager import TableManager

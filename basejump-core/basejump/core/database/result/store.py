@@ -14,7 +14,8 @@ import sqlalchemy as sa
 from botocore.exceptions import ClientError
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database.result import manager, result_utils
+from basejump.core.database.result import manager
+from basejump.core.database.result import utils as result_utils
 from basejump.core.models import constants, errors
 from basejump.core.models import schemas as sch
 from basejump.core.models.ai import formats as fmt

@@ -4,7 +4,7 @@ from sqlglot import errors as sqlglot_errors
 from sqlglot import exp, parse_one
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database import db_utils
+from basejump.core.database import utils as db_utils
 from basejump.core.database.client.query import ClientQueryRunner
 from basejump.core.models import errors
 from basejump.core.models import schemas as sch

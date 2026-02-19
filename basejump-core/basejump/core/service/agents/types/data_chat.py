@@ -20,7 +20,7 @@ from basejump.core.service.agents.memory.agent import AgentMemory
 from basejump.core.service.agents.memory.semantic import SemanticMemory
 from basejump.core.service.agents.message import ChatMessageHandler
 from basejump.core.service.agents.setup import ChatAgentSetup
-from basejump.core.service.agents.tools import tool_utils
+from basejump.core.service.agents.tools import utils as tool_utils
 from basejump.core.service.agents.tools.docs import DocsTool
 from basejump.core.service.agents.tools.sql import SQLTool
 from basejump.core.service.agents.tools.visualize import VisTool

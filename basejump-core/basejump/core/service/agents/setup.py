@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.crud import crud_chat, crud_connection
-from basejump.core.database.crud.crud_utils import create_callback_mgrs
+from basejump.core.database.crud.utils import create_callback_mgrs
 from basejump.core.models import errors, models
 from basejump.core.models import schemas as sch
 

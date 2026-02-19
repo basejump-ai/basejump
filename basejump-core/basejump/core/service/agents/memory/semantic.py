@@ -8,7 +8,7 @@ from redis.commands.search.query import Query
 from redisvl.query.filter import Tag
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database.utils import AsyncSemanticCache, get_index_name
+from basejump.core.database.vector.utils import AsyncSemanticCache, get_index_name
 from basejump.core.models import schemas as sch
 
 logger = set_logging(handler_option="stream", name=__name__)

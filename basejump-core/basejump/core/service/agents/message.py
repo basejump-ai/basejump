@@ -11,7 +11,7 @@ from redis.asyncio import Redis as RedisAsync
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database import db_utils
+from basejump.core.database import utils as db_utils
 from basejump.core.database.crud import crud_chat
 from basejump.core.models import constants, enums
 from basejump.core.models import schemas as sch

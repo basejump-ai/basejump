@@ -10,8 +10,8 @@ from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.client import query
 from basejump.core.database.connector import Connector
 from basejump.core.database.crud import crud_chat, crud_connection, crud_result
-from basejump.core.database.db_utils import extract_visual_info
 from basejump.core.database.result import store
+from basejump.core.database.utils import extract_visual_info
 from basejump.core.models import constants, models
 from basejump.core.models import schemas as sch
 from basejump.core.service.agents.tools.visualize import VisTool

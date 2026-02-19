@@ -11,7 +11,7 @@ from basejump.core.models import constants, enums
 from basejump.core.models import schemas as sch
 from basejump.core.models.ai.catalog import AICatalog
 from basejump.core.service.agents.message import ChatMessageHandler
-from basejump.core.service.agents.tools import tool_utils
+from basejump.core.service.agents.tools import utils as tool_utils
 from basejump.core.service.agents.tools.base import BaseTool
 
 SCORE_THRESHOLD = 0.3
