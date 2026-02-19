@@ -20,7 +20,6 @@ MAX_CHAT_HISTORY_DAYS = 365
 REDIS_SEMCACHE_SIMILAR_DISTANCE = 0.3
 # This distance is close enough that it is assumed it's the exact same question
 REDIS_SEMCACHE_EXACT_DISTANCE = 0.04
-# The distance is
 SEMCACHE_TIMESTAMP = "timestamp"
 TEST_PROMPT = "give me a report of all clients"
 REINDEXING_DB_ERROR_MSG = "Currently re-indexing database metadata. Please wait a few minutes and try again."

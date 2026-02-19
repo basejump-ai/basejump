@@ -16,7 +16,7 @@ async def run_main():
         connection = await service.setup_database(db, service_context, user_info, client_conn_params)
         await service.chat(
             db,
-            """How will AI influence “knowledge work”? And what's Basejump's stance on that?""",
+            "Provide a report of all clients.",
             service_context,
             user_info,
             connection,
