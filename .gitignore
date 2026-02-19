@@ -5,6 +5,7 @@
 !.env.example
 credentials/
 *.pem
+scratch.sql
 
 # Environments
 .venv/
