@@ -1,8 +1,9 @@
 from typing import Optional
 
 import sqlalchemy as sa
-from basejump.core.database.db_utils import process_foreign_key_definition
+
 from basejump.core.database.inspector.postgres import PostgresInspector
+from basejump.core.database.utils import process_foreign_key_definition
 
 
 class RedshiftInspector(PostgresInspector):

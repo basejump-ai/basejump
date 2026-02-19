@@ -5,7 +5,7 @@ from sqlalchemy.engine import Engine
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.common.config.settings import settings
 from basejump.core.database.connector import PostgresConnector
-from basejump.core.database.db_utils import get_table_schemas
+from basejump.core.database.utils import get_table_schemas
 from basejump.core.models import enums
 from basejump.core.models import schemas as sch
 

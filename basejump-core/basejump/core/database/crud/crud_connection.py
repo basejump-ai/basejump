@@ -17,7 +17,8 @@ from sqlalchemy.orm import joinedload, selectinload
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.common.config.settings import get_encryption_key
 from basejump.core.database.connector import Connector
-from basejump.core.database.crud import crud_table, crud_utils
+from basejump.core.database.crud import crud_table
+from basejump.core.database.crud import utils as crud_utils
 from basejump.core.database.manager import TableManager
 from basejump.core.database.session import LocalSession
 from basejump.core.models import errors, models

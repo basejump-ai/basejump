@@ -1,6 +1,7 @@
 import asyncio
 from typing import Optional
 
+from llama_index.core.llms.function_calling import FunctionCallingLLM
 from llama_index.core.tools import FunctionTool
 from llama_index.core.tools.function_tool import create_tool_metadata
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,14 +15,15 @@ from basejump.core.models import constants, enums, errors
 from basejump.core.models import schemas as sch
 from basejump.core.models.ai import formats as fmt
 from basejump.core.models.ai import formatter
-from basejump.core.models.ai.formatter import get_title_description
-from basejump.core.models.prompts import get_sql_result_prompt
-from basejump.core.service.agents.tools import tool_utils
+from basejump.core.models.prompts import CREATE_SQL_QUERY_PROMPT, get_sql_result_prompt
+from basejump.core.service.agents.memory.semantic import SemanticMemory
+from basejump.core.service.agents.message import ChatMessageHandler
+from basejump.core.service.agents.tools import utils as tool_utils
 from basejump.core.service.agents.tools.base import BaseTool
 from basejump.core.service.agents.tools.sql.parser import SQLParser
 from basejump.core.service.agents.tools.sql.sampler import SQLSampler
 from basejump.core.service.agents.tools.sql.validator import SQLValidator
-from basejump.core.service.base import BaseChatAgent, ChatMessageHandler
+from basejump.core.service.agents.utils import get_title_description
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -32,23 +34,34 @@ class SQLRunnerTool(BaseTool):
     def __init__(
         self,
         db: AsyncSession,
-        agent: BaseChatAgent,
+        llm: FunctionCallingLLM,
+        query_result: sch.MessageQueryResult,
         sql_tool_context: sch.SQLToolContext,
         result_store: store.ResultStore,
         db_conn_params: sch.SQLDBSchema,
+        prompt_metadata: sch.PromptMetadata,
+        chat_metadata: sch.ChatMetadata,
         select_sample_values: bool = False,
+        use_sql_examples: bool = True,
+        use_docs: bool = False,
     ):
         # Set passed variables
         self.db = db
-        self.prompt_metadata = sql_tool_context.prompt_metadata
         self.service_context = sql_tool_context.service_context
         self.result_store = result_store
-        self.agent = agent
+        self.llm = llm
         self.client_conn_params = sql_tool_context.client_conn_params
         self.db_conn_params = db_conn_params
         self.conn_id = sql_tool_context.conn_id
+        self.db_id = sql_tool_context.db_id
+        self.db_uuid = sql_tool_context.db_uuid
         self.select_sample_values = select_sample_values
+        self.use_sql_examples = use_sql_examples
         self.verbose = sql_tool_context.verbose
+        self.chat_metadata = chat_metadata
+        self.prompt_metadata = prompt_metadata
+        self.query_result = query_result
+        self.use_docs = use_docs
 
         # Set variables
         self.sqlglot_dialect = enums.DB_TYPE_TO_SQLGLOT_DIALECT_LKUP[self.client_conn_params.database_type]
@@ -65,8 +78,9 @@ class SQLRunnerTool(BaseTool):
             schemas=self.schemas,
             verbose=self.verbose,
             conn_params=self.client_conn_params,
-            agent=self.agent,
             service_context=self.service_context,
+            chat_metadata=chat_metadata,
+            prompt_metadata=prompt_metadata,
         )
 
     async def get_tools(self) -> list[FunctionTool]:
@@ -86,37 +100,69 @@ class SQLRunnerTool(BaseTool):
     def check_strict_mode(self):
         user_role = enums.USER_ROLES_LVL_LKUP[self.prompt_metadata.user_role]
         admin_role = enums.USER_ROLES_LVL_LKUP[enums.UserRoles.ADMIN.value]
-        if self.agent.chat_metadata.verify_mode == enums.VerifyMode.STRICT and user_role < admin_role:
+        if self.chat_metadata.verify_mode == enums.VerifyMode.STRICT and user_role < admin_role:
             raise errors.StrictModeFlagged
+
+    async def _get_sql_examples(self) -> str:
+        semantic_memory = SemanticMemory(
+            redis_client_async=self.service_context.redis_client_async, client_id=self.prompt_metadata.client_id
+        )
+        semcache_responses = await semantic_memory.get_cached_prompts(
+            prompt=self.prompt_metadata.initial_prompt,
+            client_id=self.prompt_metadata.client_id,
+            distance_threshold=constants.REDIS_SEMCACHE_SIMILAR_DISTANCE,
+            db_uuid=str(self.db_uuid),
+            num_results=constants.SQL_QUERY_EXAMPLE_CT,
+        )
+        if not semcache_responses:
+            logger.debug("No semantically similar response found")
+            return ""
+        else:
+            # TODO: Update schemas to the correct connection in the SQL query examples if not the current connection
+            sql_query_example_prompt = """Here are some examples of prior prompts and the SQL queries that were \
+used previously and that users marked as correct. If you reuse one of these, make sure to update the schemas to \
+be correct:"""
+            single_sql_query_example = """\
+\nPrompt: {prompt}
+SQL Query Answer: {sql_query}\n
+                """
+            for semcache_response in semcache_responses:
+                sql_query_example_prompt += single_sql_query_example.format(
+                    prompt=semcache_response.prompt, sql_query=semcache_response.sql_query
+                )
+            return sql_query_example_prompt
 
     async def create_sql_query(self, initial_sql_query: str):
         """This function is used to create a plan to create a correct SQL query."""
         logger.info("Here is the initial SQL query: %s", initial_sql_query)
         self.sql_query_created = True
-        # Explain plan
-        initial_instructions = f"""
-Before executing a SQL query, you need to make a plan. Do the following:
-- Identify the filters for the query based on the initial user prompt: {self.prompt_metadata.initial_prompt}. \
-A filter is anything that is going to be put into the where clause. List each filter using a dash instead of \
-numbering them.
-- Determine if you have enough information or if you need to ask the user clarifying questions. This means that for \
-every filter the user has given enough context and defined it clearly. If you are unsure what column the filter \
-may be referring to, ask the user a clarifying question before proceeding. Do not ask the user for the column name.
-- The plan should be formatted with each step using this for preceding each bullet point >>
-- Do not include this plan reasoning in the final output."""
+
+        # Set variables
+        sql_query_example_prompt = ""
         intermediate_instructions = ""
+
+        # Get initial instructions
+        initial_instructions = CREATE_SQL_QUERY_PROMPT.format(prompt=self.prompt_metadata.initial_prompt)
+
+        # Get SQL examples
+        if self.use_sql_examples:
+            sql_query_example_prompt = await self._get_sql_examples()
+            if sql_query_example_prompt:
+                logger.debug("Found the following SQL examples: %s", sql_query_example_prompt)
+        # Get sample values
         if self.select_sample_values:
             sampler = SQLSampler(sqlglot_dialect=self.sqlglot_dialect, conn_params=self.client_conn_params)
             columns, sample_values = await sampler.get_select_sample_values(sql_query=initial_sql_query)
             if sample_values and columns:
                 intermediate_instructions = f"""\n- Here are some sample values for the columns selected \
-    in your query: {sample_values}\n"""
+in your query: {sample_values}\n"""
+        # Get final instructions
         final_instructions = """\n
 After stating your plan, do one of the following:
 - Option 1: Ask the user a clarifying question.
 - Option 2: Run this tool again to run your original or updated SQL query.
 """
-        return initial_instructions + intermediate_instructions + final_instructions
+        return sql_query_example_prompt + initial_instructions + intermediate_instructions + final_instructions
 
     async def _clean_sql(self, sql_query: str):
         # Clean the SQL query format
@@ -194,11 +240,11 @@ After reviewing, run this tool again to run your original or updated SQL query."
                 logger.warning("where clause sample values failed with this error: %s", str(e))
 
     async def _check_semantic_cache(self, sql_query: str):
-        if self.agent.chat_metadata.semcache_response:
+        if self.chat_metadata.semcache_response:
             await self.validator.check_query_where_clause(
-                self.agent.chat_metadata.semcache_response.sql_query, query2=sql_query
+                self.chat_metadata.semcache_response.sql_query, query2=sql_query
             )
-            if self.agent.chat_metadata.semcache_response:  # check again after checking the query where clause
+            if self.chat_metadata.semcache_response:  # check again after checking the query where clause
                 self.check_strict_mode()
         else:
             self.check_strict_mode()
@@ -208,7 +254,7 @@ After reviewing, run this tool again to run your original or updated SQL query."
         msg = await self._check_hallucinations(sql_query)
         if msg:
             return msg
-        await tool_utils.update_agent_tokens(agent=self.agent, max_tokens=1000)
+        await tool_utils.update_llm_tokens(llm=self.llm, max_tokens=1000)
 
         # Check if SQL query has been previously used
         await self._check_prior_sql(sql_query)
@@ -295,7 +341,7 @@ Connection timed out. Please try again."""
     async def run_ai_sql_query(self, sql_query: str) -> str:
         handler = ChatMessageHandler(
             prompt_metadata=self.prompt_metadata,
-            chat_metadata=self.agent.chat_metadata,
+            chat_metadata=self.chat_metadata,
             redis_client_async=self.service_context.redis_client_async,
             verbose=self.verbose,
         )
@@ -310,7 +356,7 @@ Connection timed out. Please try again."""
             msg_type=enums.MessageType.THOUGHT,
         )
         await handler.send_api_message()
-        if self.agent.chat_metadata.return_sql_in_thoughts:
+        if self.chat_metadata.return_sql_in_thoughts:
             await handler.create_message(
                 db=self.db,
                 role=sch.MessageRole.ASSISTANT,
@@ -339,12 +385,11 @@ Connection timed out. Please try again."""
         # TODO: Consider creating a class with these result handling functions
         assert isinstance(query_result, sch.QueryResult)
         query_result_str = get_sql_result_prompt(
-            conn_id=self.conn_id,
-            query_result=query_result,
+            db_id=self.db_id, conn_id=self.conn_id, query_result=query_result, use_docs=self.use_docs
         )
         # If no result, then don't save a report
         if not query_result:
-            self.agent.query_result = sch.MessageQueryResult(sql_query=sql_query)
+            self.query_result = sch.MessageQueryResult(sql_query=sql_query)
         else:
             await self.save_query_results(
                 query_result=query_result,
@@ -370,14 +415,19 @@ Connection timed out. Please try again."""
         # Save to the DB
         result_history = await crud_result.save_result_history(
             db=self.db,
-            chat_id=self.agent.chat_metadata.chat_id,
+            chat_id=self.chat_metadata.chat_id,
             query_result=query_result,
             title=extract.title,
             subtitle=extract.subtitle,
             description=extract.description,
             conn_id=self.conn_id,
             prompt_metadata=self.prompt_metadata,
-            chat_metadata=self.agent.chat_metadata,
+            chat_metadata=self.chat_metadata,
         )
-        self.agent.query_result = sch.MessageQueryResult.from_orm(result_history)
+        # Get the new values
+        new_values = sch.MessageQueryResult.from_orm(result_history)
+
+        # Update existing object fields in-place
+        for field_name in new_values.__fields__:
+            setattr(self.query_result, field_name, getattr(new_values, field_name))
         await self.db.commit()  # NOTE: Calling commit again to avoid idle in transaction

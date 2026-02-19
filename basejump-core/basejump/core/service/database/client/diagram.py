@@ -10,13 +10,13 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.crud import crud_chat, crud_connection
-from basejump.core.database.vector_utils import get_table_info_from_vector_db
+from basejump.core.database.vector.utils import get_table_info_from_vector_db
 from basejump.core.models import enums, prompts
 from basejump.core.models import schemas as sch
 from basejump.core.models.ai import formats as fmt
 from basejump.core.models.ai import formatter
-from basejump.core.service.agents.mermaid import MermaidAgent
-from basejump.core.service.base import AgentSetup
+from basejump.core.service.agents.setup import AgentSetup
+from basejump.core.service.agents.types.mermaid import MermaidAgent
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -129,7 +129,7 @@ the AI to process them in chunks"""
             format_json_response = formatter.JSONResponseFormatter(
                 response=final_diagram,
                 pydantic_format=fmt.MermaidJSFormat,
-                llm=self.mermaid_agent.agent_llm,
+                llm=self.mermaid_agent.llm,
                 small_model_info=self.small_model_info,
             )
             extract = await format_json_response.format()

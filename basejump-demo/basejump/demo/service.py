@@ -3,28 +3,31 @@ import secrets
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
+from pathlib import Path
 from typing import AsyncGenerator, Optional
 from zoneinfo import ZoneInfo
 
 from llama_index.core.llms import ChatMessage
 from llama_index.vector_stores.redis import RedisVectorStore
-from redis.asyncio import Redis as RedisAsync
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
-from basejump.core.common.common_utils import hash_value
 from basejump.core.common.config.logconfig import set_logging
+from basejump.core.common.utils import hash_value
 from basejump.core.database.client.index import index_db
-from basejump.core.database.crud import crud_connection, crud_main, crud_utils
+from basejump.core.database.crud import crud_connection, crud_main
+from basejump.core.database.crud import utils as crud_utils
 from basejump.core.database.result import store
 from basejump.core.database.session import LocalSession
-from basejump.core.database.vector_utils import get_index_name, get_index_schema
+from basejump.core.database.vector.utils import get_index_name, get_index_schema
 from basejump.core.models import enums, errors, models, prompts
 from basejump.core.models import schemas as sch
 from basejump.core.models.ai.catalog import AICatalog
-from basejump.core.service.agents import agent_utils
-from basejump.core.service.agents.data_chat import DataChatAgent
-from basejump.core.service.agents.mermaid import MermaidAgent
-from basejump.core.service.base import AgentSetup, ChatAgentSetup
+from basejump.core.service.agents.context.utils import index_database_docs
+from basejump.core.service.agents.memory.agent import AgentMemory, SimpleAgentMemory
+from basejump.core.service.agents.setup import AgentSetup, ChatAgentSetup
+from basejump.core.service.agents.types.data_chat import DataChatAgent
+from basejump.core.service.agents.types.mermaid import MermaidAgent
+from basejump.core.service.agents.utils import create_prompt_base
 from basejump.core.service.database.client import utils
 from basejump.demo import crud, schemas, settings
 
@@ -35,8 +38,11 @@ logger = set_logging(handler_option="stream", name=__name__)
 async def run_session(client_id: Optional[int] = None) -> AsyncGenerator:
     session = LocalSession(client_id=client_id or 0, engine=settings.sql_engine)
     db = await session.open()
+    redis_client = settings.get_redis_client_instance()
     redis_client_async = settings.get_redis_client_async_instance()
-    core_session = sch.CoreSession(redis_client_async=redis_client_async, sql_engine=settings.sql_engine)
+    core_session = sch.CoreSession(
+        redis_client_async=redis_client_async, redis_client=redis_client, sql_engine=settings.sql_engine
+    )
     try:
         yield core_session, db
     except Exception as e:
@@ -244,6 +250,7 @@ async def setup_database(
     user_info: sch.UserInfo,
     conn_params: sch.SQLDBSchema,
     verbose: bool = False,
+    index_docs: bool = False,
 ) -> schemas.GetSQLConn:
     """Create a database connection and save it in the database"""
     # Set up the database
@@ -275,6 +282,20 @@ async def setup_database(
         sql_engine=service_context.sql_engine,
         verbose=verbose,
     )
+
+    # Set up the database documentation
+    if index_docs:
+        file_path = Path(__file__).parent / "docs"
+        assert service_context.redis_client, "Redis client is necessary to index docs"
+        index_database_docs(
+            redis_client=service_context.redis_client,
+            redis_client_async=service_context.redis_client_async,
+            embedding_model_info=service_context.embedding_model_info,
+            file_path=file_path.as_posix(),
+            client_id=user_info.client_id,
+            db_uuid=sql_conn.db_uuid,
+        )
+
     return get_sql_conn
 
 
@@ -314,12 +335,7 @@ async def create_chat(db: AsyncSession, client_id: int, user_id: int, team_id: i
 
 
 async def setup_mermaid_agent(
-    client_user: sch.ClientUserInfo,
-    prompt_id: int,
-    prompt_uuid: uuid.UUID,
-    large_model_info: sch.ModelInfo,
-    sql_engine: AsyncEngine,
-    redis_client_async: RedisAsync,
+    client_user: sch.ClientUserInfo, prompt_id: int, prompt_uuid: uuid.UUID, service_context: sch.ServiceContext
 ) -> MermaidAgent:
     # Setup the agent prompts
     prompt_metadata_base = sch.PromptMetadataBase(
@@ -331,19 +347,20 @@ async def setup_mermaid_agent(
         user_role=client_user.user_role,
         prompt_uuid=prompt_uuid,
         prompt_id=prompt_id,
-        model_name=large_model_info.model_name,
+        model_name=service_context.large_model_info.model_name,
         llm_type=enums.LLMType.MERMAID_AGENT,
         prompt_time=datetime.now(),
     )
     agent_setup = AgentSetup.load_from_prompt_metadata(prompt_metadata_base=prompt_metadata_base)
 
     # Set up the agent
-    large_model_info.max_tokens = 4096
+    service_context.large_model_info.max_tokens = 4096
     ai_catalog = AICatalog()
-    agent_llm = ai_catalog.get_llm(model_info=large_model_info)
+    llm = ai_catalog.get_llm(model_info=service_context.large_model_info)
 
     # Set up the mermaid agent
-    mermaid_agent = MermaidAgent(
+    memory = SimpleAgentMemory(
+        service_context=service_context,
         prompt_metadata=agent_setup.prompt_metadata,
         chat_history=[
             ChatMessage(
@@ -352,11 +369,13 @@ async def setup_mermaid_agent(
                 timestamp=datetime.now(ZoneInfo("UTC")),
             )
         ],
+    )
+    mermaid_agent = MermaidAgent(
+        prompt_metadata=agent_setup.prompt_metadata,
+        memory=memory,
         max_iterations=8,
-        agent_llm=agent_llm,
-        sql_engine=sql_engine,
-        large_model_info=large_model_info,
-        redis_client_async=redis_client_async,
+        llm=llm,
+        service_context=service_context,
     )
     return mermaid_agent
 
@@ -369,6 +388,7 @@ async def chat(
     connection: Optional[schemas.GetSQLConn] = None,
     chat: Optional[schemas.GetChat] = None,
     get_chat_history: bool = False,
+    use_docs: bool = False,
 ) -> sch.Message:
     # Create a chat
     if not chat:
@@ -380,7 +400,7 @@ async def chat(
         )
     # Set up the prompt
     client_user = sch.ClientUserInfo.model_validate(user_info)
-    prompt_metadata_base = await agent_utils.create_prompt_base(
+    prompt_metadata_base = await create_prompt_base(
         db=db,
         client_user=client_user,  # TODO: Replace with UserInfo instead
         prompt=prompt,
@@ -420,22 +440,29 @@ async def chat(
             chat_metadata=chat_metadata,
             redis_client_async=service_context.redis_client_async,
             embedding_model_info=service_context.embedding_model_info,
-            team_info=sch.TeamFields.model_validate(user_info),
         )
         retrieved_chat = await chat_setup.get_chat()
-        chat_history = await chat_setup.get_chat_history(chat=retrieved_chat)
+        agent_memory = AgentMemory(
+            service_context=service_context,
+            chat_metadata=chat_metadata,
+            prompt_metadata=agent_setup.prompt_metadata,
+        )
+        chat_history = await agent_memory.get_chat_history(
+            db=db, chat=retrieved_chat, team_info=sch.TeamFields.model_validate(user_info)
+        )
 
     # Prompt the agent
     ai_catalog = AICatalog()
-    agent_llm = ai_catalog.get_llm(model_info=service_context.large_model_info)
+    llm = ai_catalog.get_llm(model_info=service_context.large_model_info)
     agent = DataChatAgent(
         db_conn_params=settings.conn_params,
         prompt_metadata=agent_setup.prompt_metadata,
         chat_metadata=chat_metadata,
-        chat_history=chat_history,
-        agent_llm=agent_llm,
+        llm=llm,
         service_context=service_context,
         conn_id=connection.conn_id if connection else None,
+        chat_history=chat_history,
+        use_docs_tool=use_docs,
     )
     message = await agent.prompt_agent()
     return message
@@ -445,6 +472,7 @@ def create_service_context(core_session: sch.CoreSession) -> sch.ServiceContext:
     return sch.ServiceContext(
         sql_engine=core_session.sql_engine,
         redis_client_async=core_session.redis_client_async,
+        redis_client=core_session.redis_client,
         large_model_info=settings.large_model_info,
         small_model_info=settings.small_model_info,
         embedding_model_info=settings.embedding_model_info,

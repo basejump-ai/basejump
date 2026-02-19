@@ -7,15 +7,15 @@ from sqlglot import exp, parse_one
 from sqlglot.dialects.dialect import Dialects
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database import db_utils
+from basejump.core.database import utils as db_utils
 from basejump.core.database.client import query
 from basejump.core.database.crud import crud_table
 from basejump.core.database.manager import TableManager
 from basejump.core.models import enums, errors
 from basejump.core.models import schemas as sch
 from basejump.core.models.prompts import ZERO_ROW_PROMPT
+from basejump.core.service.agents.message import ChatMessageHandler
 from basejump.core.service.agents.tools.sql.parser import SQLParser
-from basejump.core.service.base import BaseChatAgent, ChatMessageHandler
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -29,8 +29,9 @@ class SQLValidator:
         schemas: list[sch.DBSchema],
         verbose: bool,
         conn_params: sch.SQLDBSchema,
-        agent: BaseChatAgent,
         service_context: sch.ServiceContext,
+        prompt_metadata: sch.PromptMetadata,
+        chat_metadata: sch.ChatMetadata,
     ):
         self.db = db
         self.sqlglot_dialect = sqlglot_dialect
@@ -38,10 +39,11 @@ class SQLValidator:
         self.schemas = schemas
         self.verbose = verbose
         self.conn_params = conn_params
-        self.agent = agent
         self.service_context = service_context
         self.parser = SQLParser(sqlglot_dialect=sqlglot_dialect, verbose=verbose)
         self.db_columns: list = []
+        self.chat_metadata = chat_metadata
+        self.prompt_metadata = prompt_metadata
 
     async def check_all_tables(self, sql_query: str) -> Optional[str]:
         try:
@@ -162,8 +164,8 @@ table, but you miscapitalized it/them: {", ".join(miscapitalized_columns)}'
             logger.info("Found verified similar SQL Query from semantic cache")
         else:
             # If it's not identical after checking the WHERE clause, then it is not verified
-            assert self.agent.chat_metadata.semcache_response
-            self.agent.chat_metadata.semcache_response.verified = False
+            assert self.chat_metadata.semcache_response
+            self.chat_metadata.semcache_response.verified = False
 
     async def _extend_db_columns(self, columns: list[sch.DBColumn]) -> None:
         # Check for any columns that already have been retrieved from the DB
@@ -368,8 +370,8 @@ format: {db_col_filters}\n"""
             logger.info("No where clause columns to verify")
             return None
         handler = ChatMessageHandler(
-            prompt_metadata=self.agent.prompt_metadata,
-            chat_metadata=self.agent.chat_metadata,
+            prompt_metadata=self.prompt_metadata,
+            chat_metadata=self.chat_metadata,
             redis_client_async=self.service_context.redis_client_async,
             verbose=self.verbose,
         )

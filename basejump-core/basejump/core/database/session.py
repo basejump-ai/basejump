@@ -2,7 +2,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database.db_utils import get_table_names, get_table_schemas
+from basejump.core.database.utils import get_table_names, get_table_schemas
 from basejump.core.models.models import Base
 
 logger = set_logging(handler_option="stream", name=__name__)

@@ -5,11 +5,9 @@ from llama_index.core import ChatPromptTemplate
 from llama_index.core.llms import LLM, ChatMessage
 from llama_index.core.program import FunctionCallingProgram
 from pydantic import BaseModel
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.models import schemas as sch
-from basejump.core.models.ai import formats as fmt
 from basejump.core.models.ai.catalog import AICatalog
 
 logger = set_logging(handler_option="stream", name=__name__)
@@ -101,24 +99,3 @@ class DateFormatter(JSONResponseFormatter):
                 ),
             ]
         )
-
-
-async def get_title_description(
-    db: AsyncSession,
-    prompt_metadata: sch.PromptMetadata,
-    sql_query: str,
-    query_result: str,
-    small_model_info: sch.ModelInfo,
-) -> fmt.DescriptionFormat:
-    prompt = f"""\
-Summarize the following query results into a title and description. \
-You will be given the original user prompt, the SQL query to answer the prompt, \
-and the query results. DO NOT use any numbers or specific values in the title or description. \n
-Prompt: {prompt_metadata.initial_prompt}\n
-SQL Query: {sql_query}\n
-SQL Results: {query_result}\n
-    """
-    format_json_response = JSONResponseFormatter(
-        response=prompt, pydantic_format=fmt.DescriptionFormat, small_model_info=small_model_info
-    )
-    return await format_json_response.format()
