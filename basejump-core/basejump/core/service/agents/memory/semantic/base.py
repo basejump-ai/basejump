@@ -8,8 +8,9 @@ from redis.commands.search.query import Query
 from redisvl.query.filter import Tag
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database.vector.utils import AsyncSemanticCache, get_index_name
+from basejump.core.database.vector.utils import get_index_name
 from basejump.core.models import schemas as sch
+from basejump.core.service.agents.memory.semantic.cache import AsyncSemanticCache
 
 logger = set_logging(handler_option="stream", name=__name__)
 REDIS_SEMCACHE_PREFIX = "semcache_"
