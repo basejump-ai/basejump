@@ -17,16 +17,16 @@ from basejump.core.database.client.index import index_db
 from basejump.core.database.crud import crud_connection, crud_main, crud_utils
 from basejump.core.database.result import store
 from basejump.core.database.session import LocalSession
-from basejump.core.database.vector_utils import get_index_name, get_index_schema
+from basejump.core.database.vector.utils import get_index_name, get_index_schema
 from basejump.core.models import enums, errors, models, prompts
 from basejump.core.models import schemas as sch
 from basejump.core.models.ai.catalog import AICatalog
-from basejump.core.service.agents import agent_utils
 from basejump.core.service.agents.context.utils import index_database_docs
 from basejump.core.service.agents.memory.agent import AgentMemory, SimpleAgentMemory
 from basejump.core.service.agents.setup import AgentSetup, ChatAgentSetup
 from basejump.core.service.agents.types.data_chat import DataChatAgent
 from basejump.core.service.agents.types.mermaid import MermaidAgent
+from basejump.core.service.agents.utils import create_prompt_base
 from basejump.core.service.database.client import utils
 from basejump.demo import crud, schemas, settings
 
@@ -399,7 +399,7 @@ async def chat(
         )
     # Set up the prompt
     client_user = sch.ClientUserInfo.model_validate(user_info)
-    prompt_metadata_base = await agent_utils.create_prompt_base(
+    prompt_metadata_base = await create_prompt_base(
         db=db,
         client_user=client_user,  # TODO: Replace with UserInfo instead
         prompt=prompt,

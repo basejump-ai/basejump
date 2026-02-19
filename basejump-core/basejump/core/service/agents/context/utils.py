@@ -6,14 +6,11 @@ from redis.asyncio import Redis as RedisAsync
 
 from basejump.core.common.common_utils import find_markdown_files
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database.vector_utils import (
-    get_docs_index_name,
-    get_redis_vector_store,
-)
+from basejump.core.database.utils import get_docs_index_name, get_redis_vector_store
 from basejump.core.models import schemas as sch
-from basejump.core.models.ai import formatter
 from basejump.core.models.ai.catalog import AICatalog
 from basejump.core.service.agents.memory.semantic import SemanticMemory
+from basejump.core.service.agents.utils import contextualize_prompt
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -28,9 +25,7 @@ async def upload_sql_query_example(
     recent_interactions: list[sch.MessagePair] = [],
 ):
     if recent_interactions:
-        prompt = await formatter.contextualize_prompt(
-            recent_interactions=recent_interactions, small_model_info=small_model_info
-        )
+        prompt = await contextualize_prompt(recent_interactions=recent_interactions, small_model_info=small_model_info)
     semantic_memory = SemanticMemory(client_id=client_user.client_id, redis_client_async=redis_client_async)
 
     metadata = sch.SemCacheMetadata(

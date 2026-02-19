@@ -12,7 +12,7 @@ from basejump.core.database.client.index import DBTableIndexer
 from basejump.core.database.connector import Connector
 from basejump.core.database.crud import crud_connection
 from basejump.core.database.manager import TableManager
-from basejump.core.database.vector_utils import get_index_name
+from basejump.core.database.vector.utils import get_index_name
 from basejump.core.models import schemas as sch
 
 logger = set_logging(handler_option="stream", name=__name__)

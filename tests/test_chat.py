@@ -2,7 +2,7 @@ import pytest
 
 from basejump.core.database.crud import crud_chat
 from basejump.demo import settings, service, schemas
-from basejump.core.service import service_utils
+from basejump.core.service.utils import calc_trust_score
 from basejump.core.service.agents.context.utils import upload_sql_query_example
 
 
@@ -89,7 +89,7 @@ async def test_getviz(chat_session):
 @pytest.mark.chat
 async def test_get_trust_score(chat_session):
     """Test getting a trust score"""
-    result = await service_utils.calc_trust_score(db=chat_session.db)
+    result = await calc_trust_score(db=chat_session.db)
     assert result
 
 

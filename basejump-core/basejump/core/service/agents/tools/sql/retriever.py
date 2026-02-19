@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.crud import crud_connection, crud_table
 from basejump.core.database.manager import TableManager
-from basejump.core.database.vector_utils import get_vector_idx
+from basejump.core.database.vector.utils import get_vector_idx
 from basejump.core.models import constants, enums, errors
 from basejump.core.models import schemas as sch
 from basejump.core.models.ai import formats as fmt

@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.crud import crud_chat, crud_connection
-from basejump.core.database.vector_utils import get_table_info_from_vector_db
+from basejump.core.database.vector.utils import get_table_info_from_vector_db
 from basejump.core.models import enums, prompts
 from basejump.core.models import schemas as sch
 from basejump.core.models.ai import formats as fmt

@@ -6,7 +6,7 @@ from llama_index.core.tools.function_tool import create_tool_metadata
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database import vector_utils
+from basejump.core.database.vector import utils as vector_utils
 from basejump.core.models import constants, enums
 from basejump.core.models import schemas as sch
 from basejump.core.models.ai.catalog import AICatalog

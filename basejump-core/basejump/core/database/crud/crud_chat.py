@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.crud import crud_utils
 from basejump.core.database.db_utils import add_message_context
-from basejump.core.database.vector_utils import delete_nodes
+from basejump.core.database.vector.utils import delete_nodes
 from basejump.core.models import constants, enums, models
 from basejump.core.models import schemas as sch
 from basejump.core.models.ai.catalog import AICatalog

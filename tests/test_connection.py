@@ -8,7 +8,7 @@ from basejump.demo import service, settings
 from basejump.core.database.crud import crud_connection, crud_chat
 from basejump.core.service.database.client import utils
 from basejump.core.service.database.client.diagram import MermaidAgentManager
-from basejump.core.database.vector_utils import get_index_name
+from basejump.core.database.vector.utils import get_index_name
 from basejump.core.models import enums
 from basejump.core.database.manager import TableManager
 
