@@ -28,7 +28,7 @@ from basejump.core.models import schemas as sch
 from basejump.core.models.ai import formats as fmt
 from basejump.core.models.ai import formatter
 from basejump.core.models.ai.catalog import AICatalog
-from basejump.core.models.prompts import DB_METADATA_PROMPT
+from basejump.core.models.prompts import retrieved_sql_tables_prompt
 from basejump.core.service.agents.tools import tool_utils
 from basejump.core.service.agents.tools.base import BaseTool
 
@@ -46,6 +46,7 @@ class TableRetrieverTool(BaseTool):
         llm: FunctionCallingLLM,
         sql_tool_context: sch.SQLToolContext,
         prompt_metadata: sch.PromptMetadata,
+        use_docs: bool = False,
     ):
         self.db = db
         self.llm = llm
@@ -60,6 +61,7 @@ class TableRetrieverTool(BaseTool):
         self.verbose = sql_tool_context.verbose
         self.is_demo = False
         self.retrieved_sql_tables = False
+        self.use_docs = use_docs
 
     # TODO: This would change to 'get sql' once we have a SQL specific model and
     # would take no input args
@@ -268,12 +270,13 @@ Here is the prompt that needs to be broken out: \n\n\
             # If there is jinja, then halt and send error to the user
             raise Exception(constants.UNRESOLVED_JINJA)
         logger.debug("Here are the schemas: %s", self.schemas)
-        formatted_prompt = DB_METADATA_PROMPT.format(
+        formatted_prompt = retrieved_sql_tables_prompt(
             inquiry=inquiry,
             schema=tables_str,
             db_type=self.client_conn_params.database_type.value,
             run_sql_query_tool=constants.get_sql_execution_tool_nm(conn_id=self.conn_id),
             docs_tool=constants.get_docs_tool_nm(db_id=self.db_id),
+            use_docs=self.use_docs,
         )
         return formatted_prompt
         # TODO: Use async task group or async for here to quickly get all tables

@@ -43,6 +43,7 @@ class SQLRunnerTool(BaseTool):
         chat_metadata: sch.ChatMetadata,
         select_sample_values: bool = False,
         use_sql_examples: bool = True,
+        use_docs: bool = False,
     ):
         # Set passed variables
         self.db = db
@@ -60,6 +61,7 @@ class SQLRunnerTool(BaseTool):
         self.chat_metadata = chat_metadata
         self.prompt_metadata = prompt_metadata
         self.query_result = query_result
+        self.use_docs = use_docs
 
         # Set variables
         self.sqlglot_dialect = enums.DB_TYPE_TO_SQLGLOT_DIALECT_LKUP[self.client_conn_params.database_type]
@@ -383,9 +385,7 @@ Connection timed out. Please try again."""
         # TODO: Consider creating a class with these result handling functions
         assert isinstance(query_result, sch.QueryResult)
         query_result_str = get_sql_result_prompt(
-            db_id=self.db_id,
-            conn_id=self.conn_id,
-            query_result=query_result,
+            db_id=self.db_id, conn_id=self.conn_id, query_result=query_result, use_docs=self.use_docs
         )
         # If no result, then don't save a report
         if not query_result:

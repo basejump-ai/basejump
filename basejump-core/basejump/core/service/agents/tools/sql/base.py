@@ -24,6 +24,7 @@ class SQLTool(BaseTool):
         chat_metadata: sch.ChatMetadata,
         query_result: sch.MessageQueryResult,
         select_sample_values: bool = False,
+        use_docs: bool = False,
     ):
         # Set variables
         self.db = db
@@ -38,7 +39,11 @@ class SQLTool(BaseTool):
 
         # Create tools
         self.table_retriever_tool = retriever.TableRetrieverTool(
-            db=self.db, llm=self.llm, sql_tool_context=self.sql_tool_context, prompt_metadata=prompt_metadata
+            db=self.db,
+            llm=self.llm,
+            sql_tool_context=self.sql_tool_context,
+            prompt_metadata=prompt_metadata,
+            use_docs=use_docs,
         )
         self.runner_tool = runner.SQLRunnerTool(
             db=self.db,
@@ -50,6 +55,7 @@ class SQLTool(BaseTool):
             prompt_metadata=prompt_metadata,
             chat_metadata=chat_metadata,
             query_result=self.query_result,
+            use_docs=use_docs,
         )
 
     async def get_tools(self):
