@@ -148,7 +148,8 @@ instructions for the expected output format: \n{EXPECTED_OUTPUT_INSTRUCTIONS}\
             return message
         except (errors.GetTeamConnError, errors.SQLIndexError) as e:
             raise e
-        except Exception:
+        except Exception as e:
+            logger.error("Here is the prompting error: %s", str(e))
             raise errors.PromptingAIError
 
     async def _get_message(self, response: str) -> sch.Message:

@@ -123,7 +123,7 @@ will be ignored; using memory's chat history instead."""
                 prompt_metadata=self.prompt_metadata,
                 chat_metadata=self.chat_metadata,
                 query_result=self.memory.query_result,
-                use_docs=self.use_docs,
+                use_docs=self.use_docs_tool,
             )
             tools += await self._sql_tool.get_tools()
 

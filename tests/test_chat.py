@@ -93,7 +93,7 @@ async def test_get_trust_score(chat_session):
     assert result
 
 
-@pytest.mark.skip(reason="Only ran adhoc")
+@pytest.mark.skip(reason="This is only ran adhoc.")
 @pytest.mark.chat
 async def test_save_sql_query(chat_session):
     """Test saving a SQL query"""

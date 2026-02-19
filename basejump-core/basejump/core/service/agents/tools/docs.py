@@ -62,7 +62,7 @@ to the organization in charge of the database.""",
     async def get_docs(self, prompt: str, max_docs: int = 10):
         # Increase the max tokens for a longer response
         logger.debug("Searching documentation...")
-        await tool_utils.update_llm_tokens(llm=self.llm, max_tokens=2000)
+        await tool_utils.update_llm_tokens(llm=self.llm, max_tokens=5000)
         handler = ChatMessageHandler(
             prompt_metadata=self.prompt_metadata,
             chat_metadata=self.chat_metadata,
@@ -85,7 +85,6 @@ to the organization in charge of the database.""",
             redis_client=self.service_context.redis_client,
         )
         my_retriever = vector_index.as_retriever(similarity_top_k=TOP_K)
-        nodes = await my_retriever.aretrieve(prompt)
         nodes = await my_retriever.aretrieve(prompt)
         response_text = f"""\
 Here is a list of relevant documentation snippets based on your prompt. Each snippet is separated using a \
