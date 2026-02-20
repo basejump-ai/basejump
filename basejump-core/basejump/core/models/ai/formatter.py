@@ -21,7 +21,7 @@ class JSONResponseFormatter:
         response: str,
         pydantic_format: Type[BaseModel],
         small_model_info: sch.ModelInfo,
-        max_tokens: int = 500,
+        max_tokens: int = 2500,
         llm: Optional[LLM] = None,
     ):
         self.response = response

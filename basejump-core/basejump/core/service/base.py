@@ -692,6 +692,19 @@ instructions for the expected output format: \n{EXPECTED_OUTPUT_INSTRUCTIONS}\
             The prompt to chat with the AI
         """
         if isinstance(self.agent, FunctionCallingAgent):
+            # HACK: Reduce chat history length if excessive to avoid issues with the LLM responding
+            # due to running out of tokens per max_tokens
+            all_content_list = []
+            for message in chat_history:
+                all_content_list += message.content
+            all_content = "".join(all_content_list)
+            length_of_history = len(all_content)
+            logger.debug("Length of chat history character count is: %s", length_of_history)
+            if length_of_history > 1500:
+                logger.debug("Eliminating chat history due to excessive chat history length.")
+                chat_history = []
+
+            # Prompt the agent
             agent_output = await self.agent.achat(
                 message=prompt, task=task, chat_history=chat_history, input=input, step=step
             )

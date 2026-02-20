@@ -4,7 +4,7 @@ from basejump.core.service.base import BaseAgent, SimpleAgent
 logger = set_logging(handler_option="stream", name=__name__)
 
 
-async def update_agent_tokens(agent: BaseAgent, max_tokens: int = 500):
+async def update_agent_tokens(agent: BaseAgent, max_tokens: int = 2500):
     """Used to change the max tokens for the agent"""
     # Simple agent doesn't use prompt_agent, which is where the agent is set
     # TODO: Update agent to be optional
