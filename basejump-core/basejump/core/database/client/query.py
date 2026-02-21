@@ -1,4 +1,5 @@
 import asyncio
+import uuid
 from functools import cached_property
 from typing import Optional
 
@@ -129,6 +130,7 @@ class ClientQueryRecorder(ClientQueryRunner):
                         small_model_info=self.small_model_info,
                         initial_prompt=self.initial_prompt,
                         sql_query=self.sql_query,
+                        file_info=self.result_store.get_file_info(result_uuid=uuid.uuid4()),
                     )
             except Exception as e:
                 logger.error("Error running client sql query and storing results: %s", str(e))
