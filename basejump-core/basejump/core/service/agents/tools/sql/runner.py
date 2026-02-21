@@ -428,6 +428,6 @@ Connection timed out. Please try again."""
         new_values = sch.MessageQueryResult.from_orm(result_history)
 
         # Update existing object fields in-place
+        await self.db.commit()  # NOTE: Calling commit again to avoid idle in transaction
         for field_name in new_values.__fields__:
             setattr(self.query_result, field_name, getattr(new_values, field_name))
-        await self.db.commit()  # NOTE: Calling commit again to avoid idle in transaction
