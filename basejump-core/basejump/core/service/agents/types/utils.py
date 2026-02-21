@@ -37,7 +37,6 @@ async def refresh_result(
     # Get the initial prompt
     initial_prompt = await crud_chat.get_initial_prompt_for_result(db=db, result_uuid=result.result_uuid)
     assert initial_prompt, "Missing chat history"
-    result_store.result_uuid = result.result_uuid
     async with query.ClientQueryRecorder(
         client_conn_params=conn_db.conn_params,
         sql_query=result.sql_query,

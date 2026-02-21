@@ -36,9 +36,9 @@ from redisvl.schema import IndexSchema
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database import db_utils
+from basejump.core.database import utils as db_utils
 from basejump.core.database.crud import crud_chat, crud_connection
-from basejump.core.database.crud.crud_utils import create_callback_mgrs
+from basejump.core.database.crud.utils import create_callback_mgrs
 from basejump.core.database.session import LocalSession
 from basejump.core.models import constants, enums, errors, models
 from basejump.core.models import schemas as sch
@@ -694,10 +694,10 @@ instructions for the expected output format: \n{EXPECTED_OUTPUT_INSTRUCTIONS}\
         if isinstance(self.agent, FunctionCallingAgent):
             # HACK: Reduce chat history length if excessive to avoid issues with the LLM responding
             # due to running out of tokens per max_tokens
-            all_content_list = []
+            all_content_list: list = []
             if chat_history:
                 for message in chat_history:
-                    all_content_list += message.content
+                    all_content_list += message.content if message.content else ""
                 all_content = "".join(all_content_list)
                 length_of_history = len(all_content)
                 logger.debug("Length of chat history character count is: %s", length_of_history)
@@ -861,7 +861,6 @@ https://go.microsoft.com/fwlink/?linkid=2198766"""
                 constants.SQL_TABLES_TOOL_NM_PREFIX in sentence
                 or constants.SQL_EXEC_TOOL_NM_PREFIX in sentence
                 or constants.VIS_TOOL_NM in sentence
-                or constants.INTERNAL_DOCS_TOOL_NM in sentence
             ):
                 continue
             if "The current language" in sentence:

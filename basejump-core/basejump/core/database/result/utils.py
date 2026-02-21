@@ -1,5 +1,7 @@
 """Utilities for query results."""
 
+import pathlib
+
 import pandas as pd
 from sqlalchemy.engine import Row
 
@@ -7,7 +9,6 @@ from basejump.core.models import enums
 from basejump.core.models import schemas as sch
 
 RESULT_PREVIEW_CT = 100
-PREVIEW_SUFFIX = "_preview"
 S3_PREFIX = "s3://"
 
 
@@ -43,7 +44,6 @@ def get_output_df(query_result: list[Row], sql_query: str) -> sch.QueryResultDF:
     )
 
 
-def get_preview_file_name(file_path: str) -> str:
-    split_file = file_path.split(".csv")
-    file_name = split_file[0]
-    return f"{file_name}{PREVIEW_SUFFIX}.csv"
+def create_parent_folders(output_path: str):
+    output_file = pathlib.Path(output_path)
+    output_file.parent.mkdir(parents=True, exist_ok=True)

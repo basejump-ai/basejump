@@ -787,7 +787,9 @@ class MessagePair(BaseModel):
     response: Optional[ChatResponse] = None
 
 
-class ResultFileInfo:
+class ResultFileInfo(BaseModel):
     result_uuid: uuid.UUID
+    file_name: str
     file_path: str
+    preview_file_name: str
     preview_file_path: str
