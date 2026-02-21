@@ -531,7 +531,7 @@ class ThoughtMessage(BaseModel):
 class BaseModelInfo(BaseModel):
     model_name: enums.AIModelSchema
     max_tokens: int = Field(
-        default=500,
+        default=2500,
         description="""Limit max_tokens to reduce hitting API limit since it's \
 estimated based off of max_tokens instead of the actual tokens in the completion""",
     )
@@ -785,3 +785,11 @@ class ChatResponse(BaseModel):
 class MessagePair(BaseModel):
     prompt: ChatPrompt
     response: Optional[ChatResponse] = None
+
+
+class ResultFileInfo(BaseModel):
+    result_uuid: uuid.UUID
+    file_name: str
+    file_path: str
+    preview_file_name: str
+    preview_file_path: str

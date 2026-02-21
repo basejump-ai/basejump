@@ -83,7 +83,9 @@ class Team(Base):
 
     client_id: Mapped[int] = mapped_column(ForeignKey("account.client.client_id", ondelete="CASCADE"))
     team_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
-    team_uuid: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), server_default=text("gen_random_uuid()"))
+    team_uuid: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), server_default=text("gen_random_uuid()"), unique=True
+    )
     team_name: Mapped[str]
     team_desc: Mapped[str]  # A team description to provide to the AI
     timestamp: Mapped[datetime] = mapped_column(server_default=func.now())
@@ -111,7 +113,9 @@ class User(Base):
 
     client_id = mapped_column(ForeignKey("account.client.client_id", ondelete="CASCADE"))
     user_id: Mapped[int] = mapped_column(autoincrement=True, unique=True)
-    user_uuid: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), server_default=text("gen_random_uuid()"))
+    user_uuid: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), server_default=text("gen_random_uuid()"), unique=True
+    )
     service_user_uuid: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True))
     username: Mapped[str]
     email_address: Mapped[Optional[str]]
@@ -143,7 +147,9 @@ class Connection(Base):
         ForeignKey("account.client.client_id", ondelete="CASCADE"), primary_key=True
     )
     conn_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    conn_uuid: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), server_default=text("gen_random_uuid()"))
+    conn_uuid: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), server_default=text("gen_random_uuid()"), unique=True
+    )
     conn_type: Mapped[str]
     data_source_desc: Mapped[str]
 
@@ -163,7 +169,9 @@ class DBParams(Base):
 
     client_id: Mapped[int] = mapped_column(ForeignKey("account.client.client_id", ondelete="CASCADE"))
     db_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    db_uuid: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), server_default=text("gen_random_uuid()"))
+    db_uuid: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), server_default=text("gen_random_uuid()"), unique=True
+    )
     vector_id: Mapped[int] = mapped_column(ForeignKey("connect.vector_db.vector_id", ondelete="CASCADE"))
     database_type: Mapped[bytes]
     drivername: Mapped[bytes]
@@ -234,7 +242,9 @@ class DBVector(Base):
     __table_args__ = {"schema": "connect"}
     client_id: Mapped[int] = mapped_column(ForeignKey("account.client.client_id", ondelete="CASCADE"))
     vector_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    vector_uuid: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), server_default=text("gen_random_uuid()"))
+    vector_uuid: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), server_default=text("gen_random_uuid()"), unique=True
+    )
     vector_database_vendor: Mapped[str]
     vector_datasource_type: Mapped[str]
     index_name: Mapped[str]
@@ -254,7 +264,9 @@ class DBTables(Base):
         ForeignKey("account.client.client_id", ondelete="CASCADE"), primary_key=True
     )
     tbl_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    tbl_uuid: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), server_default=text("gen_random_uuid()"))
+    tbl_uuid: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), server_default=text("gen_random_uuid()"), unique=True
+    )
     db_id: Mapped[int] = mapped_column(ForeignKey("connect.database.db_id", ondelete="CASCADE"))
     # TODO: Break out the schema name
     table_name: Mapped[str]  # This includes the schema aka the full_table_name
@@ -287,7 +299,9 @@ class DBTableColumns(Base):
     # NOTE: table_columns and a few other tables need client_id as part of the primary key for partition key purposes
     client_id: Mapped[int] = mapped_column(primary_key=True)
     col_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    col_uuid: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), server_default=text("gen_random_uuid()"))
+    col_uuid: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), server_default=text("gen_random_uuid()"), unique=True
+    )
     tbl_id: Mapped[int]
     column_name: Mapped[str]
     column_type: Mapped[str]
@@ -314,7 +328,9 @@ class Chat(Base):
         ForeignKey("account.client.client_id", ondelete="CASCADE"), primary_key=True
     )
     chat_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    chat_uuid: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), server_default=text("gen_random_uuid()"))
+    chat_uuid: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), server_default=text("gen_random_uuid()"), unique=True
+    )
     user_id: Mapped[int] = mapped_column(ForeignKey("account.user.user_id", ondelete="CASCADE"))
     team_id: Mapped[int] = mapped_column(ForeignKey("account.team.team_id", ondelete="CASCADE"))
     chat_in_index: Mapped[bool] = mapped_column(server_default=text("false"))
@@ -342,7 +358,9 @@ class PromptHistory(Base):
         ForeignKey("account.client.client_id", ondelete="CASCADE"), primary_key=True
     )
     prompt_id: Mapped[big_int] = mapped_column(sa.BigInteger, sa.Identity(), autoincrement=True, primary_key=True)
-    prompt_uuid: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), server_default=text("gen_random_uuid()"))
+    prompt_uuid: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), server_default=text("gen_random_uuid()"), unique=True
+    )
     llm_type: Mapped[enums.LLMType]
 
 
@@ -370,7 +388,9 @@ class ChatHistory(Base):
 
     client_id: Mapped[int] = mapped_column(primary_key=True)
     msg_id: Mapped[big_int] = mapped_column(sa.BigInteger, sa.Identity(), autoincrement=True, primary_key=True)
-    msg_uuid: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), server_default=text("gen_random_uuid()"))
+    msg_uuid: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), server_default=text("gen_random_uuid()"), unique=True
+    )
     msg_in_index: Mapped[bool] = mapped_column(server_default=text("false"))
     parent_msg_uuid: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
     result_uuid: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True))
@@ -407,7 +427,9 @@ class ResultHistory(Base):
         ForeignKey("account.client.client_id", ondelete="CASCADE"), primary_key=True
     )
     result_id: Mapped[big_int] = mapped_column(sa.BigInteger, sa.Identity(), primary_key=True, autoincrement=True)
-    result_uuid: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), server_default=text("gen_random_uuid()"))
+    result_uuid: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), server_default=text("gen_random_uuid()"), unique=True
+    )
     chat_id: Mapped[
         Optional[int]
     ]  # BC v0.27.1 Did not start relating to chat until v0.27.1 so all results before that have null chat IDs
@@ -455,7 +477,9 @@ class VisualResultHistory(Base):
     visual_result_id: Mapped[big_int] = mapped_column(
         sa.BigInteger, sa.Identity(), primary_key=True, autoincrement=True
     )
-    visual_result_uuid: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), server_default=text("gen_random_uuid()"))
+    visual_result_uuid: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), server_default=text("gen_random_uuid()"), unique=True
+    )
     parent_msg_uuid: Mapped[Optional[uuid.UUID]]
     result_id: Mapped[int]
     result_uuid: Mapped[uuid.UUID]
@@ -489,7 +513,9 @@ class SavedResultHistory(Base):
     saved_result_id: Mapped[big_int] = mapped_column(
         sa.BigInteger, sa.Identity(), primary_key=True, autoincrement=True
     )
-    saved_result_uuid: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), server_default=text("gen_random_uuid()"))
+    saved_result_uuid: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), server_default=text("gen_random_uuid()"), unique=True
+    )
     result_id: Mapped[int]
     result_uuid: Mapped[uuid.UUID]
     visual_result_id: Mapped[Optional[int]]
@@ -525,7 +551,9 @@ class TokenCount(Base):
     )
     client_id: Mapped[int] = mapped_column(primary_key=True)
     token_id: Mapped[big_int] = mapped_column(sa.BigInteger, sa.Identity(), primary_key=True, autoincrement=True)
-    token_uuid: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), server_default=text("gen_random_uuid()"))
+    token_uuid: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), server_default=text("gen_random_uuid()"), unique=True
+    )
     prompt_id: Mapped[int]
     prompt: Mapped[str]
     ai_model_provider: Mapped[str]
@@ -550,7 +578,9 @@ class ClientStorageConnection(Base):
         {"schema": "connect"},
     )
     client_id: Mapped[int]
-    storage_uuid: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), server_default=text("gen_random_uuid()"))
+    storage_uuid: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), server_default=text("gen_random_uuid()"), unique=True
+    )
     storage_id: Mapped[big_int] = mapped_column(sa.BigInteger, sa.Identity(), primary_key=True, autoincrement=True)
     alias: Mapped[str]
     storage_provider: Mapped[str]
@@ -584,7 +614,9 @@ class TableUpload(Base):
     )
     client_id: Mapped[int] = mapped_column(primary_key=True)
     upload_id: Mapped[int] = mapped_column(autoincrement=True, primary_key=True)
-    upload_uuid: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), server_default=text("gen_random_uuid()"))
+    upload_uuid: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), server_default=text("gen_random_uuid()"), unique=True
+    )
     table_name: Mapped[str]
     table_location: Mapped[str]
     db_id: Mapped[int]
