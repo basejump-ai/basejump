@@ -47,3 +47,7 @@ def get_output_df(query_result: list[Row], sql_query: str) -> sch.QueryResultDF:
 def create_parent_folders(output_path: str):
     output_file = pathlib.Path(output_path)
     output_file.parent.mkdir(parents=True, exist_ok=True)
+
+
+def get_s3_file_path(s3_file_key: str, bucket_name: str):
+    return f"{S3_PREFIX}{bucket_name}/{s3_file_key}"

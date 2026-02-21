@@ -344,7 +344,7 @@ class S3ResultStore(ResultStore):
         return f"{result_utils.S3_PREFIX}{bucket_name}/"
 
     def get_file_path(self, file_name: str) -> str:
-        return f"{result_utils.S3_PREFIX}{self.bucket_name}/{file_name}"
+        return result_utils.get_s3_file_path(s3_file_key=file_name, bucket_name=self.bucket_name)
 
     def get_file_name(self, uuid: UUID) -> str:
         file_name = super().get_file_name(uuid=uuid)
