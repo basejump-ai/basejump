@@ -48,7 +48,12 @@ class ResultStore(ABC):
 
     @abstractmethod
     def store(
-        self, result: sa.engine.CursorResult, small_model_info: sch.ModelInfo, initial_prompt: str, sql_query: str
+        self,
+        file_info: sch.ResultFileInfo,
+        result: sa.engine.CursorResult,
+        small_model_info: sch.ModelInfo,
+        initial_prompt: str,
+        sql_query: str,
     ):
         pass
 
@@ -142,6 +147,7 @@ class LocalResultStore(ResultStore):
 
     def store(
         self,
+        file_info: sch.ResultFileInfo,
         result: sa.engine.CursorResult,
         small_model_info: sch.ModelInfo,
         initial_prompt: str,
@@ -161,8 +167,6 @@ class LocalResultStore(ResultStore):
         self.counter = 0
         self.total_row_counter = 0
         self.ai_query_result_view = []
-        preview_file_path = result_utils.get_preview_file_name(self.output_file.as_posix())
-        result_file_path = self.output_file.as_posix()
         # Process rows and write directly to file
         for row in result:
             if self.counter <= constants.AI_RESULT_PREVIEW_CT:
@@ -175,7 +179,7 @@ class LocalResultStore(ResultStore):
 
             # Save the preview if it hasn't been saved
             if self.counter == 100 and not self.saved_preview:
-                self.save_preview(preview_file_path, buffer=buffer, text_wrapper=text_wrapper)
+                self.save_preview(file_info.preview_file_path, buffer=buffer, text_wrapper=text_wrapper)
 
         # If exactly one row, compute metric as before
         if self.counter == 1:
@@ -185,20 +189,20 @@ class LocalResultStore(ResultStore):
 
         # Save the preview
         if not self.saved_preview:
-            self.save_preview(preview_file_path, buffer=buffer, text_wrapper=text_wrapper)
+            self.save_preview(file_info.preview_file_path, buffer=buffer, text_wrapper=text_wrapper)
 
         # Save the result
         text_wrapper.flush()
         buffer.seek(0)
         data = buffer.getvalue()
-        with open(result_file_path, "wb") as f:
+        with open(file_info.result_file_path, "wb") as f:
             f.write(data)
 
         # Get the query result
         return self.create_query_result(
             sql_query=sql_query,
-            result_file_path=result_file_path,
-            preview_file_path=preview_file_path,
+            result_file_path=file_info.result_file_path,
+            preview_file_path=file_info.preview_file_path,
             columns=columns,
         )
 

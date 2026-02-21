@@ -220,7 +220,7 @@ async def chat_init(db_init):
         small_model_info=settings.small_model_info,
         embedding_model_info=settings.embedding_model_info,
     )
-
+    breakpoint()
     chat_result = await service.chat(
         db=db,
         prompt="Give me a report of all clients.",
