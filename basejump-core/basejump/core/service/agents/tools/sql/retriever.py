@@ -247,7 +247,7 @@ Here is the prompt that needs to be broken out: \n\n\
     async def get_sql_tables(self, inquiry):
         """Retrieve SQL tables to use in the SQL query"""
         # Need more tokens for large SQL queries
-        await tool_utils.update_llm_tokens(llm=self.llm, max_tokens=1000)
+        await tool_utils.update_llm_tokens(llm=self.llm, max_tokens=10)
         try:
             tables = await self.use_sub_questions(prompt=inquiry)
         except Exception as e:
