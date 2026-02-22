@@ -208,8 +208,9 @@ is in general considered to be complex, return True. Otherwise return False. Her
         )
         extract = await format_json_response.format()
         logger.debug("Decision to use sub-question tool: %s", extract.true_false_bool)
-        if not extract.true_false_bool:
-            return []
+        # TEST
+        # if not extract.true_false_bool:
+        #     return []
         logger.debug("Agent decided to use sub-questions to retrieve tables")
         # Ask the agent for the sub prompts
         agent_prompt = f"""\
