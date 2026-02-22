@@ -218,6 +218,7 @@ class LocalResultStore(ResultStore):
         initial_prompt: str,
         sql_query: str,
     ) -> sch.QueryResult:
+        # HACK: Really just need a new result store per query instead
         super().reset()
         logger.info("Saving result_uuid to local storage: %s", str(file_info.result_uuid))
 
