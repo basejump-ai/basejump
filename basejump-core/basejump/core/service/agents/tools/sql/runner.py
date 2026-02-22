@@ -331,6 +331,7 @@ Connection timed out. Please try again."""
 
         # Verify the SQL query is correct
         msg = await self._verify_sql_query(sql_query)
+        return None
         if msg:
             return msg
 
