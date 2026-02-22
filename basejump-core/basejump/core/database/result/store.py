@@ -97,6 +97,16 @@ class ResultStore(ABC):
         file_name = f"{file_name}.csv"
         return file_name
 
+    def reset(self):
+        self.ai_query_result_view = []
+        self.saved_preview = False
+        self.counter = 0
+        self.chunk_counter = 0
+        self.total_row_counter = 0
+        self.aborted_upload = False
+        self.metric_value = None
+        self.metric_value_formatted = None
+
     def create_file_info(self, file_name: str, file_path: str, result_uuid: UUID) -> sch.ResultFileInfo:
         preview_file_name = self.get_preview_file_name(uuid=result_uuid)
         preview_file_path = self.get_preview_file_path(preview_file_name=preview_file_name)
@@ -208,6 +218,7 @@ class LocalResultStore(ResultStore):
         initial_prompt: str,
         sql_query: str,
     ) -> sch.QueryResult:
+        super().reset()
         logger.info("Saving result_uuid to local storage: %s", str(file_info.result_uuid))
 
         buffer = io.BytesIO()
@@ -372,6 +383,7 @@ class S3ResultStore(ResultStore):
         initial_prompt: str,
         sql_query: str,
     ) -> sch.QueryResult:
+        super().reset()
         logger.info("Uploading result_uuid to S3: %s", str(file_info.result_uuid))
 
         buffer = io.BytesIO()
