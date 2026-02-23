@@ -185,7 +185,9 @@ instructions for the expected output format: \n{EXPECTED_OUTPUT_INSTRUCTIONS}\
         prompt
             The prompt to chat with the AI
         """
+        chat_history = chat_history or self.memory.chat_history
         if isinstance(self.agent, FunctionCallingAgent):
+            logger.debug("Here is the chat history: %s", chat_history)
             agent_output = await self.agent.achat(
                 message=prompt, task=task, chat_history=chat_history, input=input, step=step
             )
