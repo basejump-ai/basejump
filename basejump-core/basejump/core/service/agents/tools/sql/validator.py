@@ -362,6 +362,8 @@ format: {db_col_filters}\n"""
 
     # TODO: Need to make tests for verifying the where clause
     async def verify_where_clause_distinct_values(self, sql_query: str) -> Optional[str]:
+        # TEST
+        sql_query = "select upper(client_name) from account.client"
         try:
             columns = await self.parser.get_where_clause_columns(sql_query=sql_query)
         except errors.StarQueryError as e:
