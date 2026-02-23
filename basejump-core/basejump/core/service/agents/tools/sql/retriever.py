@@ -38,7 +38,7 @@ RELEVANCE_THRESHOLD = 0.1
 
 
 class TableRetrieverTool(BaseTool):
-    TABLES_TO_RETRIEVE: int = 12
+    TABLES_TO_RETRIEVE: int = 8
 
     def __init__(
         self,
@@ -247,7 +247,8 @@ Here is the prompt that needs to be broken out: \n\n\
     async def get_sql_tables(self, inquiry):
         """Retrieve SQL tables to use in the SQL query"""
         # Need more tokens for large SQL queries
-        await tool_utils.update_llm_tokens(llm=self.llm, max_tokens=1000)
+        logger.debug("Here is the get SQL tables inquiry: %s", inquiry)
+        await tool_utils.update_agent_tokens(agent=self.agent, max_tokens=8000)
         try:
             tables = await self.use_sub_questions(prompt=inquiry)
         except Exception as e:
@@ -278,6 +279,11 @@ Here is the prompt that needs to be broken out: \n\n\
             docs_tool=constants.get_docs_tool_nm(db_id=self.db_id),
             use_docs=self.use_docs,
         )
+        # HACK: Patch for a bug where sometimes the formatted prompt may equal "None"
+        # TODO: Fix so this patch is no longer necessary
+        if not formatted_prompt or formatted_prompt == "None":
+            logger.warning("Formatted prompt = None")
+            formatted_prompt = "No tables found based on that inquiry"
         return formatted_prompt
         # TODO: Use async task group or async for here to quickly get all tables
         # (this is referring to within the _aget_table_context method)

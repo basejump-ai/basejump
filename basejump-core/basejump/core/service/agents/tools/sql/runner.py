@@ -169,7 +169,7 @@ After stating your plan, do one of the following:
         format_json_response = formatter.JSONResponseFormatter(
             response=sql_query,
             pydantic_format=fmt.CleanSQLFormat,
-            max_tokens=1000,
+            max_tokens=1500,
             small_model_info=self.service_context.small_model_info,
         )
         extract = await format_json_response.format()
@@ -254,7 +254,7 @@ After reviewing, run this tool again to run your original or updated SQL query."
         msg = await self._check_hallucinations(sql_query)
         if msg:
             return msg
-        await tool_utils.update_llm_tokens(llm=self.llm, max_tokens=1000)
+        await tool_utils.update_llm_tokens(llm=self.llm, max_tokens=1500)
 
         # Check if SQL query has been previously used
         await self._check_prior_sql(sql_query)
