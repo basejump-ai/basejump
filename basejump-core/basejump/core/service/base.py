@@ -36,9 +36,9 @@ from redisvl.schema import IndexSchema
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database import db_utils
+from basejump.core.database import utils as db_utils
 from basejump.core.database.crud import crud_chat, crud_connection
-from basejump.core.database.crud.crud_utils import create_callback_mgrs
+from basejump.core.database.crud.utils import create_callback_mgrs
 from basejump.core.database.session import LocalSession
 from basejump.core.models import constants, enums, errors, models
 from basejump.core.models import schemas as sch
@@ -847,7 +847,6 @@ https://go.microsoft.com/fwlink/?linkid=2198766"""
                 constants.SQL_TABLES_TOOL_NM_PREFIX in sentence
                 or constants.SQL_EXEC_TOOL_NM_PREFIX in sentence
                 or constants.VIS_TOOL_NM in sentence
-                or constants.INTERNAL_DOCS_TOOL_NM in sentence
             ):
                 continue
             if "The current language" in sentence:
