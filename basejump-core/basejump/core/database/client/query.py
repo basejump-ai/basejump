@@ -16,7 +16,8 @@ from basejump.core.models import schemas as sch
 
 logger = set_logging(handler_option="stream", name=__name__)
 
-TIMEOUT = 60 * 30
+# TEST
+TIMEOUT = 1
 
 
 class ClientQueryRunner:
