@@ -297,6 +297,8 @@ After reviewing, run this tool again to run your original or updated SQL query."
         try:
             async with asyncio.timeout(TIMEOUT):
                 logger.info("Running AI SQL query: %s", sql_query)
+                # TEST
+                raise Exception
                 query_result_str = await self.run_ai_sql_query(sql_query=sql_query)
         except TimeoutError:
             error_msg = f"SQL query took longer to execute than the max {TIMEOUT/60} minute time out limit."
