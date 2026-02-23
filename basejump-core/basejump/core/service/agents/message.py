@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database import utils as db_utils
 from basejump.core.database.crud import crud_chat
-from basejump.core.models import constants, enums
+from basejump.core.models import constants, enums, errors
 from basejump.core.models import schemas as sch
 
 logger = set_logging(handler_option="stream", name=__name__)
@@ -218,15 +218,16 @@ class ChatMessageHandler(MessageHandler):
             verified = False
         # HACK: Need to use a constant instead: https://github.com/Basejump-AI/Basejump/issues/1441
         if self.message.content.strip() == "Reached max iterations.":
+            logger.error("Reached max iterations")
             raise Exception("Reached max iterations.")
+        content = self.message.content if self.message.content != "None" else errors.PROMPTING_AI_ERROR
         api_message = sch.APIMessage(
             # vars from ChatMessage
             role=self.message.role,
             msg_type=self.message.msg_type,
-            # content=self.message.content,
             # TODO: Move this into be passed in the body instead
             # special characters in the content can cause issues if sent via header
-            content=self.message.content,
+            content=content,
             timestamp=self.message.timestamp,
             msg_uuid=self.message.msg_uuid,
             # vars from PromptMetadata
