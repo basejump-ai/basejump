@@ -102,7 +102,6 @@ def parse_message(text: str) -> list:
     thoughts = []
     chunks = re.split(r"\n+", text)
     for chunk in chunks:
-        logger.debug("Initial LLM thought: %s", chunk)
         # TODO: Make this more robust
         # TODO: Fix the hard reference to structured_sql_generation_tool
         if not chunk:

@@ -19,7 +19,7 @@ class JSONResponseFormatter:
         response: str,
         pydantic_format: Type[BaseModel],
         small_model_info: sch.ModelInfo,
-        max_tokens: int = 500,
+        max_tokens: int = 1500,
         llm: Optional[LLM] = None,
     ):
         self.response = response
@@ -38,7 +38,7 @@ class JSONResponseFormatter:
                 ),
                 ChatMessage(
                     role="user",
-                    content=("Here is the response: \n" "------\n" "{response}\n" "------"),
+                    content=("\n" "------\n" "{response}\n" "------"),
                 ),
             ]
         )
@@ -95,7 +95,7 @@ class DateFormatter(JSONResponseFormatter):
                 ),
                 ChatMessage(
                     role="user",
-                    content=("Here is the response: \n" "------\n" "{response}\n" "------"),
+                    content=("\n" "------\n" "{response}\n" "------"),
                 ),
             ]
         )
