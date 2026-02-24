@@ -1,4 +1,3 @@
-import re
 from typing import Optional
 
 from llama_index.core.llms import MessageRole
@@ -8,6 +7,7 @@ from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.result import store
 from basejump.core.models import constants, enums, errors
 from basejump.core.models import schemas as sch
+from basejump.core.service.agents import utils as agent_utils
 from basejump.core.service.agents.memory.agent import AgentMemory
 from basejump.core.service.agents.message import ChatMessageHandler
 from basejump.core.service.agents.types.simple import SimpleAgent
@@ -121,52 +121,9 @@ https://go.microsoft.com/fwlink/?linkid=2198766"""
         return handler.message
 
     async def response_hook(self, text):
-        # If already logged, then create a new message UUID since we are logging per SQL query execution
-        # logger.info("Webhook messages: %s", text)
-        # If webhook is set, then post the thoughts to the webhook
-        thoughts = []
-        sentence_ls_base = re.split(r"(?<=[a-zA-Z])\.(?=\s)", text)
-        # Recombine sentences if they don't start capitalized (e.g. table names)
-        sentence_ls: list = []
-        for idx, sentence in enumerate(sentence_ls_base):
-            if sentence[0].islower() and idx > 0:
-                # Add to the prior sentence
-                sentence_ls[-1] += f".{sentence}"
-            else:
-                sentence_ls.append(sentence)
-        for sentence in sentence_ls:
-            logger.debug("Initial LLM thought: %s", sentence)
-            # TODO: Make this more robust
-            # TODO: Fix the hard reference to structured_sql_generation_tool
-            if not sentence:
-                continue
-            if (
-                constants.SQL_TABLES_TOOL_NM_PREFIX in sentence
-                or constants.SQL_EXEC_TOOL_NM_PREFIX in sentence
-                or constants.VIS_TOOL_NM in sentence
-                or constants.DOCS_TOOL_NM in sentence
-            ):
-                continue
-            if "The current language" in sentence:
-                continue
-            if "I need to use a tool" in sentence:
-                continue
-            if "Option 1:" in sentence:
-                continue
-            if "UUID" in sentence or "uuid" in sentence:
-                continue
-            if ">>" in sentence:
-                continue
-            if "Use the '" in sentence:
-                continue
-            if "prefix for the plan" in sentence:
-                continue
-            # if SQL_OPTION_1 in sentence or SQL_OPTION_2_SUFFIX in sentence or SQL_OPTION_3_SUFFIX:
-            #     continue
-            else:
-                logger.info("LLM Thought: %s", sentence)
-                thoughts.append(sentence.strip())
+        thoughts = agent_utils.parse_message(text=text)
         for thought in thoughts:
+            logger.info("LLM Thought: %s", thought)
             if not thought:
                 continue
             if self.verbose:
