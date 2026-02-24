@@ -145,15 +145,19 @@ async def db_init(client_init):
     session = LocalSession(client_id=client_init.client_id, engine=sql_engine)
     db = await session.open()
     redis_client_async = settings.get_redis_client_async_instance()
+    redis_client = settings.get_redis_client_instance()
 
     # Add database
-    core_session = sch.CoreSession(redis_client_async=redis_client_async, sql_engine=sql_engine)
+    core_session = sch.CoreSession(
+        redis_client=redis_client, redis_client_async=redis_client_async, sql_engine=sql_engine
+    )
     service_context = service.create_service_context(core_session=core_session)
     db_result = await service.setup_database(
         db=db,
         service_context=service_context,
         user_info=client_init.user_info,
         conn_params=client_init.client_conn_params,
+        index_docs=True,
     )
 
     # Update test env vars
@@ -216,13 +220,13 @@ async def chat_init(db_init):
         small_model_info=settings.small_model_info,
         embedding_model_info=settings.embedding_model_info,
     )
-
     chat_result = await service.chat(
         db=db,
         prompt="Give me a report of all clients.",
         service_context=service_context,
         user_info=db_init.user_info,
         chat=create_chat_result,
+        use_docs=True,
     )
 
     db_init.chat_id = create_chat_result.chat_id

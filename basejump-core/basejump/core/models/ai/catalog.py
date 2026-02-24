@@ -2,7 +2,6 @@
 
 from typing import Optional
 
-from llama_index.core import Settings
 from llama_index.core.base.embeddings.base import BaseEmbedding
 from llama_index.core.callbacks import CallbackManager
 from llama_index.core.llms.function_calling import FunctionCallingLLM
@@ -46,22 +45,6 @@ class AICatalog:
             api_version=model_info.api_version,
             callback_manager=self.callback_manager,
         )
-
-    def get_settings(
-        self, llm: FunctionCallingLLM, embedding_model_info: sch.AzureModelInfo
-    ) -> Settings:  # type:ignore
-        """Get a llama index settings object
-
-        Parameters
-        ----------
-        embedding_model_info
-            This will need to be updated to ModelInfo as soon as support for other embeddings
-            is included.
-        """
-        Settings.callback_manager = llm.callback_manager
-        Settings.llm = llm
-        Settings.embed_model = self.get_embedding_model(model_info=embedding_model_info)
-        return Settings
 
     def get_aws_llm(self, model_info: sch.AWSModelInfo) -> FunctionCallingLLM:
         assert model_info.endpoint_info, "Missing endpoint info - the pydantic schema should be validating this"

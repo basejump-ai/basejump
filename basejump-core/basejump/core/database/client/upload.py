@@ -20,11 +20,7 @@ logger = set_logging(handler_option="stream", name=__name__)
 class TableUploader(ABC):
     def __init__(self, result_store: ResultStore, upload_uuid: Optional[uuid.UUID] = None):
         self.result_store = result_store
-        if upload_uuid:
-            self.result_store.result_uuid = upload_uuid
-            self.upload_uuid = upload_uuid
-        else:
-            self.upload_uuid = self.result_store.result_uuid
+        self.upload_uuid = upload_uuid or uuid.uuid4()
 
     @abstractmethod
     async def upload_file(self, file: UploadFile):
@@ -103,13 +99,14 @@ class S3TableUploader(TableUploader):
         text = chunk.decode("utf-8")
 
         # Initialize multipart upload
-        self.result_store.create_multipart_upload()
+        file_name = self.result_store.get_file_name(uuid=self.upload_uuid)
+        self.result_store.create_multipart_upload(s3_file_key=file_name)
         headers: list = []
 
         # Process rest of file
         while chunk:
             if buffer.tell() >= self.result_store.upload_size:
-                self.result_store.upload_chunk(buffer=buffer, text_wrapper=text_wrapper)
+                self.result_store.upload_chunk(s3_file_key=file_name, buffer=buffer, text_wrapper=text_wrapper)
                 buffer.seek(0)
                 buffer.truncate()
 
@@ -122,10 +119,10 @@ class S3TableUploader(TableUploader):
             text = chunk.decode("utf-8") if chunk else ""
 
         # Upload final chunk
-        self.result_store.complete_multipart_upload(buffer=buffer, text_wrapper=text_wrapper)
+        self.result_store.complete_multipart_upload(s3_file_key=file_name, buffer=buffer, text_wrapper=text_wrapper)
         t2 = time.time()
         logger.debug(f"Time to upload file: {t2-t1}s")
-        table_location = self.result_store.get_s3_folder_path(
+        table_location = self.result_store.get_folder_path(
             bucket_name=self.result_store.bucket_name, prefix=self.result_store.prefix
         )
         return pd.DataFrame(data=headers[1:], columns=headers[0]), table_location

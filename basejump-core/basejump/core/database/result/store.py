@@ -5,16 +5,17 @@ import csv
 import io
 import os
 import pathlib
-import uuid
 from abc import ABC, abstractmethod
 from typing import Optional
+from uuid import UUID
 
 import boto3
 import sqlalchemy as sa
 from botocore.exceptions import ClientError
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database.result import manager, result_utils
+from basejump.core.database.result import manager
+from basejump.core.database.result import utils as result_utils
 from basejump.core.models import constants, errors
 from basejump.core.models import schemas as sch
 from basejump.core.models.ai import formats as fmt
@@ -22,17 +23,16 @@ from basejump.core.models.ai import formatter
 
 logger = set_logging(handler_option="stream", name=__name__)
 
+PREVIEW_SUFFIX = "_preview"
+
 
 class ResultStore(ABC):
     def __init__(
         self,
         client_id: int,
-        result_uuid: Optional[uuid.UUID] = None,
         n_rows=5,
     ):
         self.top_n_rows: int = n_rows
-        self.result_uuid = result_uuid or uuid.uuid4()
-        self.result_file_name = f"{str(self.result_uuid)}.csv"
         self.ai_query_result_view: list = []
         self.saved_preview = False
         self.counter = 0
@@ -43,11 +43,37 @@ class ResultStore(ABC):
         self.metric_value: Optional[str] = None
         self.metric_value_formatted: Optional[str] = None
 
-        logger.info("Uploading result_uuid: %s", str(self.result_uuid))
+    @abstractmethod
+    def get_file_name(self, uuid: UUID) -> str:
+        return self.add_file_extension(file_name=str(uuid))
+
+    @abstractmethod
+    def get_file_path(self, file_name: str) -> str:
+        pass
+
+    @abstractmethod
+    def get_preview_file_name(self, uuid: UUID) -> str:
+        file_name = self.get_file_name(uuid=uuid)
+        split_file = file_name.split(".csv")
+        file_name = split_file[0]
+        return f"{file_name}{PREVIEW_SUFFIX}.csv"
+
+    @abstractmethod
+    def get_preview_file_path(self, preview_file_name: str) -> str:
+        return self.get_file_path(file_name=preview_file_name)
+
+    @abstractmethod
+    def get_file_info(self, result_uuid: UUID) -> sch.ResultFileInfo:
+        pass
 
     @abstractmethod
     def store(
-        self, result: sa.engine.CursorResult, small_model_info: sch.ModelInfo, initial_prompt: str, sql_query: str
+        self,
+        file_info: sch.ResultFileInfo,
+        result: sa.engine.CursorResult,
+        small_model_info: sch.ModelInfo,
+        initial_prompt: str,
+        sql_query: str,
     ):
         pass
 
@@ -55,8 +81,45 @@ class ResultStore(ABC):
     def get_result_manager(self, result_file_path: str):
         pass
 
+    @abstractmethod
+    def save_preview(
+        self,
+        preview_file_name: str,
+        buffer: io.BytesIO,
+        text_wrapper: io.TextIOWrapper,
+        preview_file_path: Optional[str] = None,
+    ):
+        pass
+
+    @staticmethod
+    def add_file_extension(file_name: str) -> str:
+        """Adds the file extension to the file name"""
+        file_name = f"{file_name}.csv"
+        return file_name
+
+    def reset(self):
+        self.ai_query_result_view = []
+        self.saved_preview = False
+        self.counter = 0
+        self.chunk_counter = 0
+        self.total_row_counter = 0
+        self.aborted_upload = False
+        self.metric_value = None
+        self.metric_value_formatted = None
+
+    def create_file_info(self, file_name: str, file_path: str, result_uuid: UUID) -> sch.ResultFileInfo:
+        preview_file_name = self.get_preview_file_name(uuid=result_uuid)
+        preview_file_path = self.get_preview_file_path(preview_file_name=preview_file_name)
+        return sch.ResultFileInfo(
+            file_name=file_name,
+            file_path=file_path,
+            preview_file_name=preview_file_name,
+            preview_file_path=preview_file_path,
+            result_uuid=result_uuid,
+        )
+
     def create_query_result(
-        self, sql_query: str, result_file_path: str, preview_file_path: str, columns: sa.engine.result.RMKeyView
+        self, sql_query: str, file_info: sch.ResultFileInfo, columns: sa.engine.result.RMKeyView
     ) -> sch.QueryResult:
         preview_row_ct = (
             result_utils.RESULT_PREVIEW_CT if self.counter > result_utils.RESULT_PREVIEW_CT else self.counter
@@ -65,17 +128,17 @@ class ResultStore(ABC):
         num_cols = len(columns)
         logger.debug(f"File has {num_rows} rows and {num_cols} columns.")
         result_type = result_utils.get_result_type(num_rows=num_rows, num_cols=num_cols)
-        logger.info("Here is the result file path: %s", result_file_path)
-        logger.info("Here is the result preview file path: %s", preview_file_path)
+        logger.info("Here is the result file path: %s", file_info.file_path)
+        logger.info("Here is the result preview file path: %s", file_info.preview_file_path)
         return sch.QueryResult(
-            result_uuid=self.result_uuid,
+            result_uuid=file_info.result_uuid,
             preview_row_ct=preview_row_ct,
             query_result=self.ai_query_result_view[: constants.AI_RESULT_PREVIEW_CT],  # Adding as extra safeguard
             ai_preview_row_ct=constants.AI_RESULT_PREVIEW_CT,
             num_rows=num_rows,
             num_cols=len(columns),
-            result_file_path=result_file_path,
-            preview_file_path=preview_file_path,
+            result_file_path=file_info.file_path,
+            preview_file_path=file_info.preview_file_path,
             result_type=result_type,
             sql_query=sql_query,
             metric_value=self.metric_value,
@@ -119,33 +182,46 @@ class LocalResultStore(ResultStore):
     def __init__(
         self,
         client_id: int,
-        result_uuid: Optional[uuid.UUID] = None,
         n_rows=5,
-        output_path: Optional[str] = None,
     ):
         super().__init__(
             client_id=client_id,
-            result_uuid=result_uuid,
             n_rows=n_rows,
         )
-        self.output_path = output_path
-        # Decide where to write
-        if self.output_path is None:
-            # default to something like ./sql_results/<some_name>.csv
-            output_dir = pathlib.Path("./data/sql_results")
-            output_dir.mkdir(parents=True, exist_ok=True)
-            self.output_file = output_dir / self.result_file_name
-        else:
-            self.output_file = pathlib.Path(self.output_path)
-            self.output_file.parent.mkdir(parents=True, exist_ok=True)
+
+    def get_file_name(self, uuid: UUID) -> str:
+        return super().get_file_name(uuid=uuid)
+
+    def get_file_path(self, file_name: str) -> str:
+        # Get the output directory
+        output_dir = pathlib.Path("./data/sql_results")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        file_path = output_dir / file_name
+        return file_path.as_posix()
+
+    def get_preview_file_name(self, uuid: UUID) -> str:
+        return super().get_preview_file_name(uuid=uuid)
+
+    def get_preview_file_path(self, preview_file_name: str) -> str:
+        return self.get_file_path(file_name=preview_file_name)
+
+    def get_file_info(self, result_uuid: UUID) -> sch.ResultFileInfo:
+        file_name = self.get_file_name(uuid=result_uuid)
+        file_path = self.get_file_path(file_name=file_name)
+        return super().create_file_info(file_name=file_name, file_path=file_path, result_uuid=result_uuid)
 
     def store(
         self,
+        file_info: sch.ResultFileInfo,
         result: sa.engine.CursorResult,
         small_model_info: sch.ModelInfo,
         initial_prompt: str,
         sql_query: str,
     ) -> sch.QueryResult:
+        # HACK: Really just need a new result store per query instead
+        super().reset()
+        logger.info("Saving result_uuid to local storage: %s", str(file_info.result_uuid))
+
         buffer = io.BytesIO()
         text_wrapper = io.TextIOWrapper(buffer, newline="", encoding="utf-8")
         # Open local CSV file
@@ -160,8 +236,6 @@ class LocalResultStore(ResultStore):
         self.counter = 0
         self.total_row_counter = 0
         self.ai_query_result_view = []
-        preview_file_path = result_utils.get_preview_file_name(self.output_file.as_posix())
-        result_file_path = self.output_file.as_posix()
         # Process rows and write directly to file
         for row in result:
             if self.counter <= constants.AI_RESULT_PREVIEW_CT:
@@ -174,7 +248,9 @@ class LocalResultStore(ResultStore):
 
             # Save the preview if it hasn't been saved
             if self.counter == 100 and not self.saved_preview:
-                self.save_preview(preview_file_path, buffer=buffer, text_wrapper=text_wrapper)
+                self.save_preview(
+                    preview_file_name=file_info.preview_file_name, buffer=buffer, text_wrapper=text_wrapper
+                )
 
         # If exactly one row, compute metric as before
         if self.counter == 1:
@@ -184,27 +260,34 @@ class LocalResultStore(ResultStore):
 
         # Save the preview
         if not self.saved_preview:
-            self.save_preview(preview_file_path, buffer=buffer, text_wrapper=text_wrapper)
+            self.save_preview(preview_file_name=file_info.preview_file_name, buffer=buffer, text_wrapper=text_wrapper)
 
         # Save the result
         text_wrapper.flush()
         buffer.seek(0)
         data = buffer.getvalue()
-        with open(result_file_path, "wb") as f:
+        with open(file_info.file_path, "wb") as f:
             f.write(data)
 
         # Get the query result
         return self.create_query_result(
             sql_query=sql_query,
-            result_file_path=result_file_path,
-            preview_file_path=preview_file_path,
+            file_info=file_info,
             columns=columns,
         )
 
     def get_result_manager(self, result_file_path: str):
         return manager.LocalResultManager(result_file_path=result_file_path)
 
-    def save_preview(self, preview_file_path: str, buffer: io.BytesIO, text_wrapper: io.TextIOWrapper):
+    def save_preview(
+        self,
+        preview_file_name: str,
+        buffer: io.BytesIO,
+        text_wrapper: io.TextIOWrapper,
+        preview_file_path: Optional[str] = None,
+    ):
+        if not preview_file_path:
+            preview_file_path = self.get_preview_file_path(preview_file_name=preview_file_name)
         text_wrapper.flush()
         buffer_to_upload = copy.deepcopy(buffer)
         buffer_to_upload.seek(0)
@@ -226,12 +309,10 @@ class S3ResultStore(ResultStore):
         self,
         client_id: int,
         aws_s3_config: sch.AWSS3Config,
-        result_uuid: Optional[uuid.UUID] = None,
         n_rows=5,
     ):
         super().__init__(
             client_id=client_id,
-            result_uuid=result_uuid,
             n_rows=n_rows,
         )
         self.multipart = False
@@ -259,36 +340,53 @@ class S3ResultStore(ResultStore):
         )
 
     @property
-    def preview_file_name(self) -> str:
-        return result_utils.get_preview_file_name(self.s3_file_key)
-
-    @property
-    def s3_file_key(self) -> str:
-        return self.get_s3_key()
-
-    @property
     def current_file_size(self):
         return self.chunk_counter * self.chunk_size / (1024 * 1024)
 
     @staticmethod
-    def get_default_prefix(client_uuid: uuid.UUID) -> str:
+    def get_default_prefix(client_uuid: UUID) -> str:
         default_prefix = os.getenv("AWS_DEFAULT_PREFIX") or ""
         return default_prefix + str(client_uuid) + "/"
 
     @classmethod
-    def get_s3_folder_path(cls, bucket_name: str, prefix: str):
+    def get_folder_path(cls, bucket_name: str, prefix: str):
         if prefix:
             # NOTE: Prefixes end with a slash
             return f"{result_utils.S3_PREFIX}{bucket_name}/{prefix}"
         return f"{result_utils.S3_PREFIX}{bucket_name}/"
 
-    @classmethod
-    def get_s3_file_path(cls, bucket_name: str, s3_file_key: str) -> str:
-        return f"{result_utils.S3_PREFIX}{bucket_name}/{s3_file_key}"
+    def get_file_path(self, file_name: str) -> str:
+        return result_utils.get_s3_file_path(s3_file_key=file_name, bucket_name=self.bucket_name)
+
+    def get_file_name(self, uuid: UUID) -> str:
+        file_name = super().get_file_name(uuid=uuid)
+        if self.prefix:
+            # NOTE: Prefixes end with a slash
+            return f"{self.prefix}{file_name}"
+        return file_name
+
+    def get_preview_file_name(self, uuid: UUID) -> str:
+        return super().get_preview_file_name(uuid=uuid)
+
+    def get_preview_file_path(self, preview_file_name: str) -> str:
+        return self.get_file_path(file_name=preview_file_name)
+
+    def get_file_info(self, result_uuid: UUID) -> sch.ResultFileInfo:
+        file_name = self.get_file_name(uuid=result_uuid)
+        file_path = self.get_file_path(file_name=file_name)
+        return super().create_file_info(file_name=file_name, file_path=file_path, result_uuid=result_uuid)
 
     def store(
-        self, result: sa.engine.CursorResult, small_model_info: sch.ModelInfo, initial_prompt: str, sql_query: str
+        self,
+        file_info: sch.ResultFileInfo,
+        result: sa.engine.CursorResult,
+        small_model_info: sch.ModelInfo,
+        initial_prompt: str,
+        sql_query: str,
     ) -> sch.QueryResult:
+        super().reset()
+        logger.info("Uploading result_uuid to S3: %s", str(file_info.result_uuid))
+
         buffer = io.BytesIO()
         text_wrapper = io.TextIOWrapper(buffer, newline="", encoding="utf-8")
         # Create a CSV writer that writes into the buffer
@@ -310,20 +408,30 @@ class S3ResultStore(ResultStore):
 
             # Save the preview if it hasn't been saved
             if self.counter == 100 and not self.saved_preview:
-                self.save_preview(buffer=buffer, text_wrapper=text_wrapper)
+                self.save_preview(
+                    preview_file_name=file_info.preview_file_name,
+                    preview_file_path=file_info.preview_file_path,
+                    buffer=buffer,
+                    text_wrapper=text_wrapper,
+                )
 
             # Flush the underlying buffer after writing
             if self.counter > self.chunk_size:
                 logger.debug(f"Chunk counter at {self.chunk_counter}, reached chunk size of {self.chunk_size}")
                 self.counter = 0
-                self.upload_chunk(buffer=buffer, text_wrapper=text_wrapper)
+                self.upload_chunk(s3_file_key=file_info.file_name, buffer=buffer, text_wrapper=text_wrapper)
 
         # Complete the multipart upload
         if self.multipart_upload:
-            self.complete_multipart_upload(buffer=buffer, text_wrapper=text_wrapper)
+            self.complete_multipart_upload(s3_file_key=file_info.file_name, buffer=buffer, text_wrapper=text_wrapper)
         else:
             # Otherwise use a single upload
-            self.single_upload(buffer=buffer, text_wrapper=text_wrapper)
+            self.single_upload(
+                s3_file_key=file_info.file_name,
+                buffer=buffer,
+                text_wrapper=text_wrapper,
+                preview_file_name=file_info.preview_file_name,
+            )
         if self.counter == 1:
             self.get_metric_value(
                 small_model_info=small_model_info, initial_prompt=initial_prompt, sql_query=sql_query, buffer=buffer
@@ -333,54 +441,51 @@ class S3ResultStore(ResultStore):
         else:
             file_size_est = round(self.current_file_size, 2)
         logger.debug(f"Estimated file size is {file_size_est}MB")
-        result_file_path = self.get_s3_file_path(s3_file_key=self.s3_file_key, bucket_name=self.bucket_name)
-        preview_file_path = self.get_s3_file_path(s3_file_key=self.preview_file_name, bucket_name=self.bucket_name)
         return self.create_query_result(
             sql_query=sql_query,
-            result_file_path=result_file_path,
-            preview_file_path=preview_file_path,
+            file_info=file_info,
             columns=columns,
         )
 
     def get_result_manager(self, result_file_path: str):
         return manager.S3ResultManager(result_file_path=result_file_path, aws_s3_config=self.aws_s3_config)
 
-    def _upload_chunk(self, part_number, buffer: io.BytesIO):
+    def _upload_chunk(self, s3_file_key: str, part_number, buffer: io.BytesIO):
         buffer.seek(0)
         response = self.s3_client.upload_part(
             Bucket=self.bucket_name,
-            Key=self.s3_file_key,
+            Key=s3_file_key,
             PartNumber=part_number,
             UploadId=self.upload_id,
             Body=buffer.getvalue(),
         )
         return response["ETag"]
 
-    def upload_chunk(self, buffer: io.BytesIO, text_wrapper: io.TextIOWrapper):
+    def upload_chunk(self, s3_file_key: str, buffer: io.BytesIO, text_wrapper: io.TextIOWrapper):
         if text_wrapper:
             text_wrapper.flush()
         # Upload and reset the buffer
         if buffer.tell() >= self.upload_size:
             if not self.multipart_upload:
-                self.create_multipart_upload()
+                self.create_multipart_upload(s3_file_key=s3_file_key)
             self.chunk_counter += 1
             logger.debug(f"Chunk counter at {self.chunk_counter} and file size of {self.current_file_size}MB.")
             if self.current_file_size > self.upload_chunk_limit:
                 # Not allowing uploads past 10 MB currently
-                self.abort_multipart_upload()
+                self.abort_multipart_upload(s3_file_key=s3_file_key)
             else:
                 try:
-                    etag = self._upload_chunk(part_number=len(self.etags) + 1, buffer=buffer)
+                    etag = self._upload_chunk(s3_file_key=s3_file_key, part_number=len(self.etags) + 1, buffer=buffer)
                     self.etags.append(etag)
                     buffer.truncate(0)  # Reset the buffer for the next chunk
                 except Exception as e:
                     logger.error("Error in upload to s3 in chunks %s", str(e))
                     # Not raising error since this could also indicate it completed
 
-    def create_multipart_upload(self):
+    def create_multipart_upload(self, s3_file_key: str):
         try:
             multipart_upload = self.s3_client.create_multipart_upload(
-                Bucket=self.bucket_name, Key=self.s3_file_key, ContentType="text/csv"
+                Bucket=self.bucket_name, Key=s3_file_key, ContentType="text/csv"
             )
         except Exception as e:
             logger.error("Error in stream query results %s", str(e))
@@ -388,29 +493,27 @@ class S3ResultStore(ResultStore):
         self.upload_id = multipart_upload["UploadId"]
         self.multipart_upload = True
 
-    def complete_multipart_upload(self, buffer: io.BytesIO, text_wrapper: io.TextIOWrapper):
+    def complete_multipart_upload(self, s3_file_key: str, buffer: io.BytesIO, text_wrapper: io.TextIOWrapper):
         text_wrapper.flush()
         # Upload the last part if there is any data remaining
         if buffer.tell() > 0:
-            etag = self._upload_chunk(part_number=len(self.etags) + 1, buffer=buffer)
+            etag = self._upload_chunk(s3_file_key=s3_file_key, part_number=len(self.etags) + 1, buffer=buffer)
             self.etags.append(etag)
         # Complete the multipart upload
         self.s3_client.complete_multipart_upload(
             Bucket=self.bucket_name,
-            Key=self.s3_file_key,
+            Key=s3_file_key,
             UploadId=self.upload_id,
             MultipartUpload={"Parts": [{"PartNumber": idx + 1, "ETag": etag} for idx, etag in enumerate(self.etags)]},
         )
 
-    def abort_multipart_upload(self):
+    def abort_multipart_upload(self, s3_file_key: str) -> None:
         self.aborted_upload = True
-        self.s3_client.abort_multipart_upload(Bucket=self.bucket_name, Key=self.s3_file_key, UploadId=self.upload_id)
+        self.s3_client.abort_multipart_upload(Bucket=self.bucket_name, Key=s3_file_key, UploadId=self.upload_id)
         # Confirm all parts are deleted
         try:
             try:
-                parts = self.s3_client.list_parts(
-                    Bucket=self.bucket_name, Key=self.s3_file_key, UploadId=self.upload_id
-                )
+                parts = self.s3_client.list_parts(Bucket=self.bucket_name, Key=s3_file_key, UploadId=self.upload_id)
             except ClientError as e:
                 logger.warning("Error when listing parts %s", str(e))
                 raise e
@@ -418,7 +521,7 @@ class S3ResultStore(ResultStore):
             if len(parts["Parts"]) > 0:
                 try:
                     self.s3_client.abort_multipart_upload(
-                        Bucket=self.bucket_name, Key=self.s3_file_key, UploadId=self.upload_id
+                        Bucket=self.bucket_name, Key=s3_file_key, UploadId=self.upload_id
                     )
                 except Exception as e:
                     logger.warning("Error when in multipart upload %s", str(e))
@@ -437,34 +540,41 @@ class S3ResultStore(ResultStore):
             logger.error("Error in save_preview %s", str(e))
             raise errors.InvalidClientCredentials
 
-    def single_upload(self, buffer: io.BytesIO, text_wrapper: io.TextIOWrapper):
+    def single_upload(
+        self, s3_file_key: str, preview_file_name: str, buffer: io.BytesIO, text_wrapper: io.TextIOWrapper
+    ):
         text_wrapper.flush()
         if not self.saved_preview:
             preview_buffer_to_upload = copy.deepcopy(buffer)
-            self._save_preview(preview_buffer_to_upload, self.s3_client, self.bucket_name, self.preview_file_name)
+            self._save_preview(
+                buffer=preview_buffer_to_upload,
+                s3_client=self.s3_client,
+                s3_bucket_name=self.bucket_name,
+                file_name=preview_file_name,
+            )
             self.saved_preview = True
         buffer.seek(0)
         buffer_to_upload = copy.deepcopy(buffer)
         try:
-            self.s3_client.upload_fileobj(buffer_to_upload, self.bucket_name, self.s3_file_key)
+            self.s3_client.upload_fileobj(buffer_to_upload, self.bucket_name, s3_file_key)
         except ClientError as e:
             logger.error("Invalid client creds: %s", str(e))
             raise errors.InvalidClientCredentials
         assert self.saved_preview
 
-    def save_preview(self, buffer: io.BytesIO, text_wrapper: io.TextIOWrapper):
+    def save_preview(
+        self,
+        preview_file_name: str,
+        buffer: io.BytesIO,
+        text_wrapper: io.TextIOWrapper,
+        preview_file_path: Optional[str] = None,
+    ):
         text_wrapper.flush()
         buffer_to_upload = copy.deepcopy(buffer)
         self._save_preview(
             buffer=buffer_to_upload,
             s3_client=self.s3_client,
             s3_bucket_name=self.bucket_name,
-            file_name=result_utils.get_preview_file_name(self.s3_file_key),
+            file_name=preview_file_name,
         )
         self.saved_preview = True
-
-    def get_s3_key(self):
-        if self.prefix:
-            # NOTE: Prefixes end with a slash
-            return f"{self.prefix}{self.result_file_name}"
-        return self.result_file_name

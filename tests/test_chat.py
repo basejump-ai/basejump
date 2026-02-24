@@ -2,7 +2,8 @@ import pytest
 
 from basejump.core.database.crud import crud_chat
 from basejump.demo import settings, service, schemas
-from basejump.core.service import service_utils
+from basejump.core.service.utils import calc_trust_score
+from basejump.core.service.agents.context.utils import upload_sql_query_example
 
 
 @pytest.mark.chat
@@ -88,5 +89,31 @@ async def test_getviz(chat_session):
 @pytest.mark.chat
 async def test_get_trust_score(chat_session):
     """Test getting a trust score"""
-    result = await service_utils.calc_trust_score(db=chat_session.db)
+    result = await calc_trust_score(db=chat_session.db)
     assert result
+
+
+@pytest.mark.skip(reason="This is only ran adhoc.")
+@pytest.mark.chat
+async def test_save_sql_query(chat_session):
+    """Test saving a SQL query"""
+    await upload_sql_query_example(
+        sql_query="select * from account.client",
+        client_user=chat_session.client_user,
+        prompt="Get me a list of all clients",
+        db_uuid=chat_session.db_uuid,
+        redis_client_async=chat_session.redis_client_async,
+        small_model_info=chat_session.service_context.small_model_info,
+    )
+    get_chat = schemas.GetChat(
+        chat_uuid=chat_session.chat_uuid,
+        chat_id=chat_session.chat_id,
+        vector_id=chat_session.vector_id,
+    )
+    await service.chat(
+        db=chat_session.db,
+        prompt="Give me a list of all clients",
+        service_context=chat_session.service_context,
+        user_info=chat_session.user_info,
+        chat=get_chat,
+    )

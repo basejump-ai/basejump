@@ -6,6 +6,7 @@ from decimal import Decimal
 from typing import Any, Callable, Dict, Literal, Optional, Union
 
 import pandas as pd
+import redis
 import sqlalchemy as sa
 from llama_index.core.callbacks import (
     CallbackManager,
@@ -427,6 +428,7 @@ class QueryResult(QueryResultBase, QueryResultRows):
     metric_value: Optional[str] = None
     metric_value_formatted: Optional[str] = None
     aborted_upload: bool = False
+    message_query_result: Optional[MessageQueryResult] = None
 
 
 class QueryResultDF(QueryResultBase, QueryResultRows):
@@ -495,14 +497,19 @@ class PromptMetadata(PromptMetadataBase):
 
 
 # NOTE: UUIDs need to be str since they are dumped into Redis
-class SemCacheMetadata(BaseModel):
+
+
+class ResponseMetadata(BaseModel):
+    conn_uuid: str
     result_uuid: str
     prompt_uuid: str
     verified_user_uuid: str
     sql_query: str
     timestamp: str
+
+
+class SemCacheMetadata(ResponseMetadata):
     verified_user_role: str
-    conn_uuid: str
 
 
 class SemCache(SemCacheMetadata):
@@ -512,7 +519,7 @@ class SemCache(SemCacheMetadata):
 
 class SemCacheResponse(SemCache):
     vector_dist: float
-    can_verify: bool
+    can_verify: bool = False
     verified: bool
 
 
@@ -524,7 +531,7 @@ class ThoughtMessage(BaseModel):
 class BaseModelInfo(BaseModel):
     model_name: enums.AIModelSchema
     max_tokens: int = Field(
-        default=500,
+        default=1500,
         description="""Limit max_tokens to reduce hitting API limit since it's \
 estimated based off of max_tokens instead of the actual tokens in the completion""",
     )
@@ -703,8 +710,9 @@ class UploadTable(BaseModel):
 
 
 class CoreSession(BaseModel):
-    sql_engine: AsyncEngine
+    sql_engine: AsyncEngine = Field(description="The SQL engine for the application, not the client database.")
     redis_client_async: RedisAsync
+    redis_client: Optional[redis.Redis] = None
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
@@ -753,7 +761,6 @@ class ClientStorageConnEncrypted(BaseModel):
 
 class SQLToolContext(BaseModel):
     service_context: ServiceContext
-    prompt_metadata: PromptMetadata
     client_conn_params: SQLDBSchema
     conn_id: int
     conn_uuid: uuid.UUID
@@ -762,3 +769,27 @@ class SQLToolContext(BaseModel):
     vector_id: int
     verbose: bool = False
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+
+class ChatPrompt(BaseModel):
+    prompt: str
+    timestamp: Optional[datetime] = None
+
+
+class ChatResponse(BaseModel):
+    response: str
+    query_result: MessageQueryResult
+    metadata: Optional[ResponseMetadata] = None
+
+
+class MessagePair(BaseModel):
+    prompt: ChatPrompt
+    response: Optional[ChatResponse] = None
+
+
+class ResultFileInfo(BaseModel):
+    result_uuid: uuid.UUID
+    file_name: str
+    file_path: str
+    preview_file_name: str
+    preview_file_path: str

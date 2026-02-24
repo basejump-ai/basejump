@@ -1,7 +1,7 @@
 SQL_EXEC_TOOL_NM_PREFIX = "run_sql"
 SQL_TABLES_TOOL_NM_PREFIX = "get_sql_tables"
 VIS_TOOL_NM = "plot_tool"
-INTERNAL_DOCS_TOOL_NM = "internal_docs_tool"
+DOCS_TOOL_NM = "docs_tool"
 SQL_SUB_QUESTIONS = "simplify_user_prompt"
 SQL_OPTION_1 = "Provide an answer to the user's original prompt using the results provided above from the SQL query"
 SQL_OPTION_2_SUFFIX = "to ask a follow-up question to get other available relevant table information"
@@ -17,7 +17,6 @@ MSG_TIMED_OUT = "Message timed out. Please try again."
 AI_RESULT_PREVIEW_CT = 10
 MAX_ITERATIONS = 15
 MAX_CHAT_HISTORY_DAYS = 365
-# This distance is close enough that is likely only affects the SQL where clause
 REDIS_SEMCACHE_SIMILAR_DISTANCE = 0.3
 # This distance is close enough that it is assumed it's the exact same question
 REDIS_SEMCACHE_EXACT_DISTANCE = 0.04
@@ -59,6 +58,10 @@ def get_sql_execution_tool_nm(conn_id: int) -> str:
     return f"{SQL_EXEC_TOOL_NM_PREFIX}_{conn_id}"
 
 
+def get_docs_tool_nm(db_id: int) -> str:
+    return f"{DOCS_TOOL_NM}_{db_id}"
+
+
 # Descriptions
 USER_UUID_DSC = "Universally unique user ID."
 TEAM_UUID_DSC = "Universally unique team ID."
@@ -87,3 +90,4 @@ TEAM_DESC = "A description of the team. This is provided to the AI as context."
 ATHENA_STAGING_DIR_NAME = "s3_staging_dir"
 MAX_FILE_SIZE = 100
 AWS_ROLE_ARN_NAME = "aws_role_arn"
+SQL_QUERY_EXAMPLE_CT = 3

@@ -1,4 +1,5 @@
 import asyncio
+import uuid
 from functools import cached_property
 from typing import Optional
 
@@ -7,7 +8,8 @@ import sqlalchemy as sa
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.connector import POOL_TIMEOUT, Connector
 from basejump.core.database.manager import TableManager
-from basejump.core.database.result import result_utils, store
+from basejump.core.database.result import store
+from basejump.core.database.result import utils as result_utils
 from basejump.core.database.ssl import SSLEngine
 from basejump.core.models import constants, errors
 from basejump.core.models import schemas as sch
@@ -128,6 +130,7 @@ class ClientQueryRecorder(ClientQueryRunner):
                         small_model_info=self.small_model_info,
                         initial_prompt=self.initial_prompt,
                         sql_query=self.sql_query,
+                        file_info=self.result_store.get_file_info(result_uuid=uuid.uuid4()),
                     )
             except Exception as e:
                 logger.error("Error running client sql query and storing results: %s", str(e))

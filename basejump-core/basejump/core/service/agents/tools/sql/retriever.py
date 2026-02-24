@@ -6,6 +6,7 @@ import redis
 from llama_index.core import VectorStoreIndex
 from llama_index.core.chat_engine import SimpleChatEngine
 from llama_index.core.indices.struct_store.sql_retriever import SQLTableRetriever
+from llama_index.core.llms.function_calling import FunctionCallingLLM
 from llama_index.core.objects import SQLTableNodeMapping, base
 from llama_index.core.schema import QueryBundle
 from llama_index.core.tools import FunctionTool
@@ -21,16 +22,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.crud import crud_connection, crud_table
 from basejump.core.database.manager import TableManager
-from basejump.core.database.vector_utils import get_vector_idx
+from basejump.core.database.vector.utils import get_vector_idx
 from basejump.core.models import constants, enums, errors
 from basejump.core.models import schemas as sch
 from basejump.core.models.ai import formats as fmt
 from basejump.core.models.ai import formatter
 from basejump.core.models.ai.catalog import AICatalog
-from basejump.core.models.prompts import DB_METADATA_PROMPT
-from basejump.core.service.agents.tools import tool_utils
+from basejump.core.models.prompts import retrieved_sql_tables_prompt
+from basejump.core.service.agents.tools import utils as tool_utils
 from basejump.core.service.agents.tools.base import BaseTool
-from basejump.core.service.base import BaseChatAgent
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -43,21 +43,25 @@ class TableRetrieverTool(BaseTool):
     def __init__(
         self,
         db: AsyncSession,
-        agent: BaseChatAgent,
+        llm: FunctionCallingLLM,
         sql_tool_context: sch.SQLToolContext,
+        prompt_metadata: sch.PromptMetadata,
+        use_docs: bool = False,
     ):
         self.db = db
-        self.agent = agent
+        self.llm = llm
         self.service_context = sql_tool_context.service_context
         self.client_conn_params = sql_tool_context.client_conn_params
         self.conn_id = sql_tool_context.conn_id
+        self.db_id = sql_tool_context.db_id
         self.vector_id = sql_tool_context.vector_id
-        self.prompt_metadata = sql_tool_context.prompt_metadata
+        self.prompt_metadata = prompt_metadata
         self.db_uuid = sql_tool_context.db_uuid
         self.schemas = sql_tool_context.client_conn_params.schemas or []
         self.verbose = sql_tool_context.verbose
         self.is_demo = False
         self.retrieved_sql_tables = False
+        self.use_docs = use_docs
 
     # TODO: This would change to 'get sql' once we have a SQL specific model and
     # would take no input args
@@ -117,13 +121,11 @@ Here is a description of the SQL database connection: """
         # Initialize the environment
         vector_schema = sch.VectorDBSchema.model_validate(vector_db)
         ai_catalog = AICatalog()
-        settings = ai_catalog.get_settings(
-            llm=self.agent.agent_llm, embedding_model_info=self.service_context.embedding_model_info
-        )
+        embed_model = ai_catalog.get_embedding_model(model_info=self.service_context.embedding_model_info)
         table_index = get_vector_idx(
             client_id=client_id,
             vector_schema=vector_schema,
-            settings=settings,
+            embed_model=embed_model,
             redis_client_async=self.service_context.redis_client_async,
         )
 
@@ -189,8 +191,8 @@ Here is a description of the SQL database connection: """
         # Ask the agent to classify the prompt
         # TODO: Add a callback manager to track token usage here
         ai_catalog = AICatalog()
-        agent_llm = ai_catalog.get_llm(model_info=self.service_context.large_model_info)
-        agent = SimpleChatEngine.from_defaults(llm=agent_llm)
+        llm = ai_catalog.get_llm(model_info=self.service_context.large_model_info)
+        agent = SimpleChatEngine.from_defaults(llm=llm)
         agent_prompt = f"""\
 Return True if the following is True, otherwise return False. If you consider the following prompt to be \
 multiple questions in one, uses many commas, requests many things which likely will require using multiple tables, or \
@@ -201,7 +203,7 @@ is in general considered to be complex, return True. Otherwise return False. Her
         format_json_response = formatter.JSONResponseFormatter(
             response=agent_output.response,
             pydantic_format=fmt.TrueFalseBool,
-            llm=agent_llm,  # NOTE: GPT 4o-mini selects sub-questions too often
+            llm=llm,  # NOTE: GPT 4o-mini selects sub-questions too often
             small_model_info=self.service_context.small_model_info,
         )
         extract = await format_json_response.format()
@@ -228,7 +230,7 @@ Here is the prompt that needs to be broken out: \n\n\
         format_json_response = formatter.JSONResponseFormatter(
             response=agent_output.response,
             pydantic_format=fmt.SubPrompts,
-            llm=agent_llm,  # NOTE: GPT 4o-mini selects sub-questions too often
+            llm=llm,  # NOTE: GPT 4o-mini selects sub-questions too often
             small_model_info=self.service_context.small_model_info,
         )
         extract = await format_json_response.format()
@@ -246,42 +248,41 @@ Here is the prompt that needs to be broken out: \n\n\
         """Retrieve SQL tables to use in the SQL query"""
         # Need more tokens for large SQL queries
         logger.debug("Here is the get SQL tables inquiry: %s", inquiry)
-        await tool_utils.update_agent_tokens(agent=self.agent, max_tokens=10000)
+        await tool_utils.update_llm_tokens(llm=self.llm, max_tokens=8000)
         try:
-            try:
-                tables = await self.use_sub_questions(prompt=inquiry)
-            except Exception as e:
-                logger.warning(f"Failed to use sub questions: {str(e)}")
-            try:
-                if not tables:
-                    tables = await self.get_sql_tables_helper(inquiry=inquiry, sql_retriever=self.sql_retriever)
-                tables_str = "\n\n".join(tables)
-            except errors.NoRelevantTables:
-                logger.warning("The AI was unable to find any relevant tables")
-                # TODO: Put this message in the error itself
-                return "No tables found based on that inquiry"
-            if self.verbose:
-                logger.debug("Here are the retrieved tables: %s", tables_str)
-            # Resolve jinja
-            tables_str = await TableManager.arender_query_jinja(jinja_str=tables_str, schemas=self.schemas)
-            # If there is unresolved Jinja, then throw an error
-            pattern = r"\{\{\s*.+?\s*\}\}"
-            jinja_detected = re.findall(pattern, tables_str)
-            if jinja_detected:
-                # If there is jinja, then halt and send error to the user
-                raise Exception(constants.UNRESOLVED_JINJA)
-            logger.debug("Here are the schemas: %s", self.schemas)
-            formatted_prompt = DB_METADATA_PROMPT.format(
-                inquiry=inquiry,
-                schema=tables_str,
-                db_type=self.client_conn_params.database_type.value,
-                run_sql_query_tool=constants.get_sql_execution_tool_nm(conn_id=self.conn_id),
-            )
-            logger.debug("Here is the get_sql_tables prompt: %s", formatted_prompt)
+            tables = await self.use_sub_questions(prompt=inquiry)
         except Exception as e:
-            logger.warning("Error when getting SQL tables: %s", str(e))
-            formatted_prompt = "No tables found based on that inquiry"
+            logger.warning(f"Failed to use sub questions: {str(e)}")
+        try:
+            if not tables:
+                tables = await self.get_sql_tables_helper(inquiry=inquiry, sql_retriever=self.sql_retriever)
+            tables_str = "\n\n".join(tables)
+        except errors.NoRelevantTables as e:
+            logger.warning("The AI was unable to find any relevant tables")
+            return str(e)
+        if self.verbose:
+            logger.debug("Here are the retrieved tables: %s", tables_str)
+        # Resolve jinja
+        tables_str = await TableManager.arender_query_jinja(jinja_str=tables_str, schemas=self.schemas)
+        # If there is unresolved Jinja, then throw an error
+        pattern = r"\{\{\s*.+?\s*\}\}"
+        jinja_detected = re.findall(pattern, tables_str)
+        if jinja_detected:
+            # If there is jinja, then halt and send error to the user
+            raise Exception(constants.UNRESOLVED_JINJA)
+        logger.debug("Here are the schemas: %s", self.schemas)
+        formatted_prompt = retrieved_sql_tables_prompt(
+            inquiry=inquiry,
+            schema=tables_str,
+            db_type=self.client_conn_params.database_type.value,
+            run_sql_query_tool=constants.get_sql_execution_tool_nm(conn_id=self.conn_id),
+            docs_tool=constants.get_docs_tool_nm(db_id=self.db_id),
+            use_docs=self.use_docs,
+        )
+        # HACK: Patch for a bug where sometimes the formatted prompt may equal "None"
+        # TODO: Fix so this patch is no longer necessary
         if not formatted_prompt or formatted_prompt == "None":
+            logger.warning("Formatted prompt = None")
             formatted_prompt = "No tables found based on that inquiry"
         return formatted_prompt
         # TODO: Use async task group or async for here to quickly get all tables

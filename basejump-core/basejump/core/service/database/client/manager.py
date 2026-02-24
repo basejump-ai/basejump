@@ -5,10 +5,11 @@ from redis.asyncio import Redis as RedisAsync
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
-from basejump.core.database import db_utils
+from basejump.core.database import utils as db_utils
 from basejump.core.database.client.index import DBTableIndexer
 from basejump.core.database.connector import Connector
-from basejump.core.database.crud import crud_connection, crud_table, crud_utils
+from basejump.core.database.crud import crud_connection, crud_table
+from basejump.core.database.crud import utils as crud_utils
 from basejump.core.database.manager import TableManager
 from basejump.core.models import errors, models
 from basejump.core.models import schemas as sch

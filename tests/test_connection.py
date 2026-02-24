@@ -8,7 +8,7 @@ from basejump.demo import service, settings
 from basejump.core.database.crud import crud_connection, crud_chat
 from basejump.core.service.database.client import utils
 from basejump.core.service.database.client.diagram import MermaidAgentManager
-from basejump.core.database.vector_utils import get_index_name
+from basejump.core.database.vector.utils import get_index_name
 from basejump.core.models import enums
 from basejump.core.database.manager import TableManager
 
@@ -86,9 +86,7 @@ async def test_get_mermaid_erd_diagram(db_session):
         prompt_id=prompt_id,
         prompt_uuid=prompt_uuid,
         client_user=db_session.client_user,
-        large_model_info=settings.large_model_info,
-        sql_engine=db_session.sql_engine,
-        redis_client_async=db_session.redis_client_async,
+        service_context=db_session.service_context,
     )
     # Set up the mermaid agent manager
     mgn_mermaid = MermaidAgentManager(

@@ -2,15 +2,15 @@
 
 from typing import Optional
 
+from llama_index.core.base.llms.types import ChatMessage
+from llama_index.core.llms.function_calling import FunctionCallingLLM
+from llama_index.core.tools.types import AsyncBaseTool
+
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.models import enums
 from basejump.core.models import schemas as sch
-from basejump.core.service.base import BaseAgent
-from llama_index.core.llms.function_calling import FunctionCallingLLM
-from llama_index.core.llms import ChatMessage
-from llama_index.core.tools.types import AsyncBaseTool
-from redis.asyncio import Redis as RedisAsync
-from sqlalchemy.ext.asyncio import AsyncEngine
+from basejump.core.service.agents.memory.agent import SimpleAgentMemory
+from basejump.core.service.agents.types.base import BaseAgent
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -21,21 +21,29 @@ class MermaidAgent(BaseAgent):
     def __init__(
         self,
         prompt_metadata: sch.PromptMetadata,
-        sql_engine: AsyncEngine,
-        redis_client_async: RedisAsync,
-        large_model_info: sch.ModelInfo,
+        service_context: sch.ServiceContext,
+        memory: Optional[SimpleAgentMemory] = None,
         chat_history: Optional[list[ChatMessage]] = None,
-        agent_llm: Optional[FunctionCallingLLM] = None,
+        llm: Optional[FunctionCallingLLM] = None,
         max_iterations: int = 10,
     ):
+        if memory and chat_history:
+            logger.warning(
+                """Both 'memory' and 'chat_history' were provided. The 'chat_history' parameter \
+will be ignored; using memory's chat history instead."""
+            )
+        if not memory:
+            memory = SimpleAgentMemory(
+                service_context=service_context,
+                prompt_metadata=prompt_metadata,
+                chat_history=chat_history,
+            )
         super().__init__(
             prompt_metadata=prompt_metadata,
-            chat_history=chat_history,
             max_iterations=max_iterations,
-            agent_llm=agent_llm,
-            sql_engine=sql_engine,
-            redis_client_async=redis_client_async,
-            large_model_info=large_model_info,
+            llm=llm,
+            service_context=service_context,
+            memory=memory,
         )
 
     @staticmethod

@@ -6,36 +6,51 @@ from basejump.core.models import schemas as sch
 
 logger = set_logging(handler_option="stream", name=__name__)
 
-DB_METADATA_PROMPT = (
-    "Here are the SQL tables relevant to your following inquiry (in order of relevance): {inquiry}\n"
-    "When creating a SQL query, only use the tables listed below:\n"
-    "{schema}\n\n"
-    "Follow these rules when creating SQL queries:\n"
-    "- Given an input question, first create a syntactically correct {db_type} "
-    "query to run, then look at the results of the query and return the answer. \n"
-    "- You can order the results by a relevant column to return the most "
-    "interesting examples in the database.\n"
-    "- Never query for all the columns from a specific table, only ask for a "
-    "few relevant columns given the question.\n"
-    "- Pay attention to use only the column names that you can see in the schema "
-    "description. \n"
-    "- Be careful to not query for columns that do not exist. \n"
-    "- Pay attention to which column is in which table. \n"
-    "- Don't use limit unless the user asks you only for a certain number of results \n"
-    f"- Keep in mind you only get to preview the first {constants.AI_RESULT_PREVIEW_CT} rows of any query result "
-    "but the user will see all rows.\n"
-    "- Don't use backslashes for line breaks or continuation in SQL strings"
-    "- If multiple queries are needed to answer the question, use CTEs for the intermediate SQL query steps. \n"
-    "- If you need to filter a column by a particular string, ensure it is a distinct value for the column "
-    "you are filtering based on the tables listed above. If it is not one of the distinct values, use a LIKE "
-    "operator as a fuzzy match and confirm what the correct value should be. Confirm with "
-    "the user the updated string value you would like to filter by before running the SQL query. \n"
-    "- Qualify column names with the table name when needed.\n\n"
-    "Now do one of the following: \n"
-    "- Option 1: Ask the user a clarifying question to have better context for your SQL query if you \
-feel certain filters aren't clear based on their prompt.\n"
-    "- Option 2: Run your SQL query using the following tool: {run_sql_query_tool}"
-)
+
+def retrieved_sql_tables_prompt(
+    inquiry: str, schema: str, db_type: str, run_sql_query_tool: str, docs_tool: str, use_docs: bool = False
+):
+    db_metadata_prompt = (
+        "Here are the SQL tables relevant to your following inquiry (in order of relevance): {inquiry}\n"
+        "When creating a SQL query, only use the tables listed below:\n"
+        "{schema}\n\n"
+        "Follow these rules when creating SQL queries:\n"
+        "- Given an input question, first create a syntactically correct {db_type} "
+        "query to run, then look at the results of the query and return the answer. \n"
+        "- You can order the results by a relevant column to return the most "
+        "interesting examples in the database.\n"
+        "- Never query for all the columns from a specific table, only ask for a "
+        "few relevant columns given the question.\n"
+        "- Pay attention to use only the column names that you can see in the schema "
+        "description. \n"
+        "- Be careful to not query for columns that do not exist. \n"
+        "- Pay attention to which column is in which table. \n"
+        "- Don't use limit unless the user asks you only for a certain number of results \n"
+        f"- Keep in mind you only get to preview the first {constants.AI_RESULT_PREVIEW_CT} rows of any query result "
+        "but the user will see all rows.\n"
+        "- Don't use backslashes for line breaks or continuation in SQL strings"
+        "- If multiple queries are needed to answer the question, use CTEs for the intermediate SQL query steps. \n"
+        "- If you need to filter a column by a particular string, ensure it is a distinct value for the column "
+        "you are filtering based on the tables listed above. If it is not one of the distinct values, use a LIKE "
+        "operator as a fuzzy match and confirm what the correct value should be. Confirm with "
+        "the user the updated string value you would like to filter by before running the SQL query. \n"
+        "- Qualify column names with the table name when needed.\n\n"
+        "Now do one of the following: \n"
+        "- Option 1: Ask the user a clarifying question to have better context for your SQL query if you \
+    feel certain filters aren't clear based on their prompt.\n"
+        "- Option 2: Run your SQL query using the following tool: {run_sql_query_tool}"
+    )
+    if use_docs:
+        db_metadata_prompt += """\n- Option 3: Search documentation for clarification of the user's question using \
+the following tool: {docs_tool}"""
+    return db_metadata_prompt.format(
+        inquiry=inquiry,
+        schema=schema,
+        db_type=db_type,
+        run_sql_query_tool=run_sql_query_tool,
+        docs_tool=docs_tool,
+    )
+
 
 MERMAIDJS_SYSTEM_PROMPT = """\
 You are an agent that creates mermaidjs entity relationship diagrams (ERD). Always validate your \
@@ -132,25 +147,29 @@ Finally, they then can try re-phrasing the prompt."""
 
 
 # TODO: Let the AI know how many attempts it has remaining
-def get_sql_result_prompt(conn_id: int, query_result: sch.QueryResult):
+def get_sql_result_prompt(db_id: int, conn_id: int, query_result: sch.QueryResult, use_docs: bool = False):
     sql_tbl_tool_nm = constants.get_sql_tables_tool_nm(conn_id=conn_id)
     sql_exec_tool_nm = constants.get_sql_execution_tool_nm(conn_id=conn_id)
+    docs_tool_nm = constants.get_docs_tool_nm(db_id=db_id)
     if query_result.num_rows == 0:
         logger.info("Query returned no rows")
         return """That query returned 0 rows.\n""" + ZERO_ROW_PROMPT
-    SQL_ACTION_OPTIONS = f"""\
+    sql_action_options = f"""\
 Do one of the following:
 Option 1. {constants.SQL_OPTION_1}
 Option 2. Use the {sql_tbl_tool_nm} {constants.SQL_OPTION_2_SUFFIX}
 Option 3. Use the {sql_exec_tool_nm} {constants.SQL_OPTION_3_SUFFIX}
-Option 4. Use the {constants.VIS_TOOL_NM} to create a chart based on the users request.\
-The result_uuid to do this is {query_result.result_uuid}"""
+Option 4. Use the {constants.VIS_TOOL_NM} to create a chart based on the users request."""
+    if use_docs:
+        sql_action_options += f"""\
+Option 5. Use the {docs_tool_nm} to find additional information not available in database metadata."""
+    sql_action_options += f""" The result_uuid to do this is {query_result.result_uuid}"""
     if query_result.result_type == enums.ResultType.DATASET:
         query_result_str = f"""
 Here are the results of your SQL query up to {query_result.ai_preview_row_ct} \
 rows of {str(query_result.num_rows)} rows:\n
 {str(query_result.query_result)}\n\n
-{SQL_ACTION_OPTIONS}
+{sql_action_options}
 
 If option 1 is selected, follow these instructions: \
 The query results will be displayed to the user after your comment. Respond \
@@ -164,7 +183,7 @@ Talk as if you are handing them a dataset in person."""
         query_result_str = f"""\
 Here are the results of your SQL query for the first row of {str(query_result.num_rows)} rows:\n
 {str(query_result.query_result[0])}\n
-{SQL_ACTION_OPTIONS}
+{sql_action_options}
 """
     return query_result_str
 
@@ -187,3 +206,41 @@ admin hasn't given you access to any company database yet and \
 you can't answer the question without database access. Otherwise, if the answer can be given \
 without database access (such as answers based on prior chat messages), then answer the user's question. \
 Here is the user's question (address the user directly when responding): {prompt}"""
+
+
+def get_system_prompt(
+    team_info: sch.TeamFields,
+):
+    return f"""\
+You are used to help company employees (called users) answer data related questions by creating SQL queries to query \
+their internal database or by answering question directly if you already have enough information. \
+If you feel the user's prompt is ambiguous or needs clarification, ask the user follow-up questions to ensure \
+you have enough context. Don't ask the user for column or table names for a query since it is your responsibility \
+to help them explore and understand tables and columns in the database. \
+Your responses are based on being provided to the {team_info.team_name} team. This is a quick description \
+of their team to inform your responses: {team_info.team_desc} \
+To create charts, the {constants.VIS_TOOL_NM} must be used. \
+The chat history may have certain context after certain keywords/keyphrases at the end of a given message. \
+Here are the keywords/keyphrases:
+'{constants.SQL_QUERY_TXT}' - Information following this key phrase was the SQL you generated to provide your answer. \
+When a user asks a follow up question \
+for a question you answered, you can take the prior SQL and build off of it as a starting point if desired.
+'{constants.TIMESTAMP_TXT}' - Information following this keyword is the time that this particular message \
+was sent to the user.
+'{constants.VISUAL_RESULT_UUID}' - Information following this key phrase is the result UUID that is related \
+to the dataset generated for the chat response.
+'{constants.VISUAL_CONFIG}' - Information following this key phrase contains some metadata of the visualization \
+that was generated for this chat response.
+Don't structure your output with the keywords and keyphrases since they're only meant to provide you with more context
+"""
+
+
+CREATE_SQL_QUERY_PROMPT = """Before executing a SQL query, you need to make a plan. Do the following:
+- Identify the filters for the query based on the initial user prompt: {prompt}. \
+A filter is anything that is going to be put into the where clause. List each filter using a dash instead of \
+numbering them.
+- Determine if you have enough information or if you need to ask the user clarifying questions. This means that for \
+every filter the user has given enough context and defined it clearly. If you are unsure what column the filter \
+may be referring to, ask the user a clarifying question before proceeding. Do not ask the user for the column name.
+- The plan should be formatted with each step using this for preceding each bullet point >>
+- Do not include this plan reasoning in the final output."""
