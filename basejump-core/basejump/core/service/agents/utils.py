@@ -84,6 +84,7 @@ async def contextualize_prompt(
         else:
             response = message.response.response
         interactions += f"AI: {response}\n"
+    logger.debug("Here are the recent interactions: %s", interactions)
     format_json_response = JSONResponseFormatter(
         small_model_info=small_model_info,
         response=interactions,
@@ -91,6 +92,7 @@ async def contextualize_prompt(
     )
     extract = await format_json_response.format()
     prompt = extract.full_context_prompt
+    logger.debug("Here is the extracted prompt: %s", prompt)
     return prompt
 
 
