@@ -50,9 +50,7 @@ class JSONResponseFormatter:
             ai_catalog = AICatalog()
             self.llm = ai_catalog.get_llm(model_info=my_small_model_info)
         program = FunctionCallingProgram.from_defaults(
-            output_cls=self.pydantic_format,
-            llm=self.llm,
-            prompt=self.feedback_template,
+            output_cls=self.pydantic_format, llm=self.llm, prompt=self.feedback_template, tool_choice="none"
         )
         return program
 
