@@ -57,7 +57,7 @@ class SemanticMemory:
         if not self.cache:
             try:
                 # TODO: Determine why the semantic cache has issues initializing sometimes
-                semcache_init_timeout = 60
+                semcache_init_timeout = 10
                 async with asyncio.timeout(semcache_init_timeout):
                     self.cache = await self.setup()
             except TimeoutError:
