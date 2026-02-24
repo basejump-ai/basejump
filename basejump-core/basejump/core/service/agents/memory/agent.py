@@ -117,7 +117,7 @@ class AgentMemory(SimpleAgentMemory):
                 MetadataFilter(key="vector_type", value=enums.VectorSourceType.CHAT.value, operator=FilterOperator.EQ),
             ]
         )
-        TOP_K = 2
+        TOP_K = 3
         ai_catalog = AICatalog(callback_manager=self.prompt_metadata.callback_manager)
         embed_model = ai_catalog.get_embedding_model(model_info=self.service_context.embedding_model_info)
         vector_memory = VectorMemory.from_defaults(
