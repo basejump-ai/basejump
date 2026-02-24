@@ -19,7 +19,7 @@ class JSONResponseFormatter:
         response: str,
         pydantic_format: Type[BaseModel],
         small_model_info: sch.ModelInfo,
-        max_tokens: int = 1500,
+        max_tokens: int = 500,
         llm: Optional[LLM] = None,
     ):
         self.response = response
@@ -38,7 +38,7 @@ class JSONResponseFormatter:
                 ),
                 ChatMessage(
                     role="user",
-                    content=("\n" "------\n" "{response}\n" "------"),
+                    content=("Here is the response: \n" "------\n" "{response}\n" "------"),
                 ),
             ]
         )
@@ -50,7 +50,9 @@ class JSONResponseFormatter:
             ai_catalog = AICatalog()
             self.llm = ai_catalog.get_llm(model_info=my_small_model_info)
         program = FunctionCallingProgram.from_defaults(
-            output_cls=self.pydantic_format, llm=self.llm, prompt=self.feedback_template, tool_choice="none"
+            output_cls=self.pydantic_format,
+            llm=self.llm,
+            prompt=self.feedback_template,
         )
         return program
 
@@ -93,7 +95,7 @@ class DateFormatter(JSONResponseFormatter):
                 ),
                 ChatMessage(
                     role="user",
-                    content=("\n" "------\n" "{response}\n" "------"),
+                    content=("Here is the response: \n" "------\n" "{response}\n" "------"),
                 ),
             ]
         )
