@@ -128,6 +128,8 @@ def parse_message(text: str) -> list:
             continue
         if "prefix for the plan" in chunk:
             continue
+        if "Plan:" in chunk:
+            continue
         # if SQL_OPTION_1 in sentence or SQL_OPTION_2_SUFFIX in sentence or SQL_OPTION_3_SUFFIX:
         #     continue
         else:
