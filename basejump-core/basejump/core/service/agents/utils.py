@@ -103,6 +103,7 @@ def parse_message(text: str) -> list:
     # If webhook is set, then post the thoughts to the webhook
     thoughts = []
     chunks = re.split(r"\n+", text)
+    in_plan_block = False
     for chunk in chunks:
         # TODO: Make this more robust
         # TODO: Fix the hard reference to structured_sql_generation_tool
@@ -124,6 +125,7 @@ def parse_message(text: str) -> list:
         if "UUID" in chunk or "uuid" in chunk:
             continue
         if ">>" in chunk:
+            in_plan_block = True
             continue
         if "Use the '" in chunk:
             continue
@@ -131,6 +133,11 @@ def parse_message(text: str) -> list:
             continue
         if "Plan:" in chunk:
             continue
+        if in_plan_block:
+            if chunk.strip().startswith("-"):
+                continue
+            else:
+                in_plan_block = False
         # if SQL_OPTION_1 in sentence or SQL_OPTION_2_SUFFIX in sentence or SQL_OPTION_3_SUFFIX:
         #     continue
         else:

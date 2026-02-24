@@ -269,6 +269,8 @@ Here is the prompt that needs to be broken out: \n\n\
         pattern = r"\{\{\s*.+?\s*\}\}"
         jinja_detected = re.findall(pattern, tables_str)
         if jinja_detected:
+            logger.warning("Here is the detected jinja: %s", jinja_detected)
+            logger.warning("Here are the retrieved tables: %s", tables_str)
             # If there is jinja, then halt and send error to the user
             raise Exception(constants.UNRESOLVED_JINJA)
         logger.debug("Here are the schemas: %s", self.schemas)
