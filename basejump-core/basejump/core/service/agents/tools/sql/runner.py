@@ -260,6 +260,8 @@ After reviewing, run this tool again to run your original or updated SQL query."
         await self._check_prior_sql(sql_query)
 
         # Create the SQL query
+        # TODO: Move this to another tool and force the AI to use it first since it likely would be better to have
+        # the AI get all context first before writing a SQL query
         if not self.sql_query_created:
             logger.info("Planning SQL query")
             llm_prompt = await self.create_sql_query(initial_sql_query=sql_query)
