@@ -18,6 +18,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "alembic==1.17.2",
     "black>=25",
     "mypy>=1.15.0",
     "pytest>=9",

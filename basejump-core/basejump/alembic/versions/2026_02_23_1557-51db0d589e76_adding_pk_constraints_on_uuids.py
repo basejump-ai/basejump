@@ -53,8 +53,6 @@ def downgrade() -> None:
     op.drop_constraint(None, "visual_result_history", schema="ai_model", type_="unique")
     op.drop_constraint(None, "user_chat_id", schema="ai_model", type_="unique")
     op.drop_constraint(None, "token_count", schema="ai_model", type_="unique")
-    op.drop_column("token_count", "cost_per_1k_tokens_output", schema="ai_model")
-    op.drop_column("token_count", "cost_per_1k_tokens_input", schema="ai_model")
     op.drop_constraint(None, "saved_result_history", schema="ai_model", type_="unique")
     op.drop_constraint(None, "result_history", schema="ai_model", type_="unique")
     op.drop_constraint(None, "prompt_history", schema="ai_model", type_="unique")
