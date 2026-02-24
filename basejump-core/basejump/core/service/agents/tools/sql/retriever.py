@@ -249,6 +249,7 @@ Here is the prompt that needs to be broken out: \n\n\
         # Need more tokens for large SQL queries
         logger.debug("Here is the get SQL tables inquiry: %s", inquiry)
         await tool_utils.update_llm_tokens(llm=self.llm, max_tokens=8000)
+        tables = None
         try:
             tables = await self.use_sub_questions(prompt=inquiry)
         except Exception as e:
