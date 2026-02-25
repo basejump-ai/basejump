@@ -223,7 +223,7 @@ class ChatMessageHandler(MessageHandler):
             raise Exception("Reached max iterations.")
         content = self.message.content if self.message.content != "None" else errors.PROMPTING_AI_ERROR
         parsed_content = agent_utils.parse_message(text=content)
-        content = "\n".join(parsed_content)
+        content = "\n\n".join(parsed_content)
         api_message = sch.APIMessage(
             # vars from ChatMessage
             role=self.message.role,

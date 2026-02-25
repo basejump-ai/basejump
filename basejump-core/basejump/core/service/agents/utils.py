@@ -138,8 +138,7 @@ def parse_message(text: str) -> list:
                 continue
             else:
                 in_plan_block = False
-        # if SQL_OPTION_1 in sentence or SQL_OPTION_2_SUFFIX in sentence or SQL_OPTION_3_SUFFIX:
-        #     continue
+                thoughts.append(chunk.strip())
         else:
             thoughts.append(chunk.strip())
-    return thoughts
+    return [thought for thought in thoughts if thought]
