@@ -15,6 +15,7 @@ from basejump.core.database import utils as db_utils
 from basejump.core.database.crud import crud_chat
 from basejump.core.models import constants, enums, errors
 from basejump.core.models import schemas as sch
+from basejump.core.service.agents import utils as agent_utils
 
 logger = set_logging(handler_option="stream", name=__name__)
 
@@ -221,6 +222,8 @@ class ChatMessageHandler(MessageHandler):
             logger.error("Reached max iterations")
             raise Exception("Reached max iterations.")
         content = self.message.content if self.message.content != "None" else errors.PROMPTING_AI_ERROR
+        parsed_content = agent_utils.parse_message(text=content)
+        content = "\n\n".join(parsed_content)
         api_message = sch.APIMessage(
             # vars from ChatMessage
             role=self.message.role,

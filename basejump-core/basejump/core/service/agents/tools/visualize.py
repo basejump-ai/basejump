@@ -128,7 +128,10 @@ before attempting to visualize."""
         # Save and send back to the user
         # TODO: Sometimes visual is None
         # Add some error handling for this
-        visual_json = visual.figure.to_json()
+        try:
+            visual_json = visual.figure.to_json()
+        except Exception:
+            return "Chart creation was unsuccessful for your prompt and result UUID"
         visual_result_uuid = uuid.uuid4()
         self.query_result.visual_result_uuid = visual_result_uuid
         self.query_result.visual_json = json.loads(visual_json)

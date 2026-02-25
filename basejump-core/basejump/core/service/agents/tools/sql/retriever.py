@@ -249,6 +249,7 @@ Here is the prompt that needs to be broken out: \n\n\
         # Need more tokens for large SQL queries
         logger.debug("Here is the get SQL tables inquiry: %s", inquiry)
         await tool_utils.update_llm_tokens(llm=self.llm, max_tokens=8000)
+        tables = None
         try:
             tables = await self.use_sub_questions(prompt=inquiry)
         except Exception as e:
@@ -268,6 +269,8 @@ Here is the prompt that needs to be broken out: \n\n\
         pattern = r"\{\{\s*.+?\s*\}\}"
         jinja_detected = re.findall(pattern, tables_str)
         if jinja_detected:
+            logger.warning("Here is the detected jinja: %s", jinja_detected)
+            logger.warning("Here are the retrieved tables: %s", tables_str)
             # If there is jinja, then halt and send error to the user
             raise Exception(constants.UNRESOLVED_JINJA)
         logger.debug("Here are the schemas: %s", self.schemas)

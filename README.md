@@ -3,7 +3,9 @@
 
 <img src="docs/images/basejump-light.svg" alt="Basejump logo" width="400">
 
-Basejump indexes a database and connects it with an AI data agent to chat with your data.
+# The AI Data Analytics Agent You Can Trust in Production
+
+Basejump connects your database to an AI agent you can ship in minutes and rely on in production.
 
 ## Key Features
 * ✅ **Accuracy**: Uses SQLglot to parse and validate queries, preventing hallucinated tables, columns, or filters

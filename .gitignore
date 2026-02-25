@@ -6,6 +6,7 @@
 credentials/
 *.pem
 scratch.sql
+scratch.py
 
 # Environments
 .venv/
