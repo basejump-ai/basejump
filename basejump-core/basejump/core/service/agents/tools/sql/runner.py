@@ -13,8 +13,6 @@ from basejump.core.database.crud import crud_result
 from basejump.core.database.result import store
 from basejump.core.models import constants, enums, errors
 from basejump.core.models import schemas as sch
-from basejump.core.models.ai import formats as fmt
-from basejump.core.models.ai import formatter
 from basejump.core.models.prompts import CREATE_SQL_QUERY_PROMPT, get_sql_result_prompt
 from basejump.core.service.agents.memory.semantic import SemanticMemory
 from basejump.core.service.agents.message import ChatMessageHandler
@@ -164,19 +162,6 @@ After stating your plan, do one of the following:
 """
         return sql_query_example_prompt + initial_instructions + intermediate_instructions + final_instructions
 
-    async def _clean_sql(self, sql_query: str):
-        # Clean the SQL query format
-        format_json_response = formatter.JSONResponseFormatter(
-            response=sql_query,
-            pydantic_format=fmt.CleanSQLFormat,
-            max_tokens=1500,
-            small_model_info=self.service_context.small_model_info,
-        )
-        extract = await format_json_response.format()
-        sql_query = extract.sql_query
-        logger.info("Here is the cleaned SQL query: %s", sql_query)
-        return sql_query
-
     async def _check_hallucinations(self, sql_query: str):
         # Check for any hallucinated tables
         msg = await self.validator.check_all_tables(sql_query=sql_query)
@@ -325,9 +310,6 @@ Connection timed out. Please try again."""
 
     async def run_sql(self, sql_query: str) -> str:
         logger.info("Here is the SQL query trying to be ran: %s", sql_query)
-
-        # Clean the SQL query
-        sql_query = await self._clean_sql(sql_query)
 
         # Verify the SQL query is correct
         msg = await self._verify_sql_query(sql_query)
