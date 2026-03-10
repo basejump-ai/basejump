@@ -531,7 +531,7 @@ class ThoughtMessage(BaseModel):
 class BaseModelInfo(BaseModel):
     model_name: enums.AIModelSchema
     max_tokens: int = Field(
-        default=1500,
+        default=2000,
         description="""Limit max_tokens to reduce hitting API limit since it's \
 estimated based off of max_tokens instead of the actual tokens in the completion""",
     )

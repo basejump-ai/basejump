@@ -119,10 +119,6 @@ result_uuid is incorrect or the originally created data has been deleted."""
         except errors.FileSizeError:
             return """File size is larger than 5 MB. Make sure to aggregate the data using SQL \
 before attempting to visualize."""
-        dates = await self.select_date_cols(df.columns.to_list())
-        if dates:
-            formatted = await self.format_date(cols=df[dates])
-            df[dates] = pd.DataFrame(formatted.dates)
         c2p = cp(df, chat=self.llm)
         visual = c2p(prompt)
         # Save and send back to the user

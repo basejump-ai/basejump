@@ -239,7 +239,7 @@ After reviewing, run this tool again to run your original or updated SQL query."
         msg = await self._check_hallucinations(sql_query)
         if msg:
             return msg
-        await tool_utils.update_llm_tokens(llm=self.llm, max_tokens=1500)
+        await tool_utils.update_llm_tokens(llm=self.llm, max_tokens=2000)
 
         # Check if SQL query has been previously used
         await self._check_prior_sql(sql_query)
@@ -298,7 +298,7 @@ After reviewing, run this tool again to run your original or updated SQL query."
 Connection timed out. Please try again."""
                 raise sch.SQLTimeoutError(error_msg)
 
-            msg = f"Error running SQL query. Let's verify step by step. Try rewriting your SQL query using only the tables in the provided context. Here was the error: {str(e)}"  # noqa
+            msg = f"Error running SQL query. Let's verify step by step. Try rewriting your SQL query using only the tables in the provided context. Here was the error: {str(e)[0:4000]}"  # noqa
             logger.error(msg)
             await self.db.rollback()
             self.sql_query_created = False  # Reset so it checks it again
