@@ -297,7 +297,7 @@ After reviewing, run this tool again to run your original or updated SQL query."
                 error_msg = f"""Failed to connect to the database after {POOL_TIMEOUT/60} minutes. \
 Connection timed out. Please try again."""
                 raise sch.SQLTimeoutError(error_msg)
-
+            # HACK: trimming error response instead of counting tokens
             msg = f"Error running SQL query. Let's verify step by step. Try rewriting your SQL query using only the tables in the provided context. Here was the error: {str(e)[0:4000]}"  # noqa
             logger.error(msg)
             await self.db.rollback()
