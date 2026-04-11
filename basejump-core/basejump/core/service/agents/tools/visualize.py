@@ -1,7 +1,6 @@
 import json
 import uuid
 
-import pandas as pd
 from chat2plot import chat2plot as cp
 from llama_index.core import Document, VectorStoreIndex
 from llama_index.core.llms.function_calling import FunctionCallingLLM
@@ -15,8 +14,6 @@ from basejump.core.database.crud import crud_result
 from basejump.core.database.result import store
 from basejump.core.models import constants, enums, errors, models
 from basejump.core.models import schemas as sch
-from basejump.core.models.ai import formats as fmt
-from basejump.core.models.ai import formatter
 from basejump.core.models.ai.catalog import AICatalog
 from basejump.core.service.agents.tools import utils as tool_utils
 from basejump.core.service.agents.tools.base import BaseTool
@@ -93,16 +90,6 @@ shown to the user to provide more insight into their data.""",
                 date_cols.append(col)
         return date_cols
 
-    async def format_date(self, cols) -> pd.DataFrame:
-        date_prompt = f"""
-        dates:{cols}\n"""
-        f = formatter.DateFormatter(
-            response=date_prompt,
-            pydantic_format=fmt.DateData,
-            small_model_info=self.service_context.small_model_info,
-        )
-        return await f.format()
-
     async def get_plot(self, result_uuid: uuid.UUID, prompt: str):
         await tool_utils.update_llm_tokens(llm=self.llm)
         # Get the result
@@ -119,12 +106,13 @@ result_uuid is incorrect or the originally created data has been deleted."""
         except errors.FileSizeError:
             return """File size is larger than 5 MB. Make sure to aggregate the data using SQL \
 before attempting to visualize."""
-        c2p = cp(df, chat=self.llm)
-        visual = c2p(prompt)
+
         # Save and send back to the user
         # TODO: Sometimes visual is None
         # Add some error handling for this
         try:
+            c2p = cp(df, chat=self.llm)
+            visual = c2p(prompt + " Do not use the pandas library in your filters. It is not available for use.")
             visual_json = visual.figure.to_json()
         except Exception:
             return "Chart creation was unsuccessful for your prompt and result UUID"

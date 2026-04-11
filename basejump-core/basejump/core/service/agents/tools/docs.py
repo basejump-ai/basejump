@@ -18,6 +18,7 @@ SCORE_THRESHOLD = 0.3
 TOP_K = 8
 INDEX_NAME = "basejump_internal_docs"
 DELIMITER = "<--->"
+MAX_DOCS = 10
 logger = set_logging(handler_option="stream", name=__name__)
 
 
@@ -59,7 +60,7 @@ to the organization in charge of the database.""",
     async def get_tools(self) -> list[FunctionTool]:
         return [self.get_tool()]
 
-    async def get_docs(self, prompt: str, max_docs: int = 10):
+    async def get_docs(self, prompt: str):
         # Increase the max tokens for a longer response
         logger.debug("Searching documentation...")
         await tool_utils.update_llm_tokens(llm=self.llm, max_tokens=5000)
@@ -92,4 +93,4 @@ Here is a list of relevant documentation snippets based on your prompt. Each sni
         context = [node.text for node in nodes if node.score > SCORE_THRESHOLD]  # type: ignore
         if not context:
             return "There was no documentation found to answer your specific prompt."
-        return response_text + DELIMITER.join(context[:max_docs])
+        return response_text + DELIMITER.join(context[:MAX_DOCS])
