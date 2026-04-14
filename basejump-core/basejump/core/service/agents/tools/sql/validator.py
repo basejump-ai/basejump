@@ -52,6 +52,7 @@ class SQLValidator:
             parsed_query = parse_one(sql_query, dialect=self.sqlglot_dialect)
             parsed_query_tbls = parsed_query.find_all(exp.Table)
             cte_tbls = parsed_query.find_all(exp.CTE)
+
             # Get the schema + table name
             cleaned_tbl_names = []
             for tbl in parsed_query_tbls:
@@ -60,12 +61,16 @@ class SQLValidator:
                 else:
                     cleaned_tbl_names.append(tbl.name)
             query_tbls_no_cte = set(cleaned_tbl_names) - {tbl.alias for tbl in cte_tbls}
-            query_tbls_lowered = {table.lower() for table in query_tbls_no_cte}
-            all_full_tables_lowered = {table.table_name.lower() for table in all_tables}
-            all_tables_lowered = {table.table_name.lower().split(".")[-1] for table in all_tables}
+
+            # Removing blank tables + lowering table names for comparison
+            query_tbls_lowered = {table.lower() for table in query_tbls_no_cte if table}
+            all_full_tables_lowered = {table.table_name.lower() for table in all_tables if table}
+            all_tables_lowered = {table.table_name.lower().split(".")[-1] for table in all_tables if table}
+
             # Find the ignored tables
             ignored_tables_lowered = {table.table_name.lower() for table in all_tables if table.ignore}
             tbl_overlap = ignored_tables_lowered & query_tbls_lowered
+
             # Check for hallucinated tables
             if (
                 not query_tbls_lowered.issubset(all_full_tables_lowered)
