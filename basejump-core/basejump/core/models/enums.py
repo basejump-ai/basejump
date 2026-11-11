@@ -156,6 +156,7 @@ class LLMType(StrEnum):
 class AIModelSchema(StrEnum):
     GROQ = "llama3-70b-8192"
     # Azure OpenAI
+    GPT6_ASTRA = "gpt-6-astra"
     GPT52_CODEX = "gpt-5.2-codex"
     GPT52 = "gpt-5.2"
     GPT51_CODEX_MAX = "gpt-5.1-codex-max"
@@ -177,6 +178,7 @@ class AIModelSchema(StrEnum):
 
 
 class AIModelSchemaClientOptions(StrEnum):
+    GPT6_ASTRA = AIModelSchema.GPT6_ASTRA.value
     GPT52_CODEX = AIModelSchema.GPT52_CODEX.value
     GPT52 = AIModelSchema.GPT52.value
     GPT51_CODEX_MAX = AIModelSchema.GPT51_CODEX_MAX.value
@@ -209,6 +211,8 @@ class AzurePricingQueries(StrEnum):
 #     - Azure OpenAI: https://azure.microsoft.com/en-us/pricing/details/cognitive-services/openai-service/#pricing # noqa
 class DefaultTokenPrices(Enum):
     # Azure OpenAI LLM
+    GPT6_ASTRA_input = Decimal(0.00125)  # Using GPT52 prices until GPT6 Astra prices are confirmed
+    GPT6_ASTRA_output = Decimal(0.01)  # Using GPT52 prices until GPT6 Astra prices are confirmed
     GPT52_CODEX_input = Decimal(0.00125)  # Using GPT51 since no GPT52 prices are provided
     GPT52_CODEX_output = Decimal(0.01)  # Using GPT51 since no GPT52 prices are provided
     GPT52_input = Decimal(0.00125)  # Using GPT51 since no GPT52 prices are provided
