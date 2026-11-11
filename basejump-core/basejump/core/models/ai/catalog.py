@@ -8,6 +8,7 @@ from llama_index.core.llms.function_calling import FunctionCallingLLM
 from llama_index.embeddings.azure_openai import AzureOpenAIEmbedding
 from llama_index.llms.azure_openai import AzureOpenAI
 from llama_index.llms.bedrock_converse import BedrockConverse
+from llama_index.llms.openai import OpenAIResponses
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.models import enums
@@ -60,11 +61,16 @@ class AICatalog:
 
     def get_azure_llm(self, model_info: sch.AzureModelInfo) -> FunctionCallingLLM:
         assert model_info.endpoint_info, "Missing endpoint info - the pydantic schema should be validating this"
-        additional_kwargs = {}
         if model_info.model_name == enums.AIModelSchema.GPT6_ASTRA:
-            # gpt-6-astra rejects function tools on /chat/completions unless reasoning is disabled.
-            # Passed via additional_kwargs since llama-index's reasoning_effort field doesn't accept "none".
-            additional_kwargs["reasoning_effort"] = "none"
+            # gpt-6-astra only supports function tools through the Responses API, not /chat/completions.
+            # Azure's v1 endpoint is OpenAI-compatible, so the deployment name is passed as the model.
+            return OpenAIResponses(
+                model=model_info.endpoint_info.deployment_name,
+                max_output_tokens=model_info.max_tokens,
+                api_key=model_info.endpoint_info.api_key,
+                api_base=f"{model_info.endpoint_info.endpoint.rstrip('/')}/openai/v1/",
+                callback_manager=self.callback_manager,
+            )
         return AzureOpenAI(
             model=model_info.model_name.value,
             temperature=0,
@@ -74,5 +80,4 @@ class AICatalog:
             azure_endpoint=model_info.endpoint_info.endpoint,
             api_version=model_info.api_version,
             callback_manager=self.callback_manager,
-            additional_kwargs=additional_kwargs,
         )
