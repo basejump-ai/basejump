@@ -1,6 +1,6 @@
 """Catalog of all of the AIs Basejump uses"""
 
-from typing import Optional
+from typing import Any, Optional
 
 from llama_index.core.base.embeddings.base import BaseEmbedding
 from llama_index.core.callbacks import CallbackManager
@@ -8,12 +8,27 @@ from llama_index.core.llms.function_calling import FunctionCallingLLM
 from llama_index.embeddings.azure_openai import AzureOpenAIEmbedding
 from llama_index.llms.azure_openai import AzureOpenAI
 from llama_index.llms.bedrock_converse import BedrockConverse
+from llama_index.llms.openai import OpenAIResponses
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.models import enums
 from basejump.core.models import schemas as sch
 
 logger = set_logging(handler_option="stream", name=__name__)
+
+
+class ReasoningOpenAIResponses(OpenAIResponses):
+    """OpenAIResponses for reasoning models that reject sampling parameters.
+
+    llama-index always sends temperature and top_p, but models like gpt-6-astra return
+    400 "Unsupported parameter" for them.
+    """
+
+    def _get_model_kwargs(self, **kwargs: Any) -> dict[str, Any]:
+        model_kwargs = super()._get_model_kwargs(**kwargs)
+        model_kwargs.pop("temperature", None)
+        model_kwargs.pop("top_p", None)
+        return model_kwargs
 
 
 class AICatalog:
@@ -60,11 +75,17 @@ class AICatalog:
 
     def get_azure_llm(self, model_info: sch.AzureModelInfo) -> FunctionCallingLLM:
         assert model_info.endpoint_info, "Missing endpoint info - the pydantic schema should be validating this"
-        additional_kwargs = {}
         if model_info.model_name == enums.AIModelSchema.GPT6_ASTRA:
-            # gpt-6-astra rejects function tools on /chat/completions unless reasoning is disabled.
-            # Passed via additional_kwargs since llama-index's reasoning_effort field doesn't accept "none".
-            additional_kwargs["reasoning_effort"] = "none"
+            # gpt-6-astra only supports function tools through the Responses API, not /chat/completions.
+            # Azure's v1 endpoint is OpenAI-compatible, so the deployment name is passed as the model.
+            return ReasoningOpenAIResponses(
+                model=model_info.endpoint_info.deployment_name,
+                max_output_tokens=model_info.max_tokens,
+                api_key=model_info.endpoint_info.api_key,
+                api_base=f"{model_info.endpoint_info.endpoint.rstrip('/')}/openai/v1/",
+                api_version=model_info.api_version,  # unused by the v1 endpoint
+                callback_manager=self.callback_manager,
+            )
         return AzureOpenAI(
             model=model_info.model_name.value,
             temperature=0,
@@ -74,5 +95,4 @@ class AICatalog:
             azure_endpoint=model_info.endpoint_info.endpoint,
             api_version=model_info.api_version,
             callback_manager=self.callback_manager,
-            additional_kwargs=additional_kwargs,
         )
