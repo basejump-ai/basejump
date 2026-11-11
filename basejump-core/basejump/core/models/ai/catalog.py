@@ -1,6 +1,6 @@
 """Catalog of all of the AIs Basejump uses"""
 
-from typing import Optional
+from typing import Any, Optional
 
 from llama_index.core.base.embeddings.base import BaseEmbedding
 from llama_index.core.callbacks import CallbackManager
@@ -15,6 +15,20 @@ from basejump.core.models import enums
 from basejump.core.models import schemas as sch
 
 logger = set_logging(handler_option="stream", name=__name__)
+
+
+class ReasoningOpenAIResponses(OpenAIResponses):
+    """OpenAIResponses for reasoning models that reject sampling parameters.
+
+    llama-index always sends temperature and top_p, but models like gpt-6-astra return
+    400 "Unsupported parameter" for them.
+    """
+
+    def _get_model_kwargs(self, **kwargs: Any) -> dict[str, Any]:
+        model_kwargs = super()._get_model_kwargs(**kwargs)
+        model_kwargs.pop("temperature", None)
+        model_kwargs.pop("top_p", None)
+        return model_kwargs
 
 
 class AICatalog:
@@ -64,11 +78,12 @@ class AICatalog:
         if model_info.model_name == enums.AIModelSchema.GPT6_ASTRA:
             # gpt-6-astra only supports function tools through the Responses API, not /chat/completions.
             # Azure's v1 endpoint is OpenAI-compatible, so the deployment name is passed as the model.
-            return OpenAIResponses(
+            return ReasoningOpenAIResponses(
                 model=model_info.endpoint_info.deployment_name,
                 max_output_tokens=model_info.max_tokens,
                 api_key=model_info.endpoint_info.api_key,
                 api_base=f"{model_info.endpoint_info.endpoint.rstrip('/')}/openai/v1/",
+                api_version=model_info.api_version,  # unused by the v1 endpoint
                 callback_manager=self.callback_manager,
             )
         return AzureOpenAI(
