@@ -91,7 +91,8 @@ shown to the user to provide more insight into their data.""",
         return date_cols
 
     async def get_plot(self, result_uuid: uuid.UUID, prompt: str):
-        await tool_utils.update_llm_tokens(llm=self.llm)
+        # Leaves room for reasoning models, whose output limit includes reasoning tokens
+        await tool_utils.update_llm_tokens(llm=self.llm, max_tokens=4000)
         # Get the result
         result = await crud_result.get_result_filtered(db=self.db, result_uuid=result_uuid, user_uuid=self.user_uuid)
         if not result:

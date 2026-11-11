@@ -1,4 +1,5 @@
 from llama_index.core.llms.function_calling import FunctionCallingLLM
+from llama_index.llms.openai import OpenAIResponses
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.connector import Connector
@@ -12,7 +13,11 @@ async def update_llm_tokens(llm: FunctionCallingLLM, max_tokens: int = 500):
     """Used to change the max tokens for the agent"""
     # Simple agent doesn't use prompt_agent, which is where the agent is set
     # TODO: Update agent to be optional
-    llm.max_tokens = max_tokens  # type: ignore
+    if isinstance(llm, OpenAIResponses):
+        # The Responses API names this max_output_tokens (and has no max_tokens field)
+        llm.max_output_tokens = max_tokens
+    else:
+        llm.max_tokens = max_tokens  # type: ignore
     logger.debug("Updated the agent to max_tokens = %s", max_tokens)
 
 
