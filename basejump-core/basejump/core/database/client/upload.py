@@ -1,6 +1,7 @@
 import asyncio
 import csv
 import io
+import os
 import time
 import uuid
 from abc import ABC, abstractmethod
@@ -206,5 +207,17 @@ TBLPROPERTIES ('classification' = '{storage_type}','skip.header.line.count'='1')
         t2 = time.time()
         logger.debug(f"Time to create table: {t2-t1}s")
 
-    def get_s3_upload_prefix(self):
-        return f"{self.result_store.prefix}{str(self.upload_uuid)}/"
+    def get_s3_upload_prefix(self) -> str:
+        """Return the S3 folder for this upload: <client prefix><upload uuid>/.
+
+        Uploads are the only copy of the user's data and back an Athena table, while chat results can be rebuilt from
+        their SQL. When AWS_UPLOAD_PREFIX is set, uploads to the default storage move from AWS_DEFAULT_PREFIX to
+        AWS_UPLOAD_PREFIX, so a retention rule on AWS_DEFAULT_PREFIX expires chat results but never uploads.
+        A client with its own storage (a prefix outside AWS_DEFAULT_PREFIX) keeps its prefix.
+        """
+        prefix = self.result_store.prefix or ""
+        default_prefix = os.getenv("AWS_DEFAULT_PREFIX") or ""
+        upload_prefix = os.getenv("AWS_UPLOAD_PREFIX") or ""
+        if upload_prefix and default_prefix and prefix.startswith(default_prefix):
+            prefix = upload_prefix + prefix.removeprefix(default_prefix)
+        return f"{prefix}{str(self.upload_uuid)}/"
