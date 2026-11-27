@@ -57,6 +57,16 @@ def get_model_cost(model: Optional[str], type_: enums.AIModelType) -> tuple[Deci
         cost_per_1k_tokens_output = enums.DefaultTokenPrices.GPT6_ASTRA_output.value
         model = enums.AIModelSchema.GPT6_ASTRA.value
         ai_model_provider = enums.AIModelProvider.AZURE_OPENAI.value
+    elif enums.AIModelSchema.GPT_OSS_120B.value in model:
+        cost_per_1k_tokens_input = enums.DefaultTokenPrices.GPT_OSS_120B_input.value
+        cost_per_1k_tokens_output = enums.DefaultTokenPrices.GPT_OSS_120B_output.value
+        model = enums.AIModelSchema.GPT_OSS_120B.value
+        ai_model_provider = enums.AIModelProvider.AWS.value
+    elif enums.AIModelSchema.COHERE_EMBED_V4.value in model:
+        cost_per_1k_tokens_input = enums.DefaultTokenPrices.COHERE_EMBED_V4.value
+        cost_per_1k_tokens_output = Decimal(0)
+        model = enums.AIModelSchema.COHERE_EMBED_V4.value
+        ai_model_provider = enums.AIModelProvider.AWS.value
     elif enums.AIModelSchema.GPT52_CODEX.value in model:
         # TODO: Implement the azure pricing queries instead of the manually input default token prices
         cost_per_1k_tokens_input = enums.DefaultTokenPrices.GPT52_CODEX_input.value

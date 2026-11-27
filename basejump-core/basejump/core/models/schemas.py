@@ -547,8 +547,9 @@ class AzureEndpointInfo(AIEndpointInfo):
 
 
 class AWSEndpointInfo(AIEndpointInfo):
-    access_key: str
-    secret_access_key: str
+    # Optional: when not provided, the default boto3 credential chain is used (e.g. an ECS task role or AWS_PROFILE)
+    access_key: Optional[str] = None
+    secret_access_key: Optional[str] = None
     deployment_region: str
 
 
@@ -583,6 +584,19 @@ class AzureModelInfo(ModelInfo):
 
 class AWSModelInfo(ModelInfo):
     endpoint_info: Optional[AWSEndpointInfo] = None
+    bedrock_model_id: Optional[str] = Field(
+        default=None,
+        description="""The Bedrock model or inference profile ID to call. Defaults to the value of model_name, \
+which is only needed when the ID to call isn't an AIModelSchema value.""",
+    )
+
+    @property
+    def model_id(self) -> str:
+        return self.bedrock_model_id or self.model_name.value
+
+
+# The model info types that can be used for embeddings
+EmbeddingModelInfo = Union[AzureModelInfo, AWSModelInfo]
 
 
 class ChatMetadata(BaseModel):
@@ -606,7 +620,7 @@ class ChatMetadata(BaseModel):
     semcache_response: Optional[SemCacheResponse] = None
     verify_mode: enums.VerifyMode = enums.VerifyMode.EXPLORE
     vector_store: BasePydanticVectorStore
-    embedding_model_info: AzureModelInfo
+    embedding_model_info: EmbeddingModelInfo
 
 
 class TokenCountSchema(BaseModel):
@@ -719,15 +733,16 @@ class CoreSession(BaseModel):
 class ServiceContext(CoreSession):
     large_model_info: ModelInfo
     small_model_info: ModelInfo
-    embedding_model_info: AzureModelInfo  # TODO: Support other models besides Azure for embedding
+    embedding_model_info: EmbeddingModelInfo
 
 
 class AWSS3Config(BaseModel):
     prefix: str
     bucket_name: str
     region: str
-    access_key: str
-    secret_access_key: str
+    # Optional: when not provided (or empty), the default boto3 credential chain is used
+    access_key: Optional[str] = None
+    secret_access_key: Optional[str] = None
 
 
 class ClientStorageConn(BaseModel):

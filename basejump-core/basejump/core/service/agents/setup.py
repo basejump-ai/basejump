@@ -40,7 +40,7 @@ class ChatAgentSetup(AgentSetup):
     def __init__(
         self,
         db: AsyncSession,
-        embedding_model_info: sch.AzureModelInfo,
+        embedding_model_info: sch.EmbeddingModelInfo,
         prompt_metadata: sch.PromptMetadata,
         chat_metadata: sch.ChatMetadata,
         redis_client_async: RedisAsync,
@@ -62,7 +62,7 @@ class ChatAgentSetup(AgentSetup):
         prompt_metadata_base: sch.PromptMetadataBase,
         chat_metadata: sch.ChatMetadata,
         redis_client_async: RedisAsync,
-        embedding_model_info: sch.AzureModelInfo,
+        embedding_model_info: sch.EmbeddingModelInfo,
     ):
         prompt_metadata = cls._load_from_prompt_metadata(prompt_metadata_base=prompt_metadata_base)
         cls.chat_metadata = chat_metadata

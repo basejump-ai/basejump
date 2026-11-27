@@ -288,7 +288,7 @@ async def index_chat_history(
     chat_history: list[sch.APIMessage],
     callback_manager: CallbackManager,
     vector_store: BasePydanticVectorStore,
-    embedding_model_info: sch.AzureModelInfo,
+    embedding_model_info: sch.EmbeddingModelInfo,
     verbose: bool = False,
 ) -> None:
     chat = await get_chat_from_id(db=db, chat_id=chat_id)

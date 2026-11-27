@@ -47,7 +47,7 @@ async def upload_sql_query_example(
 def index_database_docs(
     redis_client_async: RedisAsync,
     redis_client: redis.Redis,
-    embedding_model_info: sch.AzureModelInfo,
+    embedding_model_info: sch.EmbeddingModelInfo,
     file_path: str,
     client_id: int,
     db_uuid: uuid.UUID,
@@ -66,7 +66,7 @@ def index_database_docs(
 def index_docs(
     redis_client_async: RedisAsync,
     redis_client: redis.Redis,
-    embedding_model_info: sch.AzureModelInfo,
+    embedding_model_info: sch.EmbeddingModelInfo,
     file_path: str,
     index_name: str,
 ):

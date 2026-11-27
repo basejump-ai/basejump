@@ -324,8 +324,9 @@ class S3ResultStore(ResultStore):
         self.prefix = self.aws_s3_config.prefix
         self.bucket_name = self.aws_s3_config.bucket_name
         self.region = self.aws_s3_config.region
-        self.access_key_id = self.aws_s3_config.access_key
-        self.secret_access_key = self.aws_s3_config.secret_access_key
+        # Empty or missing keys fall back to the default boto3 credential chain (e.g. an ECS task role)
+        self.access_key_id = self.aws_s3_config.access_key or None
+        self.secret_access_key = self.aws_s3_config.secret_access_key or None
         self.s3_client = boto3.client(
             "s3",
             region_name=self.region,

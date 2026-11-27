@@ -16,6 +16,9 @@ from basejump.core.models import schemas as sch
 
 logger = set_logging(handler_option="stream", name=__name__)
 
+# Must match the hard-coded "dims" of the Redis vector index schemas
+EMBEDDING_DIMENSIONS = 1536
+
 
 class ReasoningOpenAIResponses(OpenAIResponses):
     """OpenAIResponses for reasoning models that reject sampling parameters.
@@ -47,28 +50,49 @@ class AICatalog:
         else:
             raise NotImplementedError("The provided LLM Info type has not been implemented.")
 
-    def get_embedding_model(self, model_info: sch.AzureModelInfo) -> BaseEmbedding:
+    def get_embedding_model(self, model_info: sch.EmbeddingModelInfo) -> BaseEmbedding:
         """
         The embedding model you want to use throughout the app.
-        Currently only AzureOpenAI embedding is supported.
+        Azure OpenAI and AWS Bedrock (Cohere Embed v4) embeddings are supported.
         """
         assert model_info.endpoint_info, "Missing endpoint info - the pydantic schema should be validating this"
-        return AzureOpenAIEmbedding(
-            model=model_info.model_name.value,
-            deployment_name=model_info.endpoint_info.deployment_name,
-            api_key=model_info.endpoint_info.api_key,
-            azure_endpoint=model_info.endpoint_info.endpoint,
-            api_version=model_info.api_version,
+        if isinstance(model_info, sch.AWSModelInfo):
+            return self.get_aws_embedding_model(model_info=model_info)
+        elif isinstance(model_info, sch.AzureModelInfo):
+            return AzureOpenAIEmbedding(
+                model=model_info.model_name.value,
+                deployment_name=model_info.endpoint_info.deployment_name,
+                api_key=model_info.endpoint_info.api_key,
+                azure_endpoint=model_info.endpoint_info.endpoint,
+                api_version=model_info.api_version,
+                callback_manager=self.callback_manager,
+            )
+        else:
+            raise NotImplementedError("The provided embedding model info type has not been implemented.")
+
+    def get_aws_embedding_model(self, model_info: sch.AWSModelInfo) -> BaseEmbedding:
+        """A Bedrock embedding model. Without static keys, the default boto3 credential chain is used."""
+        assert model_info.endpoint_info, "Missing endpoint info - the pydantic schema should be validating this"
+        # Imported here so deployments that only use Azure don't need the Bedrock embeddings package installed
+        from llama_index.embeddings.bedrock import BedrockEmbedding
+
+        return BedrockEmbedding(
+            model_name=model_info.model_id,
+            region_name=model_info.endpoint_info.deployment_region,
+            aws_access_key_id=model_info.endpoint_info.access_key or None,
+            aws_secret_access_key=model_info.endpoint_info.secret_access_key or None,
+            additional_kwargs={"output_dimension": EMBEDDING_DIMENSIONS},
             callback_manager=self.callback_manager,
         )
 
     def get_aws_llm(self, model_info: sch.AWSModelInfo) -> FunctionCallingLLM:
+        """A Bedrock LLM. Without static keys, the default boto3 credential chain is used."""
         assert model_info.endpoint_info, "Missing endpoint info - the pydantic schema should be validating this"
         return BedrockConverse(
-            model=model_info.model_name.value,
+            model=model_info.model_id,
             max_tokens=model_info.max_tokens,
-            aws_access_key_id=model_info.endpoint_info.access_key,
-            aws_secret_access_key=model_info.endpoint_info.secret_access_key,
+            aws_access_key_id=model_info.endpoint_info.access_key or None,
+            aws_secret_access_key=model_info.endpoint_info.secret_access_key or None,
             region_name=model_info.endpoint_info.deployment_region,
             callback_manager=self.callback_manager,
         )

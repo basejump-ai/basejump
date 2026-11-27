@@ -1,4 +1,5 @@
 import json
+import os
 import uuid
 
 from chat2plot import chat2plot as cp
@@ -18,7 +19,8 @@ from basejump.core.models.ai.catalog import AICatalog
 from basejump.core.service.agents.tools import utils as tool_utils
 from basejump.core.service.agents.tools.base import BaseTool
 
-bucket_name = "datasetsfromchat"
+# NOTE: Not currently used by this module: charts are stored as JSON in Postgres (VisualResultHistory)
+bucket_name = os.getenv("CHARTS_BUCKET_NAME", "datasetsfromchat")
 
 
 logger = set_logging(handler_option="stream", name=__name__)

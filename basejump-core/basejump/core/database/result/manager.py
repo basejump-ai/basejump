@@ -115,9 +115,10 @@ class S3ResultManager(ResultManager):
     async def aget_result(self, max_file_size: int = constants.MAX_FILE_SIZE) -> pd.DataFrame:
         """Retrieve the result from S3"""
         buffer = io.BytesIO()
+        # Static keys are optional: without them the default boto3 credential chain is used (e.g. an ECS task role)
+        aws_access_key_id = os.getenv("AWS_USER_ACCESS_KEY_ID") or None
+        aws_secret_access_key = os.getenv("AWS_USER_SECRET_ACCESS_KEY") or None
         try:
-            aws_access_key_id = os.environ["AWS_USER_ACCESS_KEY_ID"]
-            aws_secret_access_key = os.environ["AWS_USER_SECRET_ACCESS_KEY"]
             region_name = os.environ["AWS_REGION"]
         except KeyError as e:
             raise errors.MissingEnvironmentVariable(f"Missing an AWS credential environment variable: {str(e)}")
@@ -155,8 +156,8 @@ class S3ResultManager(ResultManager):
     async def adelete_result(self):
         s3_key, bucket_name = self.get_s3_info_from_filepath()
         session = aioboto3.Session(
-            aws_access_key_id=self.aws_s3_config.access_key,
-            aws_secret_access_key=self.aws_s3_config.secret_access_key,
+            aws_access_key_id=self.aws_s3_config.access_key or None,
+            aws_secret_access_key=self.aws_s3_config.secret_access_key or None,
             region_name=self.aws_s3_config.region,
         )
         async with session.client("s3") as s3_client:
