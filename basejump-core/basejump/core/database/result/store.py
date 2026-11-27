@@ -12,6 +12,7 @@ from uuid import UUID
 import boto3
 import sqlalchemy as sa
 from botocore.exceptions import ClientError
+from llama_index.core.callbacks import CallbackManager
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.result import manager
@@ -74,6 +75,7 @@ class ResultStore(ABC):
         small_model_info: sch.ModelInfo,
         initial_prompt: str,
         sql_query: str,
+        callback_manager: Optional[CallbackManager] = None,
     ):
         pass
 
@@ -147,7 +149,12 @@ class ResultStore(ABC):
         )
 
     def get_metric_value(
-        self, small_model_info: sch.ModelInfo, initial_prompt: str, sql_query: str, buffer: io.BytesIO
+        self,
+        small_model_info: sch.ModelInfo,
+        initial_prompt: str,
+        sql_query: str,
+        buffer: io.BytesIO,
+        callback_manager: Optional[CallbackManager] = None,
     ):
         # Get the metric values
         # TODO: Possibly stop saving metrics in S3 since we're saving them in ResultHistory now
@@ -168,7 +175,10 @@ SQL Query: {sql_query}\n
 Metric Value: {self.metric_value}\n
 """
         format_json_response = formatter.JSONResponseFormatter(
-            small_model_info=small_model_info, response=prompt, pydantic_format=fmt.FormattedMetric
+            small_model_info=small_model_info,
+            response=prompt,
+            pydantic_format=fmt.FormattedMetric,
+            callback_manager=callback_manager,
         )
         extract = format_json_response.format_sync()
         self.metric_value = str(extract.metric_value)
@@ -217,6 +227,7 @@ class LocalResultStore(ResultStore):
         small_model_info: sch.ModelInfo,
         initial_prompt: str,
         sql_query: str,
+        callback_manager: Optional[CallbackManager] = None,
     ) -> sch.QueryResult:
         # HACK: Really just need a new result store per query instead
         super().reset()
@@ -255,7 +266,11 @@ class LocalResultStore(ResultStore):
         # If exactly one row, compute metric as before
         if self.counter == 1:
             self.get_metric_value(
-                small_model_info=small_model_info, initial_prompt=initial_prompt, sql_query=sql_query, buffer=buffer
+                small_model_info=small_model_info,
+                initial_prompt=initial_prompt,
+                sql_query=sql_query,
+                buffer=buffer,
+                callback_manager=callback_manager,
             )
 
         # Save the preview
@@ -324,8 +339,9 @@ class S3ResultStore(ResultStore):
         self.prefix = self.aws_s3_config.prefix
         self.bucket_name = self.aws_s3_config.bucket_name
         self.region = self.aws_s3_config.region
-        self.access_key_id = self.aws_s3_config.access_key
-        self.secret_access_key = self.aws_s3_config.secret_access_key
+        # Empty or missing keys fall back to the default boto3 credential chain (e.g. an ECS task role)
+        self.access_key_id = self.aws_s3_config.access_key or None
+        self.secret_access_key = self.aws_s3_config.secret_access_key or None
         self.s3_client = boto3.client(
             "s3",
             region_name=self.region,
@@ -383,6 +399,7 @@ class S3ResultStore(ResultStore):
         small_model_info: sch.ModelInfo,
         initial_prompt: str,
         sql_query: str,
+        callback_manager: Optional[CallbackManager] = None,
     ) -> sch.QueryResult:
         super().reset()
         logger.info("Uploading result_uuid to S3: %s", str(file_info.result_uuid))
@@ -434,7 +451,11 @@ class S3ResultStore(ResultStore):
             )
         if self.counter == 1:
             self.get_metric_value(
-                small_model_info=small_model_info, initial_prompt=initial_prompt, sql_query=sql_query, buffer=buffer
+                small_model_info=small_model_info,
+                initial_prompt=initial_prompt,
+                sql_query=sql_query,
+                buffer=buffer,
+                callback_manager=callback_manager,
             )
         if self.current_file_size == 0:
             file_size_est = f"<{round(self.chunk_size / (1024 * 1024), 2)}"

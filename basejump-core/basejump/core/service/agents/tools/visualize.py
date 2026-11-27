@@ -1,4 +1,5 @@
 import json
+import os
 import uuid
 
 from chat2plot import chat2plot as cp
@@ -18,7 +19,8 @@ from basejump.core.models.ai.catalog import AICatalog
 from basejump.core.service.agents.tools import utils as tool_utils
 from basejump.core.service.agents.tools.base import BaseTool
 
-bucket_name = "datasetsfromchat"
+# NOTE: Not currently used by this module: charts are stored as JSON in Postgres (VisualResultHistory)
+bucket_name = os.getenv("CHARTS_BUCKET_NAME", "datasetsfromchat")
 
 
 logger = set_logging(handler_option="stream", name=__name__)
@@ -72,10 +74,12 @@ shown to the user to provide more insight into their data.""",
         ]
 
         # Build index
-        # TODO: Add a callback manager to track token usage
-        ai_catalog = AICatalog()
+        # Reuse the LLM's callback manager, which is scoped to the conversation, to record the embeddings
+        ai_catalog = AICatalog(callback_manager=self.llm.callback_manager)
         embed_model = ai_catalog.get_embedding_model(model_info=self.service_context.embedding_model_info)
-        index = VectorStoreIndex.from_documents(documents, embed_model=embed_model)
+        index = VectorStoreIndex.from_documents(
+            documents, embed_model=embed_model, callback_manager=embed_model.callback_manager
+        )
 
         # Configure retriever
         retriever = VectorIndexRetriever(index=index, similarity_top_k=1)  # Set to 1 to get the most similar result

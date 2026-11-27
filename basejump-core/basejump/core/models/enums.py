@@ -171,10 +171,14 @@ class AIModelSchema(StrEnum):
     # AWS Anthropic
     SONNET35 = "us.anthropic.claude-3-5-sonnet-20241022-v2:0"
     SONNET37 = "us.anthropic.claude-3-7-sonnet-20250219-v1:0"
+    # AWS Bedrock OpenAI open-weight models (value is the Bedrock model ID, called on-demand)
+    GPT_OSS_120B = "openai.gpt-oss-120b-1:0"
     # Azure OpenAI Embedding Models
     ADA = "text-embedding-ada-002"
     ADA3_LARGE = "text-embedding-3-large"
     ADA3_SMALL = "text-embedding-3-small"
+    # AWS Bedrock Cohere Embedding Models (value is the Bedrock inference profile ID, the bare ID is refused)
+    COHERE_EMBED_V4 = "us.cohere.embed-v4:0"
 
 
 class AIModelSchemaClientOptions(StrEnum):
@@ -227,12 +231,18 @@ class DefaultTokenPrices(Enum):
     GPT41_output = Decimal(0.008)
     GPT4o_input = Decimal(0.005)
     GPT4o_output = Decimal(0.015)
+    # AWS Bedrock LLM. Default used when BASEJUMP_BEDROCK_LLM_*_PRICE_PER_1K isn't set (estimate of the on-demand
+    # list price per 1k tokens; set the real price in the deployment's settings)
+    GPT_OSS_120B_input = Decimal("0.00015")
+    GPT_OSS_120B_output = Decimal("0.0006")
     # Groq LLM
     GROQ_70B_llama_input = Decimal(0.59 / 1000)
     GROQ_70B_llama_output = Decimal(0.79 / 1000)
     # Azure OpenAI Embedding models
     ADA = Decimal(0.0001)
     ADA3_SMALL = Decimal(0.000022)
+    # AWS Bedrock embedding model. Default used when BASEJUMP_BEDROCK_EMBEDDING_PRICE_PER_1K isn't set
+    COHERE_EMBED_V4 = Decimal("0.00012")
 
 
 class AIModelType(StrEnum):

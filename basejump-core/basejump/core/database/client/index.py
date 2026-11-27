@@ -31,7 +31,7 @@ class DBTableIndexer:
         client_id: int,
         client_uuid: uuid.UUID,
         db_uuid: uuid.UUID,
-        embedding_model_info: sch.AzureModelInfo,
+        embedding_model_info: sch.EmbeddingModelInfo,
         index_name: Optional[str] = None,
         vector_uuid: Optional[uuid.UUID] = None,
         vector_database_vendor: enums.VectorVendorType = enums.VectorVendorType.REDIS,  # noqa
@@ -217,7 +217,7 @@ async def reindex_db(
     index_name: str,
     redis_client_async: RedisAsync,
     small_model_info: sch.ModelInfo,
-    embedding_model_info: sch.AzureModelInfo,
+    embedding_model_info: sch.EmbeddingModelInfo,
     sql_engine: AsyncEngine,
 ) -> sch.IndexedTables:
     try:

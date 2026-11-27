@@ -92,7 +92,7 @@ async def setup_db(
     client_user: sch.ClientUserInfo,
     conn_params: sch.SQLDBSchema,
     redis_client_async: RedisAsync,  # TODO: Looks like this can be removed
-    embedding_model_info: sch.AzureModelInfo,
+    embedding_model_info: sch.EmbeddingModelInfo,
     db_uuid: Optional[uuid.UUID] = None,
     verify_conn: bool = True,
 ) -> tuple[sch.SQLConn, DBTableIndexer]:

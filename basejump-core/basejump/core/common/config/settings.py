@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import Optional
 
 from pydantic import SecretStr
@@ -23,6 +24,11 @@ class Settings(BaseSettings):
     # Vector database
     redis_host: str = "localhost"
     redis_port: int = 6379
+    # Token prices in USD per 1,000 tokens for models served by Amazon Bedrock. They decide what usage is recorded
+    # as costing. When one is unset, a default price is used and a warning is logged (see models/ai/token_price.py).
+    bedrock_llm_input_price_per_1k: Optional[Decimal] = None
+    bedrock_llm_output_price_per_1k: Optional[Decimal] = None
+    bedrock_embedding_price_per_1k: Optional[Decimal] = None
 
     model_config = settings_config
 

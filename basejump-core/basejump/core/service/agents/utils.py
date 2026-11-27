@@ -2,7 +2,9 @@
 
 import re
 from datetime import datetime
+from typing import Optional
 
+from llama_index.core.callbacks import CallbackManager
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from basejump.core.common.config.logconfig import set_logging
@@ -59,7 +61,10 @@ SQL Query: {sql_query}\n
 SQL Results: {query_result}\n
     """
     format_json_response = JSONResponseFormatter(
-        response=prompt, pydantic_format=fmt.DescriptionFormat, small_model_info=small_model_info
+        response=prompt,
+        pydantic_format=fmt.DescriptionFormat,
+        small_model_info=small_model_info,
+        callback_manager=prompt_metadata.callback_manager,
     )
     return await format_json_response.format()
 
@@ -67,6 +72,7 @@ SQL Results: {query_result}\n
 async def contextualize_prompt(
     recent_interactions: list[sch.MessagePair],
     small_model_info: sch.ModelInfo,
+    callback_manager: Optional[CallbackManager] = None,
 ) -> str:
     """Condense multiple prompts into a single contextualized prompt
 
@@ -75,6 +81,8 @@ async def contextualize_prompt(
     recent_interactions
         If provided, this will summarize the most recent interactions into a
         single prompt for semantic caching retrieval.
+    callback_manager
+        If provided, the LLM call is recorded by this callback manager's token counter.
     """
     interactions = ""
     for message in recent_interactions:
@@ -89,6 +97,7 @@ async def contextualize_prompt(
         small_model_info=small_model_info,
         response=interactions,
         pydantic_format=fmt.ContextualizedPromptFormat,
+        callback_manager=callback_manager,
     )
     extract = await format_json_response.format()
     prompt = extract.full_context_prompt

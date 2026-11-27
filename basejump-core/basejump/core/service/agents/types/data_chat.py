@@ -255,6 +255,7 @@ will be ignored; using memory's chat history instead."""
                 service_context=self.service_context,
                 client_user=client_user,
                 visual_result=visual_result,
+                callback_manager=self.prompt_metadata.callback_manager,
             )
             assert query_result.message_query_result, "Need query result"
             self.memory.query_result = query_result.message_query_result

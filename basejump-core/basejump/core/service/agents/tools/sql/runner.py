@@ -353,6 +353,7 @@ Connection timed out. Please try again."""
             client_id=self.prompt_metadata.client_id,
             small_model_info=self.service_context.small_model_info,
             result_store=self.result_store,
+            callback_manager=self.prompt_metadata.callback_manager,
         ) as query_recorder:
             logger.info(running_query_msg)
             query_result = await query_recorder.astore_query_result()

@@ -123,6 +123,8 @@ class AgentMemory(SimpleAgentMemory):
         vector_memory = VectorMemory.from_defaults(
             vector_store=vector_store,
             embed_model=embed_model,
+            # NOTE: Without this, the index replaces the embed model's callback manager with the global one
+            index_kwargs={"callback_manager": self.prompt_metadata.callback_manager},
             retriever_kwargs={"similarity_top_k": TOP_K, "filters": filters},
         )
         system_prompt = system_prompt or prompts.get_system_prompt(team_info=team_info)

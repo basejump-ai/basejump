@@ -4,6 +4,7 @@ from functools import cached_property
 from typing import Optional
 
 import sqlalchemy as sa
+from llama_index.core.callbacks import CallbackManager
 
 from basejump.core.common.config.logconfig import set_logging
 from basejump.core.database.connector import POOL_TIMEOUT, Connector
@@ -109,8 +110,11 @@ class ClientQueryRecorder(ClientQueryRunner):
         result_store: store.ResultStore,
         client_conn_params: sch.SQLDBSchema,
         sql_query: str,
+        callback_manager: Optional[CallbackManager] = None,
     ):
         super().__init__(sql_query=sql_query, client_conn_params=client_conn_params)
+        # The conversation's callback manager, so the metric formatting LLM call is recorded
+        self.callback_manager = callback_manager
         self.client_id = client_id
         self.initial_prompt = initial_prompt
         self.small_model_info = small_model_info
@@ -131,6 +135,7 @@ class ClientQueryRecorder(ClientQueryRunner):
                         initial_prompt=self.initial_prompt,
                         sql_query=self.sql_query,
                         file_info=self.result_store.get_file_info(result_uuid=uuid.uuid4()),
+                        callback_manager=self.callback_manager,
                     )
             except Exception as e:
                 logger.error("Error running client sql query and storing results: %s", str(e))

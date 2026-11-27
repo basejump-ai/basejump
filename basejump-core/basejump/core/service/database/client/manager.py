@@ -30,7 +30,7 @@ class DBManager:
         client_user: sch.ClientUserInfo,
         db_id: int,
         db_uuid: uuid.UUID,
-        embedding_model_info: sch.AzureModelInfo,
+        embedding_model_info: sch.EmbeddingModelInfo,
         small_model_info: sch.ModelInfo,
         redis_client_async: RedisAsync,
         sql_engine: AsyncEngine,
