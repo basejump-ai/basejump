@@ -231,17 +231,18 @@ class DefaultTokenPrices(Enum):
     GPT41_output = Decimal(0.008)
     GPT4o_input = Decimal(0.005)
     GPT4o_output = Decimal(0.015)
-    # AWS Bedrock LLM (on-demand list price per 1k tokens, TODO: confirm against the AWS bill)
-    GPT_OSS_120B_input = Decimal(0.00015)
-    GPT_OSS_120B_output = Decimal(0.0006)
+    # AWS Bedrock LLM. Default used when BASEJUMP_BEDROCK_LLM_*_PRICE_PER_1K isn't set (estimate of the on-demand
+    # list price per 1k tokens; set the real price in the deployment's settings)
+    GPT_OSS_120B_input = Decimal("0.00015")
+    GPT_OSS_120B_output = Decimal("0.0006")
     # Groq LLM
     GROQ_70B_llama_input = Decimal(0.59 / 1000)
     GROQ_70B_llama_output = Decimal(0.79 / 1000)
     # Azure OpenAI Embedding models
     ADA = Decimal(0.0001)
     ADA3_SMALL = Decimal(0.000022)
-    # AWS Bedrock Embedding models (on-demand list price per 1k tokens, TODO: confirm against the AWS bill)
-    COHERE_EMBED_V4 = Decimal(0.00012)
+    # AWS Bedrock embedding model. Default used when BASEJUMP_BEDROCK_EMBEDDING_PRICE_PER_1K isn't set
+    COHERE_EMBED_V4 = Decimal("0.00012")
 
 
 class AIModelType(StrEnum):
