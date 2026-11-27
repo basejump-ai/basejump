@@ -74,10 +74,12 @@ shown to the user to provide more insight into their data.""",
         ]
 
         # Build index
-        # TODO: Add a callback manager to track token usage
-        ai_catalog = AICatalog()
+        # Reuse the LLM's callback manager, which is scoped to the conversation, to record the embeddings
+        ai_catalog = AICatalog(callback_manager=self.llm.callback_manager)
         embed_model = ai_catalog.get_embedding_model(model_info=self.service_context.embedding_model_info)
-        index = VectorStoreIndex.from_documents(documents, embed_model=embed_model)
+        index = VectorStoreIndex.from_documents(
+            documents, embed_model=embed_model, callback_manager=embed_model.callback_manager
+        )
 
         # Configure retriever
         retriever = VectorIndexRetriever(index=index, similarity_top_k=1)  # Set to 1 to get the most similar result

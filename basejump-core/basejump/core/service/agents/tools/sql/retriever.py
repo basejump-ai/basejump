@@ -120,7 +120,8 @@ Here is a description of the SQL database connection: """
         vector_db = await crud_connection.get_vector_connection_from_id(db=self.db, vector_id=vector_id)
         # Initialize the environment
         vector_schema = sch.VectorDBSchema.model_validate(vector_db)
-        ai_catalog = AICatalog()
+        # The callback manager records the query embeddings made when retrieving tables
+        ai_catalog = AICatalog(callback_manager=self.prompt_metadata.callback_manager)
         embed_model = ai_catalog.get_embedding_model(model_info=self.service_context.embedding_model_info)
         table_index = get_vector_idx(
             client_id=client_id,
@@ -189,8 +190,7 @@ Here is a description of the SQL database connection: """
 
     async def use_sub_questions(self, prompt) -> list:
         # Ask the agent to classify the prompt
-        # TODO: Add a callback manager to track token usage here
-        ai_catalog = AICatalog()
+        ai_catalog = AICatalog(callback_manager=self.prompt_metadata.callback_manager)
         llm = ai_catalog.get_llm(model_info=self.service_context.large_model_info)
         agent = SimpleChatEngine.from_defaults(llm=llm)
         agent_prompt = f"""\

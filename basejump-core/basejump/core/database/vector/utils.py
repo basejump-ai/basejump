@@ -144,7 +144,11 @@ def get_redis_index(
     vector_store = get_redis_vector_store(
         index_name=index_name, redis_client_async=redis_client_async, redis_client=redis_client, overwrite=overwrite
     )
-    vector_index = VectorStoreIndex.from_vector_store(vector_store=vector_store, embed_model=embed_model)
+    # NOTE: An index sets its callback manager on the embed model (the global Settings one when none is passed),
+    # so the embed model's own callback manager is passed in to keep its token usage recorded
+    vector_index = VectorStoreIndex.from_vector_store(
+        vector_store=vector_store, embed_model=embed_model, callback_manager=embed_model.callback_manager
+    )
     return vector_index
 
 
@@ -169,6 +173,7 @@ def get_vector_idx(
         index_struct=base_index.index_struct,
         embed_model=embed_model,
         storage_context=base_index.storage_context,
+        callback_manager=embed_model.callback_manager,
     )
     return vector_index
 

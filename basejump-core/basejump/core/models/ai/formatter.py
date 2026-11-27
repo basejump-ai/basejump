@@ -2,6 +2,7 @@ import copy
 from typing import Optional, Type
 
 from llama_index.core import ChatPromptTemplate
+from llama_index.core.callbacks import CallbackManager
 from llama_index.core.llms import LLM, ChatMessage
 from llama_index.core.program import FunctionCallingProgram
 from pydantic import BaseModel
@@ -21,12 +22,21 @@ class JSONResponseFormatter:
         small_model_info: sch.ModelInfo,
         max_tokens: int = 500,
         llm: Optional[LLM] = None,
+        callback_manager: Optional[CallbackManager] = None,
     ):
+        """
+        Parameters
+        ----------
+        callback_manager
+            The conversation's callback manager, so the formatting LLM's token usage is recorded. Only used when
+            no llm is passed in; a passed in llm reports to its own callback manager.
+        """
         self.response = response
         self.pydantic_format = pydantic_format
         self.max_tokens = max_tokens
         self.llm = llm
         self.small_model_info = small_model_info
+        self.callback_manager = callback_manager
 
     @property
     def feedback_template(self):
@@ -47,7 +57,7 @@ class JSONResponseFormatter:
         if not self.llm:
             my_small_model_info = copy.deepcopy(self.small_model_info)
             my_small_model_info.max_tokens = self.max_tokens
-            ai_catalog = AICatalog()
+            ai_catalog = AICatalog(callback_manager=self.callback_manager)
             self.llm = ai_catalog.get_llm(model_info=my_small_model_info)
         program = FunctionCallingProgram.from_defaults(
             output_cls=self.pydantic_format,
@@ -76,6 +86,7 @@ class DateFormatter(JSONResponseFormatter):
         small_model_info: sch.ModelInfo,
         max_tokens: int = 500,
         llm: Optional[LLM] = None,
+        callback_manager: Optional[CallbackManager] = None,
     ):
         super().__init__(
             response=response,
@@ -83,6 +94,7 @@ class DateFormatter(JSONResponseFormatter):
             max_tokens=max_tokens,
             small_model_info=small_model_info,
             llm=llm,
+            callback_manager=callback_manager,
         )
 
     @property

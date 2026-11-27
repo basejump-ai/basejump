@@ -76,7 +76,7 @@ to the organization in charge of the database.""",
             msg_type=enums.MessageType.THOUGHT,
         )
         await handler.send_api_message()
-        ai_catalog = AICatalog()
+        ai_catalog = AICatalog(callback_manager=self.prompt_metadata.callback_manager)
         embed_model = ai_catalog.get_embedding_model(model_info=self.service_context.embedding_model_info)
         index_name = vector_utils.get_docs_index_name(client_id=self.client_id, db_uuid=self.db_uuid)
         vector_index = vector_utils.get_redis_index(
