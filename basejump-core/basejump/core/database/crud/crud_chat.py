@@ -312,6 +312,8 @@ async def index_chat_history(
     vector_memory = VectorMemory.from_defaults(
         vector_store=vector_store,
         embed_model=ai_catalog.get_embedding_model(model_info=embedding_model_info),
+        # NOTE: Without this, the index replaces the embed model's callback manager with the global one
+        index_kwargs={"callback_manager": callback_manager},
     )
     if verbose:
         logger.debug("Using the following chat_uuid %s", chat_uuid)

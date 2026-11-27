@@ -3,6 +3,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
+from llama_index.core.callbacks import CallbackManager
 from llama_index.core.llms.function_calling import FunctionCallingLLM
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,6 +28,7 @@ async def refresh_result(
     result: models.ResultHistory,
     # HACK: Fix this
     commit: bool = True,
+    callback_manager: Optional[CallbackManager] = None,
 ) -> Optional[models.ResultHistory]:
     db_conn = await crud_connection.get_db_conn_from_id(db=db, conn_id=result.result_conn_id)
     if not db_conn:
@@ -44,6 +46,7 @@ async def refresh_result(
         client_id=client_user.client_id,
         small_model_info=service_context.small_model_info,
         result_store=result_store,
+        callback_manager=callback_manager,
     ) as query_recorder:
         query_result = await query_recorder.astore_query_result()
     # Update record
@@ -116,6 +119,7 @@ async def refresh_results(
     service_context: sch.ServiceContext,
     client_user: sch.ClientUserInfo,
     visual_result: Optional[models.VisualResultHistory] = None,
+    callback_manager: Optional[CallbackManager] = None,
 ) -> sch.QueryResult:
     """Refreshes results for both visual and SQL sources"""
     await refresh_result(
@@ -125,6 +129,7 @@ async def refresh_results(
         service_context=service_context,
         client_user=client_user,
         commit=False,
+        callback_manager=callback_manager,
     )
     result_manager = result_store.get_result_manager(result.result_file_path)
     file_gen_func = result_manager.get_stream_result_generator()
